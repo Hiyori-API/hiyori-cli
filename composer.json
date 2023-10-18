@@ -1,0 +1,24 @@
+{
+    "name": "hiyori/cli",
+    "description": "Relational Anime and Manga Database",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Hiyori\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "nekomata"
+        }
+    ],
+    "require": {
+        "jms/serializer": "^3.28",
+        "mongodb/mongodb": "^1.15",
+        "symfony/http-client": "^6.3",
+        "symfony/console": "^6.3",
+        "symfony/lock": "^6.3",
+        "symfony/config": "^6.3"
+    }
+}
