@@ -72,6 +72,7 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 - [ ] Resumable Support
 - [ ] Logging
 - [ ] Tests
+- [ ] Package Sources instead (Symfony Services/Containers perhaps)
 
 ### Feature
 - [ ] Manga Relational DB
