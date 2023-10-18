@@ -8,6 +8,8 @@ This metadata is stored in MongoDB. When other source processes are run, then it
 Hiyori also collects relational mappings from other sources (if available) and uses that to populate `references` in the schema.
 Supported references have parsers and are able to extract the ID of the entry for that source and store them in `reference_ids`.
 
+WIP. 🚧
+
 ## Installation
 1. Install PHP8.1+, MongoDB, MongoDB PHP Driver, Composer
 3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
@@ -62,7 +64,7 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 | Wikipedia Japanese | `wp_jp`                 |
 
 ## Roadmap
-Right now the main focus will be to integrate the initial 3 sources and build a relational Anime DB.
+Right now the main focus will be to integrate the initial 3 sources and build a relational Anime metadata DB.
 
 ### QOL
 - [ ] Allow to update entry (if it exists) instead of skipping during ingestion
@@ -79,6 +81,9 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 - [ ] Kitsu Integration via REST API
 - [ ] AniList Integration via REST API
 
+## FAQ
+**Why does Hiyori Schema consist of metadata?**
+In the event an entry from a source does not contain relational IDs or mapping provided by sources, the metadata will be used to find the relation instead.
 
 ## WIP
-This is work in progress.
+This is a work in progress.
