@@ -8,6 +8,20 @@ This metadata is stored in MongoDB. When other source processes are run, then it
 Hiyori also collects relational mappings from other sources (if available) and uses that to populate `references` in the schema.
 Supported references have parsers and are able to extract the ID of the entry for that source and store them in `reference_ids`.
 
+## Installation
+1. Install PHP8.1+, MongoDB, MongoDB PHP Driver, Composer
+3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
+4. `cd hiyori-cli && composer install`
+5. Run commands
+
+## Usage
+![image](https://github.com/Hiyori-API/hiyori-cli/assets/9166451/8357ef11-22fd-4492-93c4-737648ece7d7)
+
+### MyAnimeList Ingestion
+```sh
+php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion
+```
+
 ## Hiyori Schema
 Common data with different representations like status (MAL: "Finished Airing", Anilist: "Finished") are transformed into a common value via Hiyori's Enums.
 
@@ -51,6 +65,7 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 Right now the main focus will be to integrate the initial 3 sources and build a relational Anime DB.
 
 ### QOL
+- [ ] Allow to update entry (if it exists) instead of skipping during ingestion
 - [ ] Environment variables
 - [ ] Resumable Support
 - [ ] Logging
