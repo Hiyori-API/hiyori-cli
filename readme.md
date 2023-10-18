@@ -21,8 +21,9 @@ WIP. 🚧
 
 ### MyAnimeList Ingestion
 ```sh
-php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion
+php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion --delay 1
 ```
+It's recommended to keep a 1-second delay between requests for the MyAnimeList source.
 
 ## Hiyori Schema
 Common data with different representations like status (MAL: "Finished Airing", Anilist: "Finished") are transformed into a common value via Hiyori's Enums.
@@ -85,6 +86,7 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 ## FAQ
 **Why does Hiyori Schema consist of metadata?**
 In the event an entry from a source does not contain relational IDs or mapping provided by sources, the metadata will be used to find the relation instead.
+ 
 
 ## WIP
 This is a work in progress.
