@@ -2,8 +2,10 @@
 Hiyori CLI is being developed to create and maintain [HiyoriDB](https://github.com/Hiyori-API/HiyoriDB) — a relational Anime and Manga Database.
 
 ## Process
-Hiyori CLI works by crawling sources, parsing the data, and transforming them into the Hiyori Schema which contains combined metadata gathered from sources.
-This metadata is stored in MongoDB. When other source processes are run, then it focuses on updating the metadata with missing information.
+Hiyori CLI works by 
+Hiyori CLI has two main primary functions.
+1. Ingesting transformed data based on the Hiyori Schema ingested from available sources
+2. Combining the ingested data into HiyoriDB
 
 Hiyori also collects relational mappings from other sources (if available) and uses that to populate `references` in the schema.
 Supported references have parsers and are able to extract the ID of the entry for that source and store them in `reference_ids`.
@@ -19,10 +21,18 @@ WIP. 🚧
 ## Usage
 ![image](https://github.com/Hiyori-API/hiyori-cli/assets/9166451/8357ef11-22fd-4492-93c4-737648ece7d7)
 
-### MyAnimeList Ingestion
+### Available Sources
+
+#### MyAnimeList Ingestion
 ```sh
 php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion --delay 1
 ```
+
+#### Kitsu Ingestion
+```sh
+php src/run.php indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+```
+
 It's recommended to keep a 1-second delay between requests for the MyAnimeList source.
 
 ## Hiyori Schema
@@ -53,16 +63,20 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 
 | Reference          | Shorthand (as returned) |
 |--------------------|-------------------------|
-| AniDB              | `anidb`                 |
+| Amazon Prime       | `ap`                    |
+| AniDB              | `adb`                   |
+| AniList            | `al`                    |
 | AnimeNewsNetwork   | `ann`                   |
 | Crunchyroll        | `cr`                    |
 | Funimation         | `fm`                    |
+| Kitsu              | `k`                     |
 | MyAnimeList        | `mal`                   |
 | Netflix            | `nf`                    |
 | Syoboi             | `sb`                    |
+| Trakt              | `t`                     |
 | TubiTV             | `ttv`                   |
-| Wikipedia English  | `wp_en`                 |
-| Wikipedia Japanese | `wp_jp`                 |
+| Wikipedia English  | `wpen`                  |
+| Wikipedia Japanese | `wpjp`                  |
 
 ## Roadmap
 Right now the main focus will be to integrate the initial 3 sources and build a relational Anime metadata DB.
