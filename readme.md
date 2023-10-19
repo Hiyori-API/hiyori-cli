@@ -2,7 +2,6 @@
 Hiyori CLI is being developed to create and maintain [HiyoriDB](https://github.com/Hiyori-API/HiyoriDB) — a relational Anime and Manga Database.
 
 ## Process
-Hiyori CLI works by 
 Hiyori CLI has two main primary functions.
 1. Ingesting transformed data based on the Hiyori Schema ingested from available sources
 2. Combining the ingested data into HiyoriDB
