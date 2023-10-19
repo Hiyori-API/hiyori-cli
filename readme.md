@@ -11,6 +11,8 @@ Supported references have parsers and are able to extract the ID of the entry fo
 
 WIP. 🚧
 
+---
+
 ## Installation
 1. Install PHP8.1+, MongoDB, MongoDB PHP Driver, Composer
 3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
@@ -20,7 +22,7 @@ WIP. 🚧
 ## Usage
 ![image](https://github.com/Hiyori-API/hiyori-cli/assets/9166451/8357ef11-22fd-4492-93c4-737648ece7d7)
 
-### Available Sources
+### Ingestion
 
 #### MyAnimeList Ingestion
 ```sh
@@ -32,7 +34,17 @@ php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion
 php src/run.php indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
 ```
 
+#### AniList Ingestion
+```sh
+php src/run.php indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+```
+
 It's recommended to keep a 1-second delay between requests for the MyAnimeList source.
+
+### Combiner
+🚧 WIP
+
+---
 
 ## Hiyori Schema
 Common data with different representations like status (MAL: "Finished Airing", Anilist: "Finished") are transformed into a common value via Hiyori's Enums.
@@ -56,6 +68,8 @@ Common data with different representations like status (MAL: "Finished Airing", 
 ### Manga
 TBD.
 
+---
+
 ### Supported References
 
 The following URL type, if detected in an entry's `references`, will be parsed.
@@ -77,24 +91,29 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 | Wikipedia English  | `wpen`                  |
 | Wikipedia Japanese | `wpjp`                  |
 
+---
+
 ## Roadmap
 Right now the main focus will be to integrate the initial 3 sources and build a relational Anime metadata DB.
 
 ### QOL
 - [ ] Allow to update entry (if it exists) instead of skipping during ingestion
 - [ ] Environment variables
-- [ ] Resumable Support
 - [ ] Logging
 - [ ] Tests
-- [ ] Package Sources instead (Symfony Services/Containers perhaps)
-- [ ] Caching
+- [ ] Sweepers
 
 ### Feature
 - [ ] Manga Relational DB
+- [ ] Resumable Support
+- [ ] Package Sources instead (Symfony Services/Containers perhaps)
+- [ ] Caching
+- [ ] Dependency Injection
+
 
 ### Sources
 - [x] MyAnimeList Integration via REST API
-- [ ] Kitsu Integration via REST API
+- [x] Kitsu Integration via REST API
 - [ ] AniList Integration via REST API
 
 ## FAQ
@@ -103,4 +122,9 @@ In the event an entry from a source does not contain relational IDs or mapping p
  
 
 ## WIP
-This is a work in progress.
+This is a work in progress. 
+
+
+# Disclaimer
+- Hiyori is not affiliated with any sources
+- You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources
