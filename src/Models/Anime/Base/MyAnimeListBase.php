@@ -8,6 +8,7 @@ use Hiyori\Models\Anime\Status;
 use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
+use Hiyori\Models\Common\MyAnimeListTitle;
 use Hiyori\Models\Common\Title;
 
 class MyAnimeListBase extends Base
@@ -16,7 +17,7 @@ class MyAnimeListBase extends Base
     {
         $self = new self;
 
-        $titles = new Title($json['title'], $json['titles']);
+        $titles = new MyAnimeListTitle($json['title'], $json['titles']);
         $self->title = $titles->getDefault();
         $self->synonyms = $titles->getSynonyms();
         $self->type = Type::fromString(Helper::prepareAsIdentifer($json['type']))->value;
