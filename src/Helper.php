@@ -2,6 +2,8 @@
 
 namespace Hiyori;
 
+use Hiyori\Models\Anime\Season;
+
 class Helper
 {
     public static function cleanse(string $string): string
@@ -20,4 +22,5 @@ class Helper
     {
         return json_decode($json, true);
     }
+
 }

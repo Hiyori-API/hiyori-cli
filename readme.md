@@ -74,6 +74,7 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 - [ ] Logging
 - [ ] Tests
 - [ ] Package Sources instead (Symfony Services/Containers perhaps)
+- [ ] Caching
 
 ### Feature
 - [ ] Manga Relational DB

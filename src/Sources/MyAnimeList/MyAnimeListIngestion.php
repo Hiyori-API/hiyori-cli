@@ -3,7 +3,7 @@
 namespace Hiyori\Sources\MyAnimeList;
 
 use Hiyori\Helper;
-use Hiyori\Models\Anime\Base as AnimeBaseModel;
+use Hiyori\Models\Common\Base as AnimeBaseModel;
 use Hiyori\Sources\SourceConfiguration;
 use MongoDB\InsertOneResult;
 
@@ -40,7 +40,7 @@ class MyAnimeListIngestion
                     continue;
                 }
 
-//                sleep($this->config->input->getOption('delay'));
+                sleep($this->config->input->getOption('delay'));
 
                 try {
                     $listItemData = MyAnimeListEntry::create($listItem['mal_id']);
@@ -54,7 +54,7 @@ class MyAnimeListIngestion
             }
 
             $this->meta->incrementCurrentPage();
-//            sleep($this->config->input->getOption('delay'));
+            sleep($this->config->input->getOption('delay'));
         }
 
         $progressBar->finish();
