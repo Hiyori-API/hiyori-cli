@@ -10,6 +10,23 @@ class Identifiers
 
     public const PATTERN = "";
 
+    private const availableIdentifiers = [
+        AmazonPrime::class,
+        AniDB::class,
+        AniList::class,
+        AnimeNewsNetwork::class,
+        Crunchyroll::class,
+        Funimation::class,
+        Kitsu::class,
+        MyAnimeList::class,
+        Netflix::class,
+        Syoboi::class,
+        Trakt::class,
+        TubiTV::class,
+        WikipediaEN::class,
+        WikipediaJA::class
+    ];
+
     /**
      * @param array $links
      */
@@ -17,6 +34,21 @@ class Identifiers
     {
         $this->links = $links;
     }
+
+    public static function pairsToLinks(array $pairs = []): array
+    {
+        $links = [];
+        foreach ($pairs as $source) {
+            foreach (self::availableIdentifiers as $identifier) {
+                if (str_contains($identifier::ENTRY_URL, $source[0])) {
+                    $links[] = sprintf($identifier::ENTRY_URL, $source[1]);
+                }
+            }
+        }
+
+        return $links;
+    }
+
 
     public function getModel(): array
     {
@@ -32,23 +64,12 @@ class Identifiers
     }
 
 
-    private const availableIdentifierPatterns = [
-        AniDB::class,
-        AnimeNewsNetwork::class,
-        Crunchyroll::class,
-        Funimation::class,
-        MyAnimeList::class,
-        Netflix::class,
-        Syoboi::class,
-        TubiTV::class,
-        WikipediaEN::class,
-        WikipediaJA::class
-    ];
+
     public static function parseId(string $url): array
     {
-        foreach (self::availableIdentifierPatterns as $identifierPattern) {
-            if (preg_match('~'.$identifierPattern::PATTERN.'~', $url, $parsedId)) {
-                return [$identifierPattern, $parsedId[1]];
+        foreach (self::availableIdentifiers as $identifier) {
+            if (preg_match('~'.$identifier::PATTERN.'~', $url, $parsedId)) {
+                return [$identifier, $parsedId[1]];
             }
         }
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace Hiyori\Sources\Kitsu;
+namespace Hiyori\Sources\Kitsu\Requests;
 
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;

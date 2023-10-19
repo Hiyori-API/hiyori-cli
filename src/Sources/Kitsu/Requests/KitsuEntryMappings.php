@@ -1,13 +1,13 @@
 <?php
 
-namespace Hiyori\Sources\Kitsu;
+namespace Hiyori\Sources\Kitsu\Requests;
 
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
-class MyAnimeListEntry extends \Hiyori\Sources\Entry
+class KitsuEntryMappings extends \Hiyori\Sources\Entry
 {
-    const ENTRYPOINT = 'https://api.jikan.moe/v4/anime/%d/full';
+    const ENTRYPOINT = 'https://kitsu.io/api/edge/anime/%d/mappings';
     public static function create(&$id): self
     {
         $self = new self;

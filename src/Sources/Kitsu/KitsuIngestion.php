@@ -3,10 +3,12 @@
 namespace Hiyori\Sources\Kitsu;
 
 use Hiyori\Helper;
-use Hiyori\Models\Anime\Base as AnimeBaseModel;
-
+use Hiyori\Models\Anime\Base\KitsuBase;
+use Hiyori\Sources\Kitsu\Requests\KitsuEntryList;
+use Hiyori\Sources\Kitsu\Requests\KitsuEntryListMeta;
+use Hiyori\Sources\Kitsu\Requests\KitsuEntryMappings;
+use Hiyori\Sources\Kitsu\Requests\KitsuEntryStreamingLinks;
 use Hiyori\Sources\SourceConfiguration;
-use MongoDB\InsertOneResult;
 
 
 class KitsuIngestion
@@ -30,32 +32,36 @@ class KitsuIngestion
         $progressBar->start();
 
 
-        while ($this->meta->getCurrentPage() <= $this->meta->getLastPage()) {
+        while ($this->meta->getCurrentPage() <= $this->meta->getTotalEntries()) {
             $currentPage = $this->meta->getCurrentPage();
             $this->list = KitsuEntryList::create($currentPage);
 
             foreach ($this->list->getList() as $listItem) {
 
-                if ($this->exists($listItem['mal_id'])) {
+                if ($this->exists($listItem['id'])) {
                     $progressBar->advance();
                     continue;
                 }
 
-//                sleep($this->config->input->getOption('delay'));
+                sleep($this->config->input->getOption('delay'));
 
                 try {
-                    $listItemData = MyAnimeListEntry::create($listItem['mal_id']);
+                    $mappings = KitsuEntryMappings::create($listItem['id']);
+                    $streamingLinks = KitsuEntryStreamingLinks::create($listItem['id']);
+
+                    $listItemData = array_merge($listItem, ['streaming'=>$streamingLinks->getData()], ['external'=>$mappings->getData()]);
+
                 } catch (\Exception $e) {
-                    $this->config->io->error('429 on '.$listItem['mal_id']);
+                    $this->config->io->error('429 on '.$listItem['id']);
                 }
 
-
-                $this->save(AnimeBaseModel::create($listItemData->getData()));
+                $model = KitsuBase::create($listItemData);
+                $this->save($model);
                 $progressBar->advance();
             }
 
-            $this->meta->incrementCurrentPage();
-//            sleep($this->config->input->getOption('delay'));
+            $this->meta->setCurrentPage($this->meta->getCurrentPage()+20);
+            sleep($this->config->input->getOption('delay'));
         }
 
         $progressBar->finish();
@@ -63,16 +69,18 @@ class KitsuIngestion
 
     public function exists(string $id): bool
     {
-        $response = $this->config->client->hiyori->anime
-            ->findOne(['reference_ids.mal' => $id]);
+        $response = $this->config->client->hiyori->kitsu
+            ->findOne(['reference_ids.k' => $id]);
 
         return !($response === null);
     }
 
-    public function save(AnimeBaseModel $entry): InsertOneResult
+    public function save(KitsuBase $entry): self
     {
         $entry = $this->config->serializer->serialize($entry, 'json');
-        return $this->config->client->hiyori->anime->insertOne(Helper::toArray($entry));
-    }
+        $this->config->client->hiyori->kitsu
+            ->insertOne(Helper::toArray($entry));
 
+        return $this;
+    }
 }

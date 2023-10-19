@@ -1,26 +1,17 @@
 <?php
 
-namespace Hiyori\Models\Anime;
+namespace Hiyori\Models\Anime\Base;
 
 use Hiyori\Helper;
+use Hiyori\Models\Anime\Season;
+use Hiyori\Models\Anime\Status;
+use Hiyori\Models\Anime\Type;
+use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Common\Title;
 
-class Base
+class MyAnimeListBase extends Base
 {
-    private string $title;
-    private array $synonyms;
-    private ?string $type;
-    private ?int $episodes;
-    private string $status;
-    private ?string $season;
-    private ?int $year;
-    private array $images;
-    private array $referenceIds;
-
-    private array $references;
-    private array $tags;
-
     public static function create(array $json): self
     {
         $self = new self;
