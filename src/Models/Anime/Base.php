@@ -10,7 +10,7 @@ class Base
 {
     private string $title;
     private array $synonyms;
-    private string $type;
+    private ?string $type;
     private ?int $episodes;
     private string $status;
     private ?string $season;
