@@ -3,6 +3,7 @@
 namespace Hiyori\Sources\MyAnimeList;
 
 use Hiyori\Helper;
+use Hiyori\Models\Anime\Base\MyAnimeListBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
 use Hiyori\Sources\SourceConfiguration;
 use MongoDB\InsertOneResult;
@@ -49,7 +50,7 @@ class MyAnimeListIngestion
                 }
 
 
-                $this->save(AnimeBaseModel::create($listItemData->getData()));
+                $this->save(MyAnimeListBase::create($listItemData->getData()));
                 $progressBar->advance();
             }
 
@@ -62,7 +63,7 @@ class MyAnimeListIngestion
 
     public function exists(string $id): bool
     {
-        $response = $this->config->client->hiyori->anime
+        $response = $this->config->client->hiyori->myanimelist
             ->findOne(['reference_ids.mal' => $id]);
 
         return !($response === null);
@@ -71,7 +72,7 @@ class MyAnimeListIngestion
     public function save(AnimeBaseModel $entry): InsertOneResult
     {
         $entry = $this->config->serializer->serialize($entry, 'json');
-        return $this->config->client->hiyori->anime->insertOne(Helper::toArray($entry));
+        return $this->config->client->hiyori->myanimelist->insertOne(Helper::toArray($entry));
     }
 
 }
