@@ -118,8 +118,8 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 
 ## FAQ
 **Why does Hiyori Schema consist of metadata?**
+
 In the event an entry from a source does not contain relational IDs or mapping provided by sources, the metadata will be used to find the relation instead.
- 
 
 ## WIP
 This is a work in progress. 
@@ -127,4 +127,4 @@ This is a work in progress.
 
 # Disclaimer
 - Hiyori is not affiliated with any sources
-- You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources
+- You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources.
