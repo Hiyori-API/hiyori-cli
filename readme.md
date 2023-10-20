@@ -46,8 +46,7 @@ php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
 php hiyori indexer:anime Hiyori\\Sources\\AniList\\AniList --delay 1
 ```
 
-> [!INFO]
-> 
+> [!NOTE]
 > It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
 
 
