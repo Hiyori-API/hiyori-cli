@@ -19,9 +19,11 @@ enum Status: string
             $status === 'completed' => Status::FINISHED,
             $status === 'airing' => Status::AIRING,
             $status === 'currently airing' => Status::AIRING,
+            $status === 'current' => Status::AIRING,
             $status === 'ongoing' => Status::AIRING,
             $status === 'not yet aired' => Status::TO_BE_AIRED,
             $status === 'to be aired' => Status::TO_BE_AIRED,
+            $status === 'tba' => Status::TO_BE_AIRED,
             default => throw new \Exception('STATUS: Unexpected match value '.$status)
         };
     }
