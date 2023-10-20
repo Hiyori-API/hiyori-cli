@@ -17,6 +17,7 @@ WIP. 🚧
 1. Install PHP8.1+, MongoDB, MongoDB PHP Driver, Composer
 3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
 4. `cd hiyori-cli && composer install`
+5. `chmod +x hiyori`
 5. Run commands
 
 ## Usage
@@ -24,19 +25,21 @@ WIP. 🚧
 
 ### Ingestion
 
+You can use the cli tool as `./hiyori` or `php hiyori`.
+
 #### MyAnimeList Ingestion
 ```sh
-php src/run.php indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion --delay 1
+php hiyori indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion --delay 1
 ```
 
 #### Kitsu Ingestion
 ```sh
-php src/run.php indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
 ```
 
 #### AniList Ingestion
 ```sh
-php src/run.php indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
 ```
 
 It's recommended to keep a 1-second delay between requests for the MyAnimeList source.
