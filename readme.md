@@ -104,21 +104,23 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 ---
 
 ## Roadmap
-Right now the main focus will be to integrate the initial 3 sources and build a relational Anime metadata DB.
+Right now the main focus is to integrate the initial 3 sources and build a combined relational Anime metadata DB.
 
-### QOL
-- [ ] Allow to update entry (if it exists) instead of skipping during ingestion
-- [ ] Environment variables
-- [ ] Logging
+### Quality of Life
 - [ ] Tests
-- [ ] Sweepers
+- [ ] Sweepers - Remove dead entries (or create a separate collection of them)
 
 ### Feature
-- [ ] Manga Relational DB
+
 - [ ] Resumable Support
 - [ ] Package Sources instead (Symfony Services/Containers perhaps)
 - [ ] Caching
 - [ ] Dependency Injection
+- [ ] Allow to update entry (if it exists) instead of skipping during ingestion
+- [ ] Environment variables
+- [ ] Logging
+- [ ] Export Options
+- [ ] Manga Relational DB
 
 
 ### Sources
