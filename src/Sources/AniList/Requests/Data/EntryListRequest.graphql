@@ -1,0 +1,60 @@
+query ($page: Int, $id: Int, $type: MediaType, $isAdult: Boolean = false, $search: String, $format: MediaFormat, $status: MediaStatus, $countryOfOrigin: CountryCode, $source: MediaSource, $season: MediaSeason, $year: String, $onList: Boolean, $yearLesser: FuzzyDateInt, $yearGreater: FuzzyDateInt, $licensedBy: [String], $includedGenres: [String], $excludedGenres: [String], $includedTags: [String], $excludedTags: [String], $sort: [MediaSort] = [ID_DESC]) {
+    Page(page: $page, perPage: 50) {
+        pageInfo {
+            total
+            perPage
+            currentPage
+            lastPage
+            hasNextPage
+        }
+        ANIME: media(id: $id, type: $type, season: $season, format: $format, status: $status, countryOfOrigin: $countryOfOrigin, source: $source, search: $search, onList: $onList, startDate_like: $year, startDate_lesser: $yearLesser, startDate_greater: $yearGreater, licensedBy_in: $licensedBy, genre_in: $includedGenres, genre_not_in: $excludedGenres, tag_in: $includedTags, tag_not_in: $excludedTags, sort: $sort, isAdult: $isAdult) {
+            id
+            idMal
+            siteUrl
+      			coverImage {
+              large
+            }
+            title {
+                romaji
+                english
+                native
+            }
+      			synonyms
+            format
+            status
+            episodes
+            externalLinks {
+                id
+                site
+                url
+            }
+      			streamingEpisodes {
+              url
+              site
+            }
+            episodes
+            startDate {
+                year
+                month
+                day
+            }
+            endDate {
+                year
+                month
+                day
+            }
+            seasonYear
+            season
+            format
+            source
+      			genres
+      			tags {
+            	category
+              name
+              isGeneralSpoiler
+              isMediaSpoiler
+              isAdult
+            }
+        }
+    }
+}

@@ -15,7 +15,7 @@ abstract class EntryListMeta implements EntryListMetaInterface
     /**
      * @var int
      */
-    private int $currentPage;
+    private int $currentPage = 1;
 
     /**
      * @var int
