@@ -28,10 +28,10 @@ class MyAnimeListBase extends Base
         $self->images[] = $json['images']['jpg']['image_url'];
 
         $self->references[] = $json['url'];
-        foreach ($json['external'] as $link) {
+        foreach ($json['external'] ?? [] as $link) {
             $self->references[] = $link['url'];
         };
-        foreach ($json['streaming'] as $link) {
+        foreach ($json['streaming'] ?? [] as $link) {
             $self->references[] = $link['url'];
         };
 

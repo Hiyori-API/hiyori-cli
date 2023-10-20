@@ -44,12 +44,12 @@ class KitsuBase extends Base
         $self->references[] = "https://kitsu.io/anime/".$json['id']."/".$json['attributes']['slug'];
 
         $pairs = [];
-        foreach ($json['external'] as $link) {
+        foreach ($json['external'] ?? [] as $link) {
             $pairs[] = [explode("/",$link['attributes']['externalSite'])[0],$link['attributes']['externalId']];
         };
 
 
-        foreach ($json['streaming'] as $link) {
+        foreach ($json['streaming'] ?? [] as $link) {
             $self->references[] = $link['attributes']['url'];
         };
 

@@ -21,7 +21,8 @@ class AniListEntryList extends \Hiyori\Sources\EntryList
                             'query' => file_get_contents(__DIR__.'/Data/EntryListRequest.graphql'),
                             'variables' => [
                                 'page' => $currentPage,
-                                'type' => 'ANIME'
+                                'type' => 'ANIME',
+                                'sort' => 'id'
                             ]
                         ]
                     )->toArray()

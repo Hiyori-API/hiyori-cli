@@ -11,6 +11,8 @@ enum Status: string
     case AIRING = 'airing';
     case TO_BE_AIRED = 'to_be_aired';
 
+    case CANCELLED = 'cancelled';
+
     public static function fromString(string $status): Status
     {
         return match(true) {
@@ -26,6 +28,8 @@ enum Status: string
             $status === 'to be aired' => Status::TO_BE_AIRED,
             $status === 'tba' => Status::TO_BE_AIRED,
             $status === 'not_yet_released' => Status::TO_BE_AIRED,
+            $status === 'upcoming' => Status::TO_BE_AIRED,
+            $status === 'cancelled' => Status::CANCELLED,
             default => throw new \Exception('STATUS: Unexpected match value '.$status)
         };
     }
