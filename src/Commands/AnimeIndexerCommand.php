@@ -20,8 +20,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 final class AnimeIndexerCommand extends Command
 {
-    use LockableTrait;
-
     protected function configure(): void
     {
         $this
@@ -31,10 +29,6 @@ final class AnimeIndexerCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if (!$this->lock()) {
-            $output->writeln('The command is already running in another process.');
-            return Command::SUCCESS;
-        }
 
         (new App($input, $output))
             ->ingest($input->getArgument('source'));
