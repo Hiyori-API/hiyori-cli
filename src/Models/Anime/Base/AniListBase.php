@@ -24,7 +24,7 @@ class AniListBase extends Base
 
         $self->type = $json['format'] === null ? null : Type::fromString(Helper::prepareAsIdentifer($json['format']))->value;
         $self->episodes = $json['episodes'];
-        $self->status = Status::fromString(Helper::prepareAsIdentifer($json['status']))->value;
+        $self->status = $json['status'] === null ? null : Status::fromString(Helper::prepareAsIdentifer($json['status']))->value;
 
         $self->season = $json['season'];
         $self->year = $json['seasonYear'];
@@ -33,11 +33,11 @@ class AniListBase extends Base
 
         $self->references[] = $json['siteUrl'];
 
-        foreach ($json['externalLinks'] as $link) {
+        foreach ($json['externalLinks'] ?? [] as $link) {
             $self->references[] = $link['url'];
         }
 
-        foreach ($json['streamingEpisodes'] as $link) {
+        foreach ($json['streamingEpisodes'] ?? [] as $link) {
             $self->references[] = $link['url'];
         }
 

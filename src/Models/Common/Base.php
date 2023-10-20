@@ -8,7 +8,7 @@ abstract class Base implements BaseInterface
     protected array $synonyms;
     protected ?string $type;
     protected ?int $episodes;
-    protected string $status;
+    protected ?string $status;
     protected ?string $season;
     protected ?int $year;
     protected array $images;

@@ -29,11 +29,9 @@ final class AnimeIndexerCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-
         (new App($input, $output))
             ->ingest($input->getArgument('source'));
 
-        $this->release();
         return Command::SUCCESS;
     }
 }
