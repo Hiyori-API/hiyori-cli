@@ -127,7 +127,7 @@ Right now the main focus is to integrate the initial 3 sources and build a combi
 ### Sources
 - [x] MyAnimeList Integration via REST API
 - [x] Kitsu Integration via REST API
-- [ ] AniList Integration via REST API
+- [x] AniList Integration via REST API
 
 ## FAQ
 **Why does Hiyori Schema consist of metadata?**
