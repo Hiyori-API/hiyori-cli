@@ -1,8 +1,12 @@
 # Hiyori CLI
 Hiyori CLI is being developed to create and maintain [HiyoriDB](https://github.com/Hiyori-API/HiyoriDB) — a relational Anime and Manga Database.
 
+
+> [!WARNING]
+> This project is a work-in-progress and is not production ready.
+
 ## Process
-Hiyori CLI has two main primary functions.
+Hiyori CLI has two main primary functions:
 1. Ingesting transformed data based on the Hiyori Schema ingested from available sources
 2. Combining the ingested data into HiyoriDB
 
@@ -39,10 +43,13 @@ php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
 
 #### AniList Ingestion
 ```sh
-php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+php hiyori indexer:anime Hiyori\\Sources\\AniList\\AniList --delay 1
 ```
 
-It's recommended to keep a 1-second delay between requests for the MyAnimeList source.
+> [!INFO]
+> It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
+
+
 
 ### Combiner
 🚧 WIP
@@ -124,10 +131,6 @@ Right now the main focus will be to integrate the initial 3 sources and build a 
 
 In the event an entry from a source does not contain relational IDs or mapping provided by sources, the metadata will be used to find the relation instead.
 
-## WIP
-This is a work in progress. 
 
-
-# Disclaimer
-- Hiyori is not affiliated with any sources
-- You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources.
+> [!IMPORTANT]
+> Hiyori is not affiliated with any sources. You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources.
