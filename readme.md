@@ -25,7 +25,7 @@ WIP. 🚧
 
 ### Ingestion
 
-You can use the cli tool as `./hiyori` or `php hiyori`.
+You can use the cli tool as `./hiyori`, `php hiyori` or `php src/run.php`.
 
 #### MyAnimeList Ingestion
 ```sh
