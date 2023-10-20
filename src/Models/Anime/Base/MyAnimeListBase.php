@@ -20,7 +20,7 @@ class MyAnimeListBase extends Base
         $titles = new MyAnimeListTitle($json['title'], $json['titles']);
         $self->title = $titles->getDefault();
         $self->synonyms = $titles->getSynonyms();
-        $self->type = Type::fromString(Helper::prepareAsIdentifer($json['type']))->value;
+        $self->type = $json['type'] === null ? null : Type::fromString(Helper::prepareAsIdentifer($json['type']))->value;
         $self->episodes = $json['episodes'];
         $self->status = Status::fromString(Helper::prepareAsIdentifer($json['status']))->value;
         $self->season = $json['season'] === null ? null : Season::fromString(Helper::prepareAsIdentifer($json['season']))->value;
