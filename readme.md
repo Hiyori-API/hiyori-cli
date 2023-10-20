@@ -111,16 +111,17 @@ Right now the main focus is to integrate the initial 3 sources and build a combi
 - [ ] Sweepers - Remove dead entries (or create a separate collection of them)
 
 ### Feature
-
-- [ ] Resumable Support
-- [ ] Package Sources instead (Symfony Services/Containers perhaps)
-- [ ] Caching
-- [ ] Dependency Injection
-- [ ] Allow to update entry (if it exists) instead of skipping during ingestion
-- [ ] Environment variables
-- [ ] Logging
-- [ ] Export Options
+- [ ] [Ingestion: Allow re-try of failed requests](https://github.com/Hiyori-API/hiyori-cli/issues/9)
+- [ ] [Ingestion: Alow resume](https://github.com/Hiyori-API/hiyori-cli/issues/13)
+- [ ] [Caching](https://github.com/Hiyori-API/hiyori-cli/issues/12)
+- [ ] [Ingestion: Allow flag for metadata update](https://github.com/Hiyori-API/hiyori-cli/issues/3)
+- [ ] [EV for secrets](https://github.com/Hiyori-API/hiyori-cli/issues/4)
+- [ ] [Logging](https://github.com/Hiyori-API/hiyori-cli/issues/6)
+- [ ] [Tool: Combiner](https://github.com/Hiyori-API/hiyori-cli/issues/10)
+- [ ] [Tool: Export](https://github.com/Hiyori-API/hiyori-cli/issues/11)
 - [ ] Manga Relational DB
+- [ ] Package Sources instead (Service Containers)
+- [ ] Dependency Injection / Service Containers
 
 
 ### Sources
