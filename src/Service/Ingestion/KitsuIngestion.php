@@ -3,13 +3,13 @@
 namespace Hiyori\Service\Ingestion;
 
 use Hiyori\Models\Anime\Base\KitsuBase;
+use Hiyori\Requests\Kitsu\KitsuEntryList;
+use Hiyori\Requests\Kitsu\KitsuEntryListMeta;
+use Hiyori\Requests\Kitsu\KitsuEntryMappings;
+use Hiyori\Requests\Kitsu\KitsuEntryStreamingLinks;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use Hiyori\Sources\Kitsu\Requests\KitsuEntryList;
-use Hiyori\Sources\Kitsu\Requests\KitsuEntryListMeta;
-use Hiyori\Sources\Kitsu\Requests\KitsuEntryMappings;
-use Hiyori\Sources\Kitsu\Requests\KitsuEntryStreamingLinks;
 
 final class KitsuIngestion
 {

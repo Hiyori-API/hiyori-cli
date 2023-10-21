@@ -6,8 +6,8 @@ use Hiyori\Models\Anime\Base\AniListBase;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use Hiyori\Sources\AniList\Requests\AniListEntryList;
-use Hiyori\Sources\AniList\Requests\AniListEntryListMeta;
+use Hiyori\Requests\AniList\AniListEntryList;
+use Hiyori\Requests\AniList\AniListEntryListMeta;
 
 final class AniListIngestion
 {
@@ -22,7 +22,7 @@ final class AniListIngestion
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT']);
         $progressBar->start();
 
-        while ($meta->getCurrentPage() <= $meta->getTotalEntries()) {
+        while ($meta->getCurrentPage() <= $meta->getLastPage()) {
             $currentPage = $meta->getCurrentPage();
             $list = AniListEntryList::create($currentPage);
 
