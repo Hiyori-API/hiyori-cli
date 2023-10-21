@@ -1,13 +1,14 @@
 <?php
 
-namespace Hiyori\Sources\Kitsu\Requests;
+namespace Hiyori\Requests\MyAnimeList;
 
+use Hiyori\Requests\EntryListMeta;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
-class KitsuEntryListMeta extends \Hiyori\Sources\EntryListMeta
+class MyAnimeListEntryListMeta extends EntryListMeta
 {
-    const ENTRYPOINT = 'https://kitsu.io/api/edge/anime?page[limit]=20&page[offset]=0';
+    const ENTRYPOINT = 'https://api.jikan.moe/v4/anime';
     public static function create(): self
     {
         $self = new self;
@@ -16,8 +17,8 @@ class KitsuEntryListMeta extends \Hiyori\Sources\EntryListMeta
             ->request('GET', self::ENTRYPOINT)
             ->toArray();
 
-        $self->setLastPage($response['meta']['count']);
-        $self->setTotalEntries($response['meta']['count']);
+        $self->setLastPage($response['pagination']['last_visible_page']);
+        $self->setTotalEntries($response['pagination']['items']['total']);
 
         return $self;
     }

@@ -1,12 +1,13 @@
 <?php
 
-namespace Hiyori\Sources\AniList\Requests;
+namespace Hiyori\Requests\AniList;
 
+use Hiyori\Requests\EntryList;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\HttpOptions;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
-class AniListEntryList extends \Hiyori\Sources\EntryList
+class AniListEntryList extends EntryList
 {
     const ENTRYPOINT = 'https://graphql.anilist.co';
     public static function create(&$currentPage): self
@@ -18,7 +19,7 @@ class AniListEntryList extends \Hiyori\Sources\EntryList
                 (new HttpOptions())
                     ->setJson(
                         [
-                            'query' => file_get_contents(__DIR__.'/Data/EntryListRequest.graphql'),
+                            'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
                             'variables' => [
                                 'page' => $currentPage,
                                 'type' => 'ANIME',

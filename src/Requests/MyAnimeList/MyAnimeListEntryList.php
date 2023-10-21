@@ -1,11 +1,12 @@
 <?php
 
-namespace Hiyori\Sources\MyAnimeList\Requests;
+namespace Hiyori\Requests\MyAnimeList;
 
+use Hiyori\Requests\EntryList;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
-class MyAnimeListEntryList extends \Hiyori\Sources\EntryList
+class MyAnimeListEntryList extends EntryList
 {
     const ENTRYPOINT = 'https://api.jikan.moe/v4/anime?page=%d';
     public static function create(&$currentPage): self

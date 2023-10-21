@@ -1,11 +1,12 @@
 <?php
 
-namespace Hiyori\Sources\Kitsu\Requests;
+namespace Hiyori\Requests\Kitsu;
 
+use Hiyori\Requests\EntryList;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
-class KitsuEntryList extends \Hiyori\Sources\EntryList
+class KitsuEntryList extends EntryList
 {
     const ENTRYPOINT = 'https://kitsu.io/api/edge/anime?page[limit]=20&page[offset]=%d';
     public static function create(&$currentPage): self

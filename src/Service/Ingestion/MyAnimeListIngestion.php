@@ -3,12 +3,12 @@
 namespace Hiyori\Service\Ingestion;
 
 use Hiyori\Models\Anime\Base\MyAnimeListBase;
+use Hiyori\Requests\MyAnimeList\MyAnimeListEntry;
+use Hiyori\Requests\MyAnimeList\MyAnimeListEntryList;
+use Hiyori\Requests\MyAnimeList\MyAnimeListEntryListMeta;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntry;
-use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryList;
-use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryListMeta;
 
 final class MyAnimeListIngestion
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace Hiyori\Sources;
+namespace Hiyori\Requests;
 
 
 /**
