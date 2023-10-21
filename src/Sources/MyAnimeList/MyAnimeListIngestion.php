@@ -5,7 +5,10 @@ namespace Hiyori\Sources\MyAnimeList;
 use Hiyori\Helper;
 use Hiyori\Models\Anime\Base\MyAnimeListBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
-use Hiyori\Sources\SourceConfiguration;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntry;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryList;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryListMeta;
+use Hiyori\Sources\SourceConfig;
 use MongoDB\InsertOneResult;
 
 
@@ -13,9 +16,9 @@ class MyAnimeListIngestion
 {
     private MyAnimeListEntryListMeta $meta;
     private MyAnimeListEntryList $list;
-    private SourceConfiguration $config;
+    private SourceConfig $config;
     public function __construct(
-        SourceConfiguration $sourceConfiguration
+        SourceConfig $sourceConfiguration
     )
     {
         $this->config = $sourceConfiguration;

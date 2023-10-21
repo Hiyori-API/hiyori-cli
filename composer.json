@@ -19,6 +19,8 @@
         "symfony/http-client": "^6.3",
         "symfony/console": "^6.3",
         "symfony/lock": "^6.3",
-        "symfony/config": "^6.3"
+        "symfony/config": "^6.3",
+        "symfony/dependency-injection": "^6.3",
+        "symfony/dotenv": "^6.3"
     }
 }

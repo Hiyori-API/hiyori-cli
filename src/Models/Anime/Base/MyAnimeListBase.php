@@ -9,7 +9,6 @@ use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Common\MyAnimeListTitle;
-use Hiyori\Models\Common\Title;
 
 class MyAnimeListBase extends Base
 {

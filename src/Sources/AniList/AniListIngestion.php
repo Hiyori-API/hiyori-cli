@@ -7,16 +7,16 @@ use Hiyori\Models\Anime\Base\AniListBase;
 use Hiyori\Models\Anime\Base\KitsuBase;
 use Hiyori\Sources\AniList\Requests\AniListEntryList;
 use Hiyori\Sources\AniList\Requests\AniListEntryListMeta;
-use Hiyori\Sources\SourceConfiguration;
+use Hiyori\Sources\SourceConfig;
 
 
 class AniListIngestion
 {
     private AniListEntryListMeta $meta;
     private AniListEntryList $list;
-    private SourceConfiguration $config;
+    private SourceConfig $config;
     public function __construct(
-        SourceConfiguration $sourceConfiguration
+        SourceConfig $sourceConfiguration
     )
     {
         $this->config = $sourceConfiguration;
