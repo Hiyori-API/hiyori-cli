@@ -39,7 +39,7 @@ class KitsuBase extends Base
         $self->season = $date === null ? null : Season::fromMonth($month)->value;
         $self->year = $date === null ? null : $year;
 
-        $self->images[] = $json['attributes']['posterImage']['original'];
+        $self->images[] = $json['attributes']['posterImage']['original'] ?? [];
 
         $self->references[] = "https://kitsu.io/anime/".$json['id']."/".$json['attributes']['slug'];
 
