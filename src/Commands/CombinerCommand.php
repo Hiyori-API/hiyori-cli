@@ -1,27 +1,69 @@
 <?php
 
-namespace Hiyori\Sources\MyAnimeList;
+namespace Hiyori\Commands;
 
 use Hiyori\Helper;
+use Hiyori\Hiyori;
 use Hiyori\Models\Anime\Base\MyAnimeListBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
 use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntry;
 use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryList;
 use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryListMeta;
 use Hiyori\Sources\SourceConfig;
+use MongoDB\Client;
 use MongoDB\InsertOneResult;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\LockableTrait;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
-
-class MyAnimeListIngestion
+#[AsCommand(
+    name: 'combine',
+    description: 'Combine metadata from all sources into one',
+    aliases: ['c', 'combiner'],
+    hidden: false
+)]
+final class CombinerCommand extends Command
 {
-    private MyAnimeListEntryListMeta $meta;
-    private MyAnimeListEntryList $list;
-    private SourceConfig $config;
+    use LockableTrait;
+
     public function __construct(
-        SourceConfig $sourceConfiguration
+        private Hiyori $hiyori
     )
     {
-        $this->config = $sourceConfiguration;
+        parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this
+            ->addArgument('base', InputArgument::REQUIRED, 'Source dataset to use as a base')
+            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to RelationalMapping');
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        if (!$this->lock()) {
+            $output->writeln('The command is already running in another process.');
+
+            return Command::SUCCESS;
+        }
+
+
+        $baseSource = $input->getArgument('base');
+        $io = new SymfonyStyle($input, $output);
+
+        $client = new Client('mongodb://localhost:27017');
+
+
+        $io->section('Preflight');
+        if ($this)
+        die;
+
 
 
         $this->config->io->info('Populating MyAnimeList Index...');
@@ -62,6 +104,11 @@ class MyAnimeListIngestion
         }
 
         $progressBar->finish();
+
+
+        $this->release();
+
+        return Command::SUCCESS;
     }
 
     public function exists(string $id): bool
@@ -77,5 +124,4 @@ class MyAnimeListIngestion
         $entry = $this->config->serializer->serialize($entry, 'json');
         return $this->config->client->hiyori->myanimelist->insertOne(Helper::toArray($entry));
     }
-
 }

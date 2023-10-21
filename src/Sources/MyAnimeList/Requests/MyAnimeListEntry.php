@@ -1,6 +1,6 @@
 <?php
 
-namespace Hiyori\Sources\MyAnimeList;
+namespace Hiyori\Sources\MyAnimeList\Requests;
 
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;

@@ -22,7 +22,6 @@ class AniListEntryList extends \Hiyori\Sources\EntryList
                             'variables' => [
                                 'page' => $currentPage,
                                 'type' => 'ANIME',
-                                'sort' => 'id'
                             ]
                         ]
                     )->toArray()

@@ -8,16 +8,16 @@ use Hiyori\Sources\Kitsu\Requests\KitsuEntryList;
 use Hiyori\Sources\Kitsu\Requests\KitsuEntryListMeta;
 use Hiyori\Sources\Kitsu\Requests\KitsuEntryMappings;
 use Hiyori\Sources\Kitsu\Requests\KitsuEntryStreamingLinks;
-use Hiyori\Sources\SourceConfiguration;
+use Hiyori\Sources\SourceConfig;
 
 
 class KitsuIngestion
 {
     private KitsuEntryListMeta $meta;
     private KitsuEntryList $list;
-    private SourceConfiguration $config;
+    private SourceConfig $config;
     public function __construct(
-        SourceConfiguration $sourceConfiguration
+        SourceConfig $sourceConfiguration
     )
     {
         $this->config = $sourceConfiguration;

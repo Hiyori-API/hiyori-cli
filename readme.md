@@ -33,17 +33,17 @@ You can use the cli tool as `./hiyori`, `php hiyori` or `php src/run.php`.
 
 #### MyAnimeList Ingestion
 ```sh
-php hiyori indexer:anime Hiyori\\Sources\\MyAnimeList\\MyAnimeListIngestion --delay 1
+php hiyori ingest myanimelist --delay 1
 ```
 
 #### Kitsu Ingestion
 ```sh
-php hiyori indexer:anime Hiyori\\Sources\\Kitsu\\KitsuIngestion --delay 1
+php hiyori ingest kitsu --delay 1
 ```
 
 #### AniList Ingestion
 ```sh
-php hiyori indexer:anime Hiyori\\Sources\\AniList\\AniList --delay 1
+php hiyori ingest anilist --delay 1
 ```
 
 > [!NOTE]
@@ -115,13 +115,12 @@ Right now the main focus is to integrate the initial 3 sources and build a combi
 - [ ] [Ingestion: Alow resume](https://github.com/Hiyori-API/hiyori-cli/issues/13)
 - [ ] [Caching](https://github.com/Hiyori-API/hiyori-cli/issues/12)
 - [ ] [Ingestion: Allow flag for metadata update](https://github.com/Hiyori-API/hiyori-cli/issues/3)
-- [ ] [EV for secrets](https://github.com/Hiyori-API/hiyori-cli/issues/4)
+- [x] [EV for secrets](https://github.com/Hiyori-API/hiyori-cli/issues/4)
 - [ ] [Logging](https://github.com/Hiyori-API/hiyori-cli/issues/6)
 - [ ] [Tool: Combiner](https://github.com/Hiyori-API/hiyori-cli/issues/10)
 - [ ] [Tool: Export](https://github.com/Hiyori-API/hiyori-cli/issues/11)
 - [ ] Manga Relational DB
-- [ ] Package Sources instead (Service Containers)
-- [ ] Dependency Injection / Service Containers
+- [x] Dependency Injection / Service Containers
 
 
 ### Sources

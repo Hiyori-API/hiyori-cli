@@ -2,15 +2,14 @@
 
 namespace Hiyori;
 
-use Hiyori\Sources\MyAnimeList\MyAnimeListIngestion;
-use Hiyori\Sources\SourceConfiguration;
+use Hiyori\Sources\SourceConfig;
 use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
 use MongoDB\Client;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class App
+class Appp
 {
     public $ingestion;
 
@@ -32,7 +31,7 @@ class App
     public function ingest(string $source): void
     {
         $this->ingestion = new $source(
-            new SourceConfiguration($this->input, $this->output, $this->client, $this->serializer)
+            new SourceConfig($this->input, $this->output, $this->client, $this->serializer)
         );
     }
 }

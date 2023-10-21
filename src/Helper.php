@@ -22,5 +22,4 @@ class Helper
     {
         return json_decode($json, true);
     }
-
 }
