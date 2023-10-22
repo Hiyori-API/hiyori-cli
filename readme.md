@@ -34,17 +34,17 @@ WIP. 🚧
 You can use the cli tool as `./hiyori`, `php hiyori` or `php src/run.php`.
 
 #### MyAnimeList Ingestion
-```sh
+```console
 php hiyori ingest myanimelist --delay 1
 ```
 
 #### Kitsu Ingestion
-```sh
+```console
 php hiyori ingest kitsu --delay 1
 ```
 
 #### AniList Ingestion
-```sh
+```console
 php hiyori ingest anilist --delay 1
 ```
 
@@ -58,14 +58,14 @@ php hiyori ingest anilist --delay 1
 > [!NOTE]
 > Run the combiner after the ingestion of multiple sources are complete.
 
-```sh
+```console
 php hiyori combine {base} --strategy {strategy}
 ```
 
 - {base} the name of the source to dataset to use
 - There are multiple combining strategies available. The default one is `relational_mapping`.
 
-```sh
+```console
 // example
 php hiyori combine myanimelist
 // or
@@ -105,19 +105,19 @@ Common data with different representations like status (MAL: "Finished Airing", 
 
 ### Anime
 
-| Property        | Data Type          | Remarks                                                           | Nullable |
-|-----------------|--------------------|-------------------------------------------------------------------|----------|
-| `title`         | _String_           | Entry's main title                                                | ❌        |
-| `synonyms`      | _Array of String_  | All other titles (combined from sources)                          | ❌        |
-| `type`          | _String_           | Entry type [`tv`, `movie`, `ova`, `ona`, `special`, `music`]      | ✅        |
-| `episodes`      | _Integer_          | Number of episodes (if any mentioned)                             | ✅        |
-| `status`        | _String_           | Status of entry [`finished`, `airing`, `to_be_aired`, `cancelle`] | ✅        |
-| `season`        | _Nullable String_  | Release Season [`winter`, `summer`, `spring`, `fall`]             | ✅        |
-| `year`          | _Nullable Integer_ | Release Year                                   | ✅        |
-| `images`        | _Array of String_  | Default Image URLs (combined from sources)                        | ❌        |
-| `reference_ids` | _Object_           | Parsed IDs from Supported References                              | ❌        |
-| `references`    | _Array of String_  | Reference URLs (combined from sources)                            | ❌        |
-| `tags`          | _Array of String_  | Genres/Tags (combined from sources)                               | ❌        |
+| Property        | Data Type          | Remarks                                                            | Nullable |
+|-----------------|--------------------|--------------------------------------------------------------------|----------|
+| `title`         | _String_           | Entry's main title                                                 | ❌        |
+| `synonyms`      | _Array of String_  | All other titles (combined from sources)                           | ❌        |
+| `type`          | _String_           | Entry type [`tv`, `movie`, `ova`, `ona`, `special`, `music`]       | ✅        |
+| `episodes`      | _Integer_          | Number of episodes (if any mentioned)                              | ✅        |
+| `status`        | _String_           | Status of entry [`finished`, `airing`, `to_be_aired`, `cancelled`] | ✅        |
+| `season`        | _Nullable String_  | Release Season [`winter`, `summer`, `spring`, `fall`]              | ✅        |
+| `year`          | _Nullable Integer_ | Release Year                                                       | ✅        |
+| `images`        | _Array of String_  | Default Image URLs (combined from sources)                         | ❌        |
+| `reference_ids` | _Object_           | Parsed IDs from Supported References                               | ❌        |
+| `references`    | _Array of String_  | Reference URLs (combined from sources)                             | ❌        |
+| `tags`          | _Array of String_  | Genres/Tags (combined from sources)                                | ❌        |
 
 ### Manga
 TBD.
