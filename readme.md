@@ -22,14 +22,12 @@ WIP. 🚧
 ---
 
 ## Installation
-1. Install PHP8.1+, MongoDB, MongoDB PHP Driver, Composer
+1. Install PHP8.2+, MongoDB, MongoDB PHP Driver, Composer
 3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
 4. `cd hiyori-cli && composer install`
 5. `chmod +x hiyori`
 5. Run commands
 
-## Usage
-![image](https://github.com/Hiyori-API/hiyori-cli/assets/9166451/8357ef11-22fd-4492-93c4-737648ece7d7)
 
 ### Ingestion
 
@@ -56,7 +54,49 @@ php hiyori ingest anilist --delay 1
 
 
 ### Combiner
-🚧 WIP
+
+> [!NOTE]
+> Run the combiner after ingestion of multiple sources are complete.
+
+```sh
+php hiyori combine {base} --strategy {strategy}
+```
+
+- {base} the name of the source to dataset to use
+- There are multiple combining strategies available. The default one is `relational_mapping`.
+
+```sh
+// example
+php hiyori combine myanimelist
+// or
+php hiyori combine myanimelist --strategy relational_mapping
+```
+
+### Available Combining Strategies
+
+#### Relational Mapping
+This strategy simply checks for matching source IDs across available source datasets and combines values based off of those.
+
+#### Relational Fuzzy
+This strategy cross-checks all `reference_ids` across available source datasets in hopes to find a matching ID between sources.
+
+> [!WARNING]
+> Work in progress
+
+
+#### Metadata Fuzzy*
+> [!WARNING]
+> This is a long-running process
+
+*Name subject to change
+
+This strategy compares other metadata across available source datasets.
+The metadata properties are given weights and are cross checked using various algorithms.
+Based on this, a score is given. If the score is above a certain threshold, it is merged. 
+
+> [!WARNING]
+> Work in progress
+
 
 ---
 
@@ -121,7 +161,7 @@ Right now the main focus is to integrate the initial 3 sources and build a combi
 - [ ] [Ingestion: Allow flag for metadata update](https://github.com/Hiyori-API/hiyori-cli/issues/3)
 - [x] [EV for secrets](https://github.com/Hiyori-API/hiyori-cli/issues/4)
 - [ ] [Logging](https://github.com/Hiyori-API/hiyori-cli/issues/6)
-- [ ] [Tool: Combiner](https://github.com/Hiyori-API/hiyori-cli/issues/10)
+- [x] [Tool: Combiner](https://github.com/Hiyori-API/hiyori-cli/issues/10)
 - [ ] [Tool: Export](https://github.com/Hiyori-API/hiyori-cli/issues/11)
 - [ ] Manga Relational DB
 - [x] Dependency Injection / Service Containers
