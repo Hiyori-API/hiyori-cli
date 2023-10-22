@@ -1,13 +1,13 @@
 <?php
 
-namespace Hiyori\Service\Ingestion;
+namespace Hiyori\Service\Ingestion\Source;
 
 use Hiyori\Models\Anime\Base\AniListBase;
+use Hiyori\Requests\AniList\AniListEntryList;
+use Hiyori\Requests\AniList\AniListEntryListMeta;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use Hiyori\Requests\AniList\AniListEntryList;
-use Hiyori\Requests\AniList\AniListEntryListMeta;
 
 final class AniListIngestion
 {
@@ -19,7 +19,8 @@ final class AniListIngestion
         $config = $sources->get();
 
         $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
-        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT']);
+        $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
+        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? "%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%");
         $progressBar->start();
 
         while ($meta->getCurrentPage() <= $meta->getLastPage()) {

@@ -24,7 +24,10 @@ $container->autowire(\Hiyori\Service\ConsoleFactory::class)
     ->setFactory([\Hiyori\Service\ConsoleFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\SourceConfigurationFactory::class)
     ->setFactory([\Hiyori\Service\SourceConfigurationFactory::class, 'create']);
+$container->autowire(\Hiyori\Service\StrategyConfigurationFactory::class)
+    ->setFactory([\Hiyori\Service\StrategyConfigurationFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);
+$container->autowire(\Hiyori\Service\Combiner\Combiner::class);
 $container->autowire(\Hiyori\Hiyori::class)
     ->setPublic(true);
 
@@ -36,7 +39,7 @@ $hiyori = $container->get(\Hiyori\Hiyori::class);
  */
 $app->addCommands([
     new \Hiyori\Commands\IngestionCommand($hiyori),
-    new \Hiyori\Commands\CombinerCommand($hiyori)
+    new \Hiyori\Commands\CombinerCommand($hiyori),
 ]);
 
 /**
