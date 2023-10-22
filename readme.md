@@ -1,4 +1,8 @@
 # Hiyori CLI
+
+[![stable](https://img.shields.io/badge/PHP-^%208.2-blue.svg?style=flat)]() [![Discord Server](https://img.shields.io/discord/460491088004907029.svg?style=flat&logo=discord)](http://discord.jikan.moe)
+
+
 Hiyori CLI is being developed to create and maintain [HiyoriDB](https://github.com/Hiyori-API/HiyoriDB) — a relational Anime and Manga Database.
 
 

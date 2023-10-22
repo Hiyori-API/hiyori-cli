@@ -38,6 +38,20 @@ class Database
         return !($response === null);
     }
 
+    public function get(string $source, string $sourceId, string $id, ?bool $toArray = false): array|null|object
+    {
+        if ($toArray) {
+            return $this->client->hiyori->{$source}
+                ->findOne(
+                    ['reference_ids.'.$sourceId => $id],
+                    ['typeMap' => ['root' => 'array', 'document' => 'array']]
+                );
+        }
+
+        return $this->client->hiyori->{$source}
+            ->findOne(['reference_ids.'.$sourceId => $id]);
+    }
+
     public function save(string $source, AnimeBaseModel $entry): InsertOneResult
     {
         $entry = $this->serializer->getSerializer()
@@ -45,6 +59,26 @@ class Database
 
         return $this->client->hiyori->{$source}
             ->insertOne(Helper::toArray($entry));
+    }
+
+    public function mergeIntoOrganized(
+        AnimeBaseModel $entry,
+        ?string $identifier = null,
+        ?string $identifierValue = null): \MongoDB\UpdateResult
+    {
+        $entry = $this->serializer->getSerializer()
+            ->serialize($entry, 'json');
+
+        return $this->client->hiyori->organized
+            ->replaceOne(
+                [
+                    'reference_ids.'.$identifier => $identifierValue
+                ],
+                Helper::toArray($entry),
+                [
+                    'upsert' => true
+                ]
+            );
     }
 
 }
