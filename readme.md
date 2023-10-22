@@ -68,7 +68,7 @@ php hiyori combine {base} --strategy {strategy}
 ```console
 // example
 php hiyori combine myanimelist
-// or
+// specify a stratgegy
 php hiyori combine myanimelist --strategy relational_mapping
 ```
 
