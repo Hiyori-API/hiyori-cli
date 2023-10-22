@@ -56,7 +56,7 @@ php hiyori ingest anilist --delay 1
 ### Combiner
 
 > [!NOTE]
-> Run the combiner after ingestion of multiple sources are complete.
+> Run the combiner after the ingestion of multiple sources are complete.
 
 ```sh
 php hiyori combine {base} --strategy {strategy}
@@ -105,19 +105,19 @@ Common data with different representations like status (MAL: "Finished Airing", 
 
 ### Anime
 
-| Property        | Data Type         | Remarks                                    |
-|-----------------|-------------------|--------------------------------------------|
-| `title`         | _String_          | Entry's main title                         |
-| `synonyms`      | _Array of String_ | All other titles (combined from sources)   |
-| `type`          | _String_          | Entry type [Hiyori Enum]                   |
-| `episodes`      | _Nullable Integer_ | Number of episodes (if any mentioned)      |
-| `status`        | _String_          | Status of entry [Hiyori Enum]              |
-| `status`        | _Nullable String_ | Release Season [Hiyori Enum]               |
-| `year`          | _Nullable Integer_ | Release Year [Hiyori Enum]                 |
-| `images`        | _Array of String_ | Default Image URLs (combined from sources) |
-| `reference_ids` | _Object_          | Parsed IDs from Supported References       |
-| `references`    | _Array of String_ | Reference URLs (combined from sources)     |
-| `tags`          | _Array of String_ | Genres/Tags (combined from sources)        |
+| Property        | Data Type          | Remarks                                                           | Nullable |
+|-----------------|--------------------|-------------------------------------------------------------------|----------|
+| `title`         | _String_           | Entry's main title                                                | ❌        |
+| `synonyms`      | _Array of String_  | All other titles (combined from sources)                          | ❌        |
+| `type`          | _String_           | Entry type [`tv`, `movie`, `ova`, `ona`, `special`, `music`]      | ✅        |
+| `episodes`      | _Integer_          | Number of episodes (if any mentioned)                             | ✅        |
+| `status`        | _String_           | Status of entry [`finished`, `airing`, `to_be_aired`, `cancelle`] | ✅        |
+| `season`        | _Nullable String_  | Release Season [`winter`, `summer`, `spring`, `fall`]             | ✅        |
+| `year`          | _Nullable Integer_ | Release Year                                   | ✅        |
+| `images`        | _Array of String_  | Default Image URLs (combined from sources)                        | ❌        |
+| `reference_ids` | _Object_           | Parsed IDs from Supported References                              | ❌        |
+| `references`    | _Array of String_  | Reference URLs (combined from sources)                            | ❌        |
+| `tags`          | _Array of String_  | Genres/Tags (combined from sources)                               | ❌        |
 
 ### Manga
 TBD.
