@@ -51,7 +51,7 @@ php hiyori ingest anilist --delay 1
 > [!NOTE]
 > It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
 
-
+---
 
 ### Combiner
 
