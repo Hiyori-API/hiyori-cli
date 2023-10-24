@@ -121,24 +121,24 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 
 | Reference          | Shorthand (as returned) |
 |--------------------|-------------------------|
-| Amazon Prime       | `ap`                    |
-| AniDB              | `adb`                   |
-| AniList            | `al`                    |
-| AnimeNewsNetwork   | `ann`                   |
-| Bangumi            | `b`                     |
-| Crunchyroll        | `cr`                    |
-| Funimation         | `fm`                    |
-| Kitsu              | `k`                     |
-| MyAnimeList        | `mal`                   |
-| Netflix            | `nf`                    |
-| Syoboi             | `sb`                    |
-| Trakt              | `t`                     |
-| TubiTV             | `ttv`                   |
-| TVTokyo            | `tvt`                   |
-| Twitter            | `tx`                    |
-| Wikipedia English  | `wpen`                  |
-| Wikipedia Japanese | `wpjp`                  |
-| YouTube            | `yt`                    |
+| [Amazon Prime](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/AmazonPrime.php)       | `ap`                    |
+| [AniDB](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/AniDB.php)              | `adb`                   |
+| [AniList](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/AniList.php)            | `al`                    |
+| [AnimeNewsNetwork](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/AnimeNewsNetwork.php)   | `ann`                   |
+| [Bangumi](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Bangumi.php)            | `b`                     |
+| [Crunchyroll](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Crunchyroll.php)        | `cr`                    |
+| [Funimation](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Funimation.php)         | `fm`                    |
+| [Kitsu](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Kitsu.php)              | `k`                     |
+| [MyAnimeList](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/MyAnimeList.php)        | `mal`                   |
+| [Netflix](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Netflix.php)            | `nf`                    |
+| [Syoboi](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Syoboi.php)             | `sb`                    |
+| [Trakt](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Trakt.php)              | `t`                     |
+| [TubiTV](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/TubiTV.php)             | `ttv`                   |
+| [TVTokyo](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/TVTokyo.php)            | `tvt`                   |
+| [Twitter](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/Twitter.php)            | `tx`                    |
+| [Wikipedia English](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/WikipediaEN.php)  | `wpen`                  |
+| [Wikipedia Japanese](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/WikipediaJA.php) | `wpjp`                  |
+| [YouTube](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/YouTube.php)            | `yt`                    |
 
 ---
 
