@@ -80,9 +80,6 @@ This strategy simply checks for matching source IDs across available source data
 #### Relational Fuzzy
 This strategy cross-checks all `reference_ids` across available source datasets in hopes to find a matching ID between sources.
 
-> [!WARNING]
-> Work in progress
-
 
 #### Metadata Fuzzy*
 > [!WARNING]
