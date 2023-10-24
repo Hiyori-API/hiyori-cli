@@ -24,6 +24,7 @@ class Identifiers
         Syoboi::class,
         Trakt::class,
         TubiTV::class,
+        TVTokyo::class,
         WikipediaEN::class,
         WikipediaJA::class,
         YouTube::class
