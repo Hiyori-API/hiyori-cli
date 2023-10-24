@@ -81,19 +81,13 @@ This strategy simply checks for matching source IDs across available source data
 This strategy cross-checks all `reference_ids` across available source datasets in hopes to find a matching ID between sources.
 
 
-#### Metadata Fuzzy*
+#### Metadata Fuzzy
 > [!WARNING]
-> This is a long-running process
-
-*Name subject to change
+> This is not yet implemented.
 
 This strategy compares other metadata across available source datasets.
 The metadata properties are given weights and are cross checked using various algorithms.
 Based on this, a score is given. If the score is above a certain threshold, it is merged. 
-
-> [!WARNING]
-> Work in progress
-
 
 ---
 
