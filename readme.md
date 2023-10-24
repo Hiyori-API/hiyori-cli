@@ -125,6 +125,7 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 | AniDB              | `adb`                   |
 | AniList            | `al`                    |
 | AnimeNewsNetwork   | `ann`                   |
+| Bangumi            | `b`                     |
 | Crunchyroll        | `cr`                    |
 | Funimation         | `fm`                    |
 | Kitsu              | `k`                     |
@@ -133,8 +134,11 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 | Syoboi             | `sb`                    |
 | Trakt              | `t`                     |
 | TubiTV             | `ttv`                   |
+| TVTokyo            | `tvt`                   |
+| Twitter            | `tx`                    |
 | Wikipedia English  | `wpen`                  |
 | Wikipedia Japanese | `wpjp`                  |
+| YouTube            | `yt`                    |
 
 ---
 
