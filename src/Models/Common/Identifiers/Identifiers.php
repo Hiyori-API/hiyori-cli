@@ -25,6 +25,7 @@ class Identifiers
         Trakt::class,
         TubiTV::class,
         TVTokyo::class,
+        Twitter::class,
         WikipediaEN::class,
         WikipediaJA::class,
         YouTube::class
