@@ -74,10 +74,10 @@ php hiyori combine myanimelist --strategy relational_mapping
 
 ### Available Combining Strategies
 
-#### Relational Mapping
+#### Relational Mapping `--strategy relational_mapping`
 This strategy simply checks for matching source IDs across available source datasets and combines values based off of those.
 
-#### Relational Fuzzy
+#### Relational Fuzzy `--strategy relational_fuzzy`
 This strategy cross-checks all `reference_ids` across available source datasets in hopes to find a matching ID between sources.
 
 
