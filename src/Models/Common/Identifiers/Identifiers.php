@@ -15,6 +15,7 @@ class Identifiers
         AniDB::class,
         AniList::class,
         AnimeNewsNetwork::class,
+        Bangumi::class,
         Crunchyroll::class,
         Funimation::class,
         Kitsu::class,
@@ -24,7 +25,8 @@ class Identifiers
         Trakt::class,
         TubiTV::class,
         WikipediaEN::class,
-        WikipediaJA::class
+        WikipediaJA::class,
+        YouTube::class
     ];
 
     /**
