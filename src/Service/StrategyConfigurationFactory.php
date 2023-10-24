@@ -4,12 +4,14 @@ namespace Hiyori\Service;
 
 use Hiyori\Exception\InvalidArgumentException;
 use Hiyori\Service\Combiner\Strategy\CombinerStrategy;
+use Hiyori\Service\Combiner\Strategy\RelationalFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalMappingStrategy;
 
 final class StrategyConfigurationFactory
 {
     public const AVAILABLE_STRATEGIES = [
-        RelationalMappingStrategy::class
+        RelationalMappingStrategy::class,
+        RelationalFuzzyStrategy::class
     ];
 
     private ?CombinerStrategy $strategy = null;
