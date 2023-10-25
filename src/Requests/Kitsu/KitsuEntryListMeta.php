@@ -3,6 +3,7 @@
 namespace Hiyori\Requests\Kitsu;
 
 use Hiyori\Requests\EntryListMeta;
+use Hiyori\Requests\Request;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
@@ -13,9 +14,10 @@ class KitsuEntryListMeta extends EntryListMeta
     {
         $self = new self;
 
-        $response = (new RetryableHttpClient(HttpClient::create()))
-            ->request('GET', self::ENTRYPOINT)
-            ->toArray();
+        $response = Request::fetch(
+            Request::GET,
+            $self::ENTRYPOINT
+        )->toArray();
 
         $self->setLastPage($response['meta']['count']);
         $self->setTotalEntries($response['meta']['count']);

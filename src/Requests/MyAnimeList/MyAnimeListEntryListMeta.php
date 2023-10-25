@@ -3,6 +3,7 @@
 namespace Hiyori\Requests\MyAnimeList;
 
 use Hiyori\Requests\EntryListMeta;
+use Hiyori\Requests\Request;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
@@ -13,9 +14,10 @@ class MyAnimeListEntryListMeta extends EntryListMeta
     {
         $self = new self;
 
-        $response = (new RetryableHttpClient(HttpClient::create()))
-            ->request('GET', self::ENTRYPOINT)
-            ->toArray();
+        $response = Request::fetch(
+            Request::GET,
+            $self::ENTRYPOINT
+        )->toArray();
 
         $self->setLastPage($response['pagination']['last_visible_page']);
         $self->setTotalEntries($response['pagination']['items']['total']);
