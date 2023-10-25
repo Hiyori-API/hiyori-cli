@@ -3,7 +3,9 @@
 namespace Hiyori\Service;
 
 use Hiyori\Helper;
+use Hiyori\Models\Anime\Base\KitsuBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
+use JMS\Serializer\SerializationContext;
 use MongoDB\Client;
 use MongoDB\InsertOneResult;
 
@@ -55,10 +57,14 @@ class Database
     public function save(string $source, AnimeBaseModel $entry): InsertOneResult
     {
         $entry = $this->serializer->getSerializer()
-            ->serialize($entry, 'json');
+            ->toArray(
+                $entry,
+                (new SerializationContext())
+                    ->setSerializeNull(true)
+            );
 
         return $this->client->hiyori->{$source}
-            ->insertOne(Helper::toArray($entry));
+            ->insertOne($entry);
     }
 
     public function mergeIntoOrganized(
