@@ -8,6 +8,7 @@ use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\AniListTitle;
 use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
+use Hiyori\Models\Common\Identifiers\MyAnimeList;
 
 
 class AniListBase extends Base
@@ -32,6 +33,12 @@ class AniListBase extends Base
         $self->images[] = $json['coverImage']['large'];
 
         $self->references[] = $json['siteUrl'];
+
+        // Anilist has MAL ID as a separate property
+        // it's not returned in externalLinks
+        if ($json['malId'] !== null) {
+            $self->references[] = sprintf(MyAnimeList::ENTRY_URL, $json['malId']);
+        }
 
         foreach ($json['externalLinks'] ?? [] as $link) {
             $self->references[] = $link['url'];
