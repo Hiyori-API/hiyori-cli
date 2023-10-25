@@ -53,6 +53,7 @@ php hiyori ingest anilist --delay 1
 
 > [!NOTE]
 > 1: General spoiler or Media spoiler tags are not ingested.
+> 
 > 2: The total entries shown will max out at `5000`. This is just a data issue with the data returned
 > It will not affect the ingestion process as the value will be updated after paginating past `5000`
 > You can find out more about this known-issue on [AniList's discord server](https://discord.com/channels/210521487378087947/281216402684116993/931028449081032724).
@@ -151,35 +152,22 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 ---
 
 ## Roadmap
-Right now the main focus is to integrate the initial 3 sources and build a combined relational Anime metadata DB.
 
-### Quality of Life
-- [ ] Tests
-- [ ] Sweepers - Remove dead entries (or create a separate collection of them)
-
-### Feature
-- [ ] [Ingestion: Allow re-try of failed requests](https://github.com/Hiyori-API/hiyori-cli/issues/9)
-- [ ] [Ingestion: Alow resume](https://github.com/Hiyori-API/hiyori-cli/issues/13)
-- [ ] [Caching](https://github.com/Hiyori-API/hiyori-cli/issues/12)
-- [ ] [Ingestion: Allow flag for metadata update](https://github.com/Hiyori-API/hiyori-cli/issues/3)
-- [x] [EV for secrets](https://github.com/Hiyori-API/hiyori-cli/issues/4)
-- [ ] [Logging](https://github.com/Hiyori-API/hiyori-cli/issues/6)
-- [x] [Tool: Combiner](https://github.com/Hiyori-API/hiyori-cli/issues/10)
-- [ ] [Tool: Export](https://github.com/Hiyori-API/hiyori-cli/issues/11)
-- [ ] Manga Relational DB
-- [x] Dependency Injection / Service Containers
-
-
-### Sources
-- [x] MyAnimeList Integration via REST API
-- [x] Kitsu Integration via REST API
-- [x] AniList Integration via REST API
+👉 [View Roadmap](https://github.com/orgs/Hiyori-API/projects/1)
 
 ## FAQ
-**Why does Hiyori Schema consist of metadata?**
 
+<details>
+<summary>Click to expand</summary>
+  
+##### Why does Hiyori Schema consist of metadata?
 In the event an entry from a source does not contain relational IDs or mapping provided by sources, the metadata will be used to find the relation instead.
 
+##### Will you add more to the metadata upon request?
+We're only using metadata to create a relation score if there's no direct reference found between entries. There are no plans to add more metadata unless it can somehow help create a better relation score for unmapped entries.
+</details>
+
+---
 
 > [!IMPORTANT]
-> Hiyori is not affiliated with any sources. You are responsible for the usage of this tool. Please be respectful towards the terms and conditions set by these sources.
+> Hiyori is not affiliated with any sources. You are responsible for the usage of this tool. Please be respectful of the terms and conditions set by these sources.
