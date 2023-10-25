@@ -43,6 +43,17 @@ class AniListBase extends Base
 
         $self->referenceIds = (new Identifiers($self->references))->getModel();
 
+        foreach ($json['tags'] ?? [] as $tag) {
+            $isGeneralSpoiler = $tag['isGeneralSpoiler'] === true;
+            $isMediaSpoiler = $tag['isMediaSpoiler'] === true;
+
+            if ($isGeneralSpoiler || $isMediaSpoiler) {
+                continue;
+            }
+
+            $self->tags[] = Helper::prepareAsIdentifer($tag['name']);
+        }
+
         return $self;
     }
 }

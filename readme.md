@@ -33,6 +33,9 @@ WIP. 🚧
 
 You can use the cli tool as `./hiyori`, `php hiyori` or `php src/run.php`.
 
+> [!NOTE]
+> It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
+
 #### MyAnimeList Ingestion
 ```console
 php hiyori ingest myanimelist --delay 1
@@ -47,9 +50,9 @@ php hiyori ingest kitsu --delay 1
 ```console
 php hiyori ingest anilist --delay 1
 ```
-
 > [!NOTE]
-> It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
+> General spoiler or Media spoiler tags are not ingested.
+
 
 ---
 
