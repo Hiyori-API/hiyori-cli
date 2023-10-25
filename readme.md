@@ -50,8 +50,13 @@ php hiyori ingest kitsu --delay 1
 ```console
 php hiyori ingest anilist --delay 1
 ```
+
 > [!NOTE]
-> General spoiler or Media spoiler tags are not ingested.
+> 1: General spoiler or Media spoiler tags are not ingested.
+> 2: The total entries shown will max out at `5000`. This is just a data issue with the data returned
+> It will not affect the ingestion process as the value will be updated after paginating past `5000`
+> You can find out more about this known-issue on [AniList's discord server](https://discord.com/channels/210521487378087947/281216402684116993/931028449081032724).
+
 
 
 ---

@@ -36,15 +36,11 @@ class AniListBase extends Base
 
         // Anilist has MAL ID as a separate property
         // it's not returned in externalLinks
-        if ($json['malId'] !== null) {
-            $self->references[] = sprintf(MyAnimeList::ENTRY_URL, $json['malId']);
+        if ($json['idMal'] !== null) {
+            $self->references[] = sprintf(MyAnimeList::ENTRY_URL, $json['idMal']);
         }
 
         foreach ($json['externalLinks'] ?? [] as $link) {
-            $self->references[] = $link['url'];
-        }
-
-        foreach ($json['streamingEpisodes'] ?? [] as $link) {
             $self->references[] = $link['url'];
         }
 
