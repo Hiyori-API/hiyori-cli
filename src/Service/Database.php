@@ -73,14 +73,18 @@ class Database
         ?string $identifierValue = null): \MongoDB\UpdateResult
     {
         $entry = $this->serializer->getSerializer()
-            ->serialize($entry, 'json');
+            ->toArray(
+                $entry,
+                (new SerializationContext())
+                    ->setSerializeNull(true)
+            );
 
         return $this->client->hiyori->organized
             ->replaceOne(
                 [
                     'reference_ids.'.$identifier => $identifierValue
                 ],
-                Helper::toArray($entry),
+                $entry,
                 [
                     'upsert' => true
                 ]
