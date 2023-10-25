@@ -5,17 +5,17 @@ namespace Hiyori\Models\Common;
 abstract class Base implements BaseInterface
 {
     protected string $title;
-    protected array $synonyms;
-    protected ?string $type;
-    protected ?int $episodes;
-    protected ?string $status;
-    protected ?string $season;
-    protected ?int $year;
-    protected array $images;
-    protected array $referenceIds;
+    protected array $synonyms = [];
+    protected ?string $type = null;
+    protected ?int $episodes = null;
+    protected ?string $status = null;
+    protected ?string $season = null;
+    protected ?int $year = null;
+    protected array $images = [];
+    protected array $referenceIds = [];
 
-    protected array $references;
-    protected array $tags;
+    protected array $references = [];
+    protected array $tags = [];
 
     /**
      * @return string
