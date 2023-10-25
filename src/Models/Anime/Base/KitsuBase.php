@@ -56,6 +56,13 @@ class KitsuBase extends Base
         $self->references = array_merge($self->references, Identifiers::pairsToLinks($pairs));
         $self->referenceIds = (new Identifiers($self->references))->getModel();
 
+        foreach ($json['genres'] ?? [] as $tag) {
+            $self->tags[] = Helper::prepareAsIdentifer($tag['attributes']['name']);
+        }
+        foreach ($json['categories'] ?? [] as $tag) {
+            $self->tags[] = Helper::prepareAsIdentifer($tag['attributes']['title']);
+        }
+
         return $self;
     }
 }

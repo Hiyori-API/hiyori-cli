@@ -3,6 +3,8 @@
 namespace Hiyori\Service\Ingestion\Source;
 
 use Hiyori\Models\Anime\Base\KitsuBase;
+use Hiyori\Requests\Kitsu\KitsuEntryCategories;
+use Hiyori\Requests\Kitsu\KitsuEntryGenres;
 use Hiyori\Requests\Kitsu\KitsuEntryList;
 use Hiyori\Requests\Kitsu\KitsuEntryListMeta;
 use Hiyori\Requests\Kitsu\KitsuEntryMappings;
@@ -46,8 +48,16 @@ final class KitsuIngestion
                 try {
                     $mappings = KitsuEntryMappings::create($listItem[$config->getJsonId()]);
                     $streamingLinks = KitsuEntryStreamingLinks::create($listItem[$config->getJsonId()]);
+                    sleep($sources->get()->getDelay());
+                    $genres = KitsuEntryGenres::create($listItem[$config->getJsonId()]);
+                    $categories = KitsuEntryCategories::create($listItem[$config->getJsonId()]);
 
-                    $listItemData = array_merge($listItem, ['streaming'=>$streamingLinks->getData()], ['external'=>$mappings->getData()]);
+                    $listItemData = array_merge($listItem,
+                        ['streaming' => $streamingLinks->getData()],
+                        ['external' => $mappings->getData()],
+                        ['genres' => $genres->getData()],
+                        ['categories' => $categories->getData()],
+                    );
 
                 } catch (\Exception $e) {
                     $console->io()->error("[".$listItem[$config->getJsonId()."] ".$e->getMessage()]);
