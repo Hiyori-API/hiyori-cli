@@ -3,6 +3,7 @@
 namespace Hiyori\Models\Anime\Base;
 
 use Hiyori\Helper;
+use Hiyori\Models\Anime\Season;
 use Hiyori\Models\Anime\Status;
 use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\AniListTitle;
@@ -27,8 +28,8 @@ class AniListBase extends Base
         $self->episodes = $json['episodes'];
         $self->status = $json['status'] === null ? null : Status::fromString(Helper::prepareAsIdentifer($json['status']))->value;
 
-        $self->season = $json['season'];
-        $self->year = $json['seasonYear'];
+        $self->season = $json['season'] === null ? null : Season::fromString(Helper::prepareAsIdentifer($json['season']))->value;
+        $self->year = $json['seasonYear'] ?? null;
 
         $self->images[] = $json['coverImage']['large'];
 
