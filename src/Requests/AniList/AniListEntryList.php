@@ -3,9 +3,7 @@
 namespace Hiyori\Requests\AniList;
 
 use Hiyori\Requests\EntryList;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\HttpClient\HttpOptions;
-use Symfony\Component\HttpClient\RetryableHttpClient;
+use Hiyori\Requests\Request;
 
 class AniListEntryList extends EntryList
 {
@@ -14,20 +12,17 @@ class AniListEntryList extends EntryList
     {
         $self = new self;
 
-        $response = (new RetryableHttpClient(HttpClient::create()))
-            ->request('POST', self::ENTRYPOINT,
-                (new HttpOptions())
-                    ->setJson(
-                        [
-                            'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-                            'variables' => [
-                                'page' => $currentPage,
-                                'type' => 'ANIME',
-                            ]
-                        ]
-                    )->toArray()
-            )
-            ->toArray();
+        $response = Request::fetch(
+            Request::POST,
+            self::ENTRYPOINT,
+            [
+                'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
+                'variables' => [
+                    'page' => $currentPage,
+                    'type' => 'ANIME',
+                ]
+            ]
+        )->toArray();
 
         $self->setList($response['data']['Page']['ANIME']);
 

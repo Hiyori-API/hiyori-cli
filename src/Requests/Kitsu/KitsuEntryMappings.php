@@ -3,6 +3,7 @@
 namespace Hiyori\Requests\Kitsu;
 
 use Hiyori\Requests\Entry;
+use Hiyori\Requests\Request;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
@@ -13,9 +14,10 @@ class KitsuEntryMappings extends Entry
     {
         $self = new self;
 
-        $response = (new RetryableHttpClient(HttpClient::create()))
-            ->request('GET', sprintf(self::ENTRYPOINT, $id))
-            ->toArray();
+        $response = Request::fetch(
+            Request::GET,
+            sprintf(self::ENTRYPOINT, $id)
+        )->toArray();
 
         $self->setData($response['data']);
 

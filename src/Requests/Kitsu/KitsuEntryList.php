@@ -3,6 +3,7 @@
 namespace Hiyori\Requests\Kitsu;
 
 use Hiyori\Requests\EntryList;
+use Hiyori\Requests\Request;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
 
@@ -13,9 +14,10 @@ class KitsuEntryList extends EntryList
     {
         $self = new self;
 
-        $response = (new RetryableHttpClient(HttpClient::create()))
-            ->request('GET', sprintf(self::ENTRYPOINT, $currentPage))
-            ->toArray();
+        $response = Request::fetch(
+            Request::GET,
+            sprintf(self::ENTRYPOINT, $currentPage)
+        )->toArray();
 
         $self->setList($response['data']);
 
