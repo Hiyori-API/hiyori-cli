@@ -23,7 +23,7 @@ final class AniListIngestion
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? "%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%");
         $progressBar->start();
 
-        while ($meta->getCurrentPage() <= $meta->getLastPage()) {
+        while ($meta->hasNextPage()) {
             $currentPage = $meta->getCurrentPage();
             $list = AniListEntryList::create($currentPage);
 
