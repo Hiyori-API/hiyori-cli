@@ -6,9 +6,19 @@ use Monolog\Handler\RotatingFileHandler;
 use Monolog\Level;
 use Monolog\Logger;
 
+/**
+ *
+ */
 class Logging
 {
+    /**
+     * @var Logger
+     */
     private Logger $logger;
+
+    /**
+     *
+     */
     public function __construct()
     {
         $this->logger = new Logger('main');
@@ -20,11 +30,22 @@ class Logging
             ));
     }
 
+    /**
+     * @return Level
+     */
     private function assertLogLevel(): Level
     {
         $appDebug = $_ENV['APP_DEBUG'] ?? false;
 
         return $appDebug ? Level::Debug : Level::Info;
+    }
+
+    /**
+     * @return Logger
+     */
+    public function getLogger(): Logger
+    {
+        return $this->logger;
     }
 
 }
