@@ -54,11 +54,11 @@ final class CombinerCommand extends Command
             return Command::SUCCESS;
         }
 
-        $this->hiyori->combine(
-            $input->getArgument('base'),
-            $input->getOption('strategy') ?? RelationalMappingStrategy::NAME
-        );
+        // @todo validation
+        $base = $input->getArgument('base');
+        $strategy = $input->getOption('strategy') ??  RelationalMappingStrategy::class;
 
+        $this->hiyori->combine($base, $strategy);
 
         $this->release();
 
