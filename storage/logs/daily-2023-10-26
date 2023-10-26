@@ -1,0 +1,2 @@
+[2023-10-26T21:23:52.478058+05:00] main.DEBUG: Started ingestion of myanimelist. [Delay:1,Update:] [] []
+[2023-10-26T21:25:56.742386+05:00] main.DEBUG: Started ingestion of myanimelist {"delay":"1","update":false} []

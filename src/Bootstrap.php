@@ -18,6 +18,7 @@ $app->setAutoExit(true);
  * Register services
  */
 $container = new \Symfony\Component\DependencyInjection\ContainerBuilder();
+$container->autowire(\Hiyori\Service\Logging::class);
 $container->autowire(\Hiyori\Service\Database::class);
 $container->autowire(\Hiyori\Service\Serializer::class);
 $container->autowire(\Hiyori\Service\ConsoleFactory::class)

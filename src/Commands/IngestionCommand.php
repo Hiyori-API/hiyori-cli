@@ -3,6 +3,7 @@
 namespace Hiyori\Commands;
 
 use Hiyori\Hiyori;
+use Hiyori\Service\Logging;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -35,13 +36,12 @@ final class IngestionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->hiyori->ingest(
-            $input->getArgument('source'),
-            [
-                'delay' => $input->getOption('delay') ?? 0,
-                'update' => $input->getOption('update') ?? false
-            ]
-        );
+        // @todo validation
+        $source = $input->getArgument('source');
+        $delay = $input->getOption('delay') ?? 0;
+        $update = $input->getOption('update') ?? false;
+
+        $this->hiyori->ingest($source, ['delay' => $delay,'update' => $update]);
 
         return Command::SUCCESS;
     }
