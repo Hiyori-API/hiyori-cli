@@ -4,6 +4,7 @@ namespace Hiyori\Service;
 
 use Hiyori\Exception\InvalidArgumentException;
 use Hiyori\Service\Combiner\Strategy\CombinerStrategy;
+use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalMappingStrategy;
 
@@ -11,21 +12,26 @@ final class StrategyConfigurationFactory
 {
     public const AVAILABLE_STRATEGIES = [
         RelationalMappingStrategy::class,
-        RelationalFuzzyStrategy::class
+        RelationalFuzzyStrategy::class,
+        MetadataFuzzyStrategy::class,
     ];
 
     private ?CombinerStrategy $strategy = null;
-    private ?string $base = null;
+    private array $config = [];
+
     public static function create(): self
     {
-        $self = new self();
-
-        return $self;
+        return new self();
     }
 
     public function get(): CombinerStrategy
     {
         return $this->strategy;
+    }
+
+    public function getConfig(string $key, mixed $default = null): mixed
+    {
+        return $this->config[$key] ?? $default;
     }
 
     /**
@@ -42,6 +48,12 @@ final class StrategyConfigurationFactory
         if ($this->strategy === null) {
             throw new InvalidArgumentException("Unknown strategy called [{$strategy}]");
         }
+        return $this;
+    }
+
+    public function setConfig(array $config): self
+    {
+        $this->config = $config;
         return $this;
     }
 }
