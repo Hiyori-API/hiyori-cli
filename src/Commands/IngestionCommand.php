@@ -3,13 +3,23 @@
 namespace Hiyori\Commands;
 
 use Hiyori\Hiyori;
-use Hiyori\Service\Logging;
+use Hiyori\Models\Anime\Base\MyAnimeListBase;
+use Hiyori\Models\Common\Base as AnimeBaseModel;
+use Hiyori\Service\Combiner\Strategy\RelationalMappingStrategy;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntry;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryList;
+use Hiyori\Sources\MyAnimeList\Requests\MyAnimeListEntryListMeta;
+use Hiyori\Sources\SourceConfig;
+use MongoDB\Client;
+use MongoDB\InsertOneResult;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\LockableTrait;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'ingest',
@@ -19,6 +29,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 final class IngestionCommand extends Command
 {
+    use LockableTrait;
+
     public function __construct(
         private Hiyori $hiyori
     )
@@ -29,19 +41,32 @@ final class IngestionCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('source', InputArgument::REQUIRED, 'Source to index')
-            ->addOption('delay', 'd', InputOption::VALUE_OPTIONAL)
-            ->addOption('update', 'u', InputOption::VALUE_NONE);
+            ->addArgument('source', InputArgument::REQUIRED, 'Source to ingest from (myanimelist, anilist, kitsu)')
+            ->addOption('delay', 'd', InputOption::VALUE_OPTIONAL, 'Delay between requests in seconds (default: 1)', 1)
+            ->addOption('update', 'u', InputOption::VALUE_NONE, 'Update existing entries instead of skipping')
+            ->addOption('resume-page', 'r', InputOption::VALUE_OPTIONAL, 'Resume from specific page number');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        // @todo validation
-        $source = $input->getArgument('source');
-        $delay = $input->getOption('delay') ?? 0;
-        $update = $input->getOption('update') ?? false;
+        if (!$this->lock()) {
+            $output->writeln('The command is already running in another process.');
 
-        $this->hiyori->ingest($source, ['delay' => $delay,'update' => $update]);
+            return Command::SUCCESS;
+        }
+
+        $source = $input->getArgument('source');
+        $delay = (int) $input->getOption('delay');
+        $update = $input->getOption('update');
+        $resumePage = $input->getOption('resume-page') ? (int) $input->getOption('resume-page') : null;
+
+        $this->hiyori->ingest($source, [
+            'delay' => $delay,
+            'update' => $update,
+            'resume_page' => $resumePage,
+        ]);
+
+        $this->release();
 
         return Command::SUCCESS;
     }

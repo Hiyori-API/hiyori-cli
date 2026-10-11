@@ -16,7 +16,7 @@ class Ingestion
     {
     }
 
-    public function start()
+    public function start(): void
     {
         $this->console->io()
             ->section("Ingestion: ".$this->sources->get()->getName());
