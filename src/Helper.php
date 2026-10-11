@@ -27,7 +27,7 @@ class Helper
     }
 
     // https://stackoverflow.com/a/76375080
-    public static function convertMongoResultToArray($result): array|string
+    public static function convertMongoResultToArray($result): array|string|int|float|bool|null
     {
         if (is_object($result)) {
             if ($result instanceof \MongoDB\Model\BSONDocument) {
