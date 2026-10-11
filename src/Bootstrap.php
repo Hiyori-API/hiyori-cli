@@ -41,6 +41,7 @@ $hiyori = $container->get(\Hiyori\Hiyori::class);
 $app->addCommands([
     new \Hiyori\Commands\IngestionCommand($hiyori),
     new \Hiyori\Commands\CombinerCommand($hiyori),
+    new \Hiyori\Commands\ReferencesCommand($hiyori),
 ]);
 
 /**

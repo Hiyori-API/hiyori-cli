@@ -7,6 +7,7 @@ use Hiyori\Service\Ingestion\Ingestion;
 use Hiyori\Service\Logging;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
+use Hiyori\Service\Database;
 
 class Hiyori
 {
@@ -15,7 +16,8 @@ class Hiyori
         private Ingestion $ingestion,
         private Combiner $combiner,
         private StrategyConfigurationFactory $strategy,
-        private Logging $logging
+        private Logging $logging,
+        private Database $database
     )
     {
     }
@@ -44,4 +46,8 @@ class Hiyori
         $this->combiner->start();
     }
 
+    public function getDatabase(): Database
+    {
+        return $this->database;
+    }
 }

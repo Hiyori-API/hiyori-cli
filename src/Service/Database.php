@@ -91,4 +91,39 @@ class Database
             );
     }
 
+    /**
+     * Get all unique reference IDs from the organized collection.
+     *
+     * Returns an associative array where keys are the reference shorthands
+     * (e.g., 'mal', 'al', 'k', 'adb', etc.) and values are arrays of unique IDs.
+     *
+     * @return array<string, array<string>>
+     */
+    public function getUniqueReferences(): array
+    {
+        $cursor = $this->client->hiyori->organized
+            ->find([], ['projection' => ['reference_ids' => 1, '_id' => 0]]);
+
+        $uniqueRefs = [];
+
+        foreach ($cursor as $doc) {
+            if (!isset($doc['reference_ids']) || !is_array($doc['reference_ids'])) {
+                continue;
+            }
+
+            foreach ($doc['reference_ids'] as $shorthand => $id) {
+                if (!isset($uniqueRefs[$shorthand])) {
+                    $uniqueRefs[$shorthand] = [];
+                }
+                $uniqueRefs[$shorthand][$id] = true; // Use ID as key for uniqueness
+            }
+        }
+
+        // Convert from ID-keyed arrays to simple arrays
+        foreach ($uniqueRefs as $shorthand => $ids) {
+            $uniqueRefs[$shorthand] = array_keys($ids);
+        }
+
+        return $uniqueRefs;
+    }
 }
