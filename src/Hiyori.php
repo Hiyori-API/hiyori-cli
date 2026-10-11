@@ -32,6 +32,10 @@ class Hiyori
             ->setDelay((int) $config['delay'])
             ->setUpdate((bool) $config['update']);
 
+        if (isset($config['resume_page'])) {
+            $this->sources->get()->setResumePage($config['resume_page']);
+        }
+
         $this->ingestion->start();
     }
 
