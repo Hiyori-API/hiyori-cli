@@ -37,7 +37,8 @@ final class HelperTest extends TestCase
     {
         $doc = new \MongoDB\Model\BSONDocument(['key' => 'value', 'num' => 42]);
         $result = Helper::convertMongoResultToArray($doc);
-        $this->assertSame(['key' => 'value', 'num' => '42'], $result);
+        // Now preserves numeric types
+        $this->assertSame(['key' => 'value', 'num' => 42], $result);
     }
 
     public function testConvertMongoResultToArrayHandlesBSONArray(): void
@@ -62,9 +63,10 @@ final class HelperTest extends TestCase
             'nested' => new \MongoDB\Model\BSONDocument(['foo' => 'bar']),
         ]);
         $result = Helper::convertMongoResultToArray($doc);
+        // Now preserves numeric types in arrays
         $this->assertSame([
             'id' => '507f1f77bcf86cd799439011',
-            'items' => ['1', '2', '3'],
+            'items' => [1, 2, 3],
             'nested' => ['foo' => 'bar'],
         ], $result);
     }
@@ -72,13 +74,15 @@ final class HelperTest extends TestCase
     public function testConvertMongoResultToArrayPassesThroughPrimitives(): void
     {
         $this->assertSame('string', Helper::convertMongoResultToArray('string'));
-        $this->assertSame('123', Helper::convertMongoResultToArray(123));
-        $this->assertSame('1', Helper::convertMongoResultToArray(true));
+        $this->assertSame(123, Helper::convertMongoResultToArray(123));
+        $this->assertSame(3.14, Helper::convertMongoResultToArray(3.14));
+        $this->assertSame(true, Helper::convertMongoResultToArray(true));
+        $this->assertSame(false, Helper::convertMongoResultToArray(false));
     }
 
     public function testConvertMongoResultToArrayNullThrows(): void
     {
-        $this->expectException(\TypeError::class);
-        Helper::convertMongoResultToArray(null);
+        // Now returns null instead of throwing (wider return type)
+        $this->assertNull(Helper::convertMongoResultToArray(null));
     }
 }
