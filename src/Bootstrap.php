@@ -43,6 +43,8 @@ $app->addCommands([
     new \Hiyori\Commands\CombinerCommand($hiyori),
     new \Hiyori\Commands\ReferencesCommand($hiyori),
     new \Hiyori\Commands\WeightageCommand($hiyori),
+    new \Hiyori\Commands\SweeperCommand($hiyori),
+    new \Hiyori\Commands\ExportCommand($hiyori),
 ]);
 
 /**
