@@ -16,14 +16,15 @@
     "require": {
         "jms/serializer": "^3.28",
         "mongodb/mongodb": "^2.0",
-        "symfony/http-client": "^6.3",
-        "symfony/console": "^6.3",
-        "symfony/lock": "^6.3",
-        "symfony/config": "^6.3",
-        "symfony/dependency-injection": "^6.3",
-        "symfony/dotenv": "^6.3",
+        "symfony/http-client": "^6.4",
+        "symfony/console": "^6.4",
+        "symfony/lock": "^6.4",
+        "symfony/config": "^6.4",
+        "symfony/dependency-injection": "^6.4",
+        "symfony/dotenv": "^6.4",
         "ext-mongodb": "*",
-        "symfony/http-kernel": "^6.3",
-        "monolog/monolog": "^3.5"
+        "symfony/http-kernel": "^6.4",
+        "monolog/monolog": "^3.5",
+        "symfony/http-foundation": "^6.4"
     }
 }
