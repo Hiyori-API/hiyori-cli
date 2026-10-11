@@ -15,7 +15,7 @@
     ],
     "require": {
         "jms/serializer": "^3.28",
-        "mongodb/mongodb": "^1.15",
+        "mongodb/mongodb": "^2.0",
         "symfony/http-client": "^6.3",
         "symfony/console": "^6.3",
         "symfony/lock": "^6.3",
@@ -23,6 +23,7 @@
         "symfony/dependency-injection": "^6.3",
         "symfony/dotenv": "^6.3",
         "ext-mongodb": "*",
-        "symfony/http-kernel": "^6.3"
+        "symfony/http-kernel": "^6.3",
+        "monolog/monolog": "^3.5"
     }
 }
