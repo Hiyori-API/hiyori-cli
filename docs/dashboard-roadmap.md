@@ -150,3 +150,19 @@ token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/lim
   off** toggle sits in the top bar; header shows "live" vs the poll interval.
   Enable via prefs.realtime (Settings → Live dashboard) or the header toggle.
 - Verify: build clean; /sw.js 200 with new strategy; SSE smoke OK.
+
+## Settings → Environment manager (2026-10)
+
+- GET /api/env lists .env vars: key, present, sensitive flag, masked value
+  (secrets shown as `abcd••• (n chars)`); `?reveal=KEY` returns one plaintext.
+- POST /api/env {key,value} upserts; {key,value:null} removes the line.
+  Key validation `[A-Za-z_][A-Za-z0-9_]*`; single-line values; audited.
+- UI: Settings → Environment (web/src/components/pages/settings-env.tsx):
+  Sensitive + Configuration groups, per-row edit/reveal/delete, add-variable form.
+- **FOUND + FIXED (systemic)**: public/index.php used `dirname(__DIR__, 2)`
+  (→ one level above the repo) for the base path — dashboard state, backups,
+  settings prefs and env writes were landing in a stray
+  /home/nekomata/projects/storage/ and /home/nekomata/projects/.env all session,
+  while ingestion Telemetry (src/) correctly wrote the repo's storage/. All 16
+  occurrences fixed to dirname(__DIR__); stray dirs migrated into the repo;
+  added a /storage/backups/*.gz download route (backups were never servable).
