@@ -23,9 +23,10 @@ WIP. 🚧
 
 ## Installation
 1. Install PHP8.2+, MongoDB, MongoDB PHP Driver, Composer
-3. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
-4. `cd hiyori-cli && composer install`
-5. `chmod +x hiyori`
+2. `git clone https://github.com/Hiyori-API/hiyori-cli.git`
+3. `cd hiyori-cli && composer install`
+4. `chmod +x hiyori`
+5. Configure `.env` with your API credentials (see `.env.example`)
 5. Run commands
 
 
@@ -36,20 +37,29 @@ You can use the cli tool as `./hiyori`, `php hiyori` or `php src/run.php`.
 > [!NOTE]
 > It's recommended to keep a 1-second delay between requests for sources to prevent rate-limiting.
 
-#### MyAnimeList Ingestion
+#### Anime Ingestion
+
+##### MyAnimeList (Official API v2)
 ```console
 php hiyori ingest myanimelist --delay 1
 ```
 
-#### Kitsu Ingestion
+##### Kitsu
 ```console
 php hiyori ingest kitsu --delay 1
 ```
 
-#### AniList Ingestion
+##### AniList
 ```console
 php hiyori ingest anilist --delay 1
 ```
+
+##### Ingestion Options
+| Option | Description |
+|--------|-------------|
+| `--delay`, `-d` | Delay between requests in seconds (default: 1) |
+| `--update`, `-u` | Update existing entries instead of skipping |
+| `--resume-page`, `-r` | Resume from specific page number |
 
 > [!NOTE]
 > 1: General spoiler or Media spoiler tags are not ingested.
@@ -59,6 +69,25 @@ php hiyori ingest anilist --delay 1
 > You can find out more about this known-issue on [AniList's discord server](https://discord.com/channels/210521487378087947/281216402684116993/931028449081032724).
 
 
+#### Manga Ingestion
+
+##### MyAnimeList Manga (Official API v2)
+```console
+php hiyori ingest myanimelist_manga --delay 1
+```
+
+##### Kitsu Manga
+```console
+php hiyori ingest kitsu_manga --delay 1
+```
+
+##### AniList Manga
+```console
+php hiyori ingest anilist_manga --delay 1
+```
+
+> [!NOTE]
+> Manga ingestion uses the same options as anime ingestion (`--delay`, `--update`, `--resume-page`)
 
 ---
 
@@ -77,7 +106,7 @@ php hiyori combine {base} --strategy {strategy}
 ```console
 // example
 php hiyori combine myanimelist
-// specify a stratgegy
+// specify a strategy
 php hiyori combine myanimelist --strategy relational_mapping
 ```
 
@@ -89,14 +118,60 @@ This strategy simply checks for matching source IDs across available source data
 #### Relational Fuzzy `--strategy relational_fuzzy`
 This strategy cross-checks all `reference_ids` across available source datasets in hopes to find a matching ID between sources.
 
-
-#### Metadata Fuzzy
-> [!WARNING]
-> This is not yet implemented.
-
+#### Metadata Fuzzy `--strategy metadata_fuzzy`
 This strategy compares other metadata across available source datasets.
-The metadata properties are given weights and are cross checked using various algorithms.
-Based on this, a score is given. If the score is above a certain threshold, it is merged. 
+The metadata properties are given weights and are cross checked using various algorithms (Levenshtein for titles, Jaccard for tags).
+Based on this, a score is given. If the score is above a certain threshold, it is merged.
+
+```console
+php hiyori combine myanimelist --strategy metadata_fuzzy
+```
+
+---
+
+## Utility Commands
+
+### References
+Returns all unique reference IDs from the combined organized collection.
+
+```console
+php hiyori references [--source mal] [--json] [-v]
+```
+
+### Weightage
+Calculates ideal metadata field weights for fuzzy matching between two sources using ground-truth matches.
+
+```console
+php hiyori weightage myanimelist anilist [--sample 1000] [--json]
+```
+
+### Sweeper
+Cleans up orphaned, duplicate, or incomplete entries from source collections.
+
+```console
+php hiyori sweep [--source myanimelist] [--dry-run] [--orphans] [--duplicates] [--incomplete] [--all]
+```
+
+### Export
+Exports data from sources or combined DB in JSON, JSONL, or CSV format.
+
+```console
+php hiyori export [organized|myanimelist|anilist|kitsu] [--format json|jsonl|csv] [--output file.json] [--fields title,type,status] [--limit 100] [--pretty]
+```
+
+### Health Check
+Health check for services and dependencies (MongoDB, external APIs, rate limiter, disk, memory).
+
+```console
+php hiyori health [--json] [--watch] [--interval 30]
+```
+
+### Metrics
+Expose Prometheus metrics for scraping.
+
+```console
+php hiyori metrics
+```
 
 ---
 
@@ -120,7 +195,20 @@ Common data with different representations like status (MAL: "Finished Airing", 
 | `tags`          | _Array of String_  | Genres/Tags (combined from sources)                                | ❌        |
 
 ### Manga
-TBD.
+
+| Property        | Data Type          | Remarks                                                            | Nullable |
+|-----------------|--------------------|--------------------------------------------------------------------|----------|
+| `title`         | _String_           | Entry's main title                                                 | ❌        |
+| `synonyms`      | _Array of String_  | All other titles (combined from sources)                           | ❌        |
+| `type`          | _String_           | Entry type [`manga`, `novel`, `light_novel`, `one_shot`, `doujinshi`, `manhwa`, `manhua`, `oel`] | ✅        |
+| `chapters`      | _Integer_          | Number of chapters (if any mentioned)                              | ✅        |
+| `volumes`       | _Integer_          | Number of volumes (if any mentioned)                               | ✅        |
+| `status`        | _String_           | Status of entry [`finished`, `publishing`, `not_yet_published`, `on_hiatus`, `discontinued`] | ✅        |
+| `year`          | _Nullable Integer_ | Release Year                                                       | ✅        |
+| `images`        | _Array of String_  | Default Image URLs (combined from sources)                         | ❌        |
+| `reference_ids` | _Object_           | Parsed IDs from Supported References                               | ❌        |
+| `references`    | _Array of String_  | Reference URLs (combined from sources)                             | ❌        |
+| `tags`          | _Array of String_  | Genres/Tags (combined from sources)                                | ❌        |
 
 ---
 
@@ -148,6 +236,61 @@ The following URL type, if detected in an entry's `references`, will be parsed.
 | [Wikipedia English](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/WikipediaEN.php)  | `wpen`                  |
 | [Wikipedia Japanese](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/WikipediaJA.php) | `wpjp`                  |
 | [YouTube](https://github.com/Hiyori-API/hiyori-cli/blob/master/src/Models/Common/Identifiers/YouTube.php)            | `yt`                    |
+
+---
+
+## Configuration
+
+### Environment Variables (`.env`)
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `APP_ENV` | Environment (prod/dev/test) | Yes |
+| `APP_DEBUG` | Debug mode (true/false) | Yes |
+| `APP_VERSION` | Application version | Yes |
+| `MONGODB_URL` | MongoDB connection string | Yes |
+| `MAL_CLIENT_ID` | MyAnimeList API Client ID | For MAL ingestion |
+| `MAL_CLIENT_SECRET` | MyAnimeList API Client Secret | For MAL ingestion |
+| `RATE_LIMIT_MAX` | Max requests per window (default: 100) | No |
+| `RATE_LIMIT_WINDOW` | Time window in seconds (default: 60) | No |
+| `HTTP_CACHE` | Enable HTTP caching (true/false) | No |
+| `HTTP_CACHE_PATH` | Cache directory path | No |
+| `HTTP_CACHE_TTL` | Cache TTL in seconds | No |
+| `PROGRESSBAR_FORMAT` | Progress bar format string | No |
+| `PROGRESSBAR_REDRAW_FREQ` | Progress bar redraw frequency | No |
+
+### Rate Limiting
+Each source (myanimelist, anilist, kitsu, myanimelist_manga, anilist_manga, kitsu_manga) has its own token bucket with configurable max requests and time window. Circuit breaker opens if failure rate exceeds 50%.
+
+---
+
+## Docker Deployment
+
+```bash
+# Build and start services
+docker-compose up -d
+
+# Run ingestion
+docker-compose exec hiyori php hiyori ingest myanimelist --delay 1
+
+# Health check
+docker-compose exec hiyori php hiyori health --json
+```
+
+---
+
+## Testing & Quality
+
+```bash
+# Run tests
+./vendor/bin/phpunit -c phpunit.xml.dist
+
+# Static analysis
+./vendor/bin/phpstan analyse src --level=5
+
+# Code style
+./vendor/bin/php-cs-fixer fix --dry-run --diff
+```
 
 ---
 
