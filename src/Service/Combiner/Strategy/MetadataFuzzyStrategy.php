@@ -137,7 +137,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $cursor = $collection->find($filter, [
                 'projection' => [
                     'title' => 1, 'synonyms' => 1, 'type' => 1, 'episodes' => 1,
-                    'status' => 1, 'season' => 1, 'year' => 1, 'tags' => 1, '_id' => 0,
+                    'status' => 1, 'season' => 1, 'year' => 1, 'tags' => 1,
+                    'references' => 1, 'reference_ids' => 1, '_id' => 0,
                 ],
                 'limit' => 100,
             ]);

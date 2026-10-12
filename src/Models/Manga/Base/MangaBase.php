@@ -2,8 +2,6 @@
 
 namespace Hiyori\Models\Manga\Base;
 
-use Hiyori\Models\Common\Identifiers\Identifiers;
-
 class MangaBase extends \Hiyori\Models\Common\Base
 {
     public static function create(array $json): self
@@ -43,7 +41,9 @@ class MangaBase extends \Hiyori\Models\Common\Base
 
         $references = array_merge($entry['references'] ?? [], $mergeEntry['references'] ?? []);
         $self->references = array_unique($references, SORT_STRING);
-        $self->referenceIds = (new Identifiers($self->references))->getModel();
+        // Merge candidate IDs first so the base entry's own source IDs win on
+        // conflicts (e.g. a kitsu candidate claiming a different anilist id).
+        $self->referenceIds = array_merge($mergeEntry['reference_ids'] ?? [], $entry['reference_ids'] ?? []);
 
         $tags = array_merge($entry['tags'] ?? [], $mergeEntry['tags'] ?? []);
         $self->tags = array_unique($tags, SORT_STRING);

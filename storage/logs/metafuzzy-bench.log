@@ -1,2 +1,15 @@
 === metadata_fuzzy benchmark start Mon Oct 12 15:14:44 PKT 2026 ===
 >>> run 1: defaults (threshold 70)
+ Confidence: n=19091, min=70.0%, avg=82.0%, max=100.0%
+ Merges below 80%: 2234 (11.7%)
+ Merges by source: myanimelist=7678, kitsu=11413
+{"strategy":"metadata_fuzzy_defaults","total":15538,"has_mal":14394,"has_k":0,"high_conf_3sources":0,"only_base_1source":1144,"duplicate_keys":0}
+>>> run 2: tuned (threshold 60, title/tags weighted)
+ Confidence: n=23074, min=60.0%, avg=75.1%, max=100.0%
+ Merges below 80%: 19848 (86.0%)
+ Merges by source: myanimelist=10505, kitsu=12569
+{"strategy":"metadata_fuzzy_tuned","total":16560,"has_mal":15266,"has_k":0,"high_conf_3sources":0,"only_base_1source":1294,"duplicate_keys":0}
+>>> restoring clean snapshot
+2026-10-12T15:36:52.301+0500	3924 document(s) restored successfully. 0 document(s) failed to restore.
+restored: 3924
+=== end Mon Oct 12 15:36:52 PKT 2026 ===
