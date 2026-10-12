@@ -7,6 +7,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
+use Hiyori\Service\Telemetry;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
 use Symfony\Component\HttpClient\RetryableHttpClient;
@@ -48,8 +49,14 @@ final class MyAnimeListOfficialIngestion
         if (!$meta) {
             return;
         }
+        $total = (int) $meta['total'];
+        Telemetry::track($sourceKey, 0, $total, 0, 'running');
 
-        $progressBar = $console->io()->createProgressBar($meta['total']);
+        $processed = 0;
+        $saved = 0;
+        $errors = 0;
+
+        $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
@@ -65,6 +72,7 @@ final class MyAnimeListOfficialIngestion
 
             foreach ($entries as $entry) {
                 $itemId = $entry['node']['id'];
+                $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
                     $progressBar->advance();
@@ -78,12 +86,20 @@ final class MyAnimeListOfficialIngestion
                     $detail = self::fetchDetail($httpClient, $itemId, $console, $rateLimiter, $sourceKey);
                     if ($detail) {
                         $db->save($config->getTable(), MyAnimeListBase::create($detail));
+                        $saved++;
                     }
                 } catch (\Exception $e) {
+                    $errors++;
                     $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
                 $progressBar->advance();
+
+                if ($processed % 25 === 0) {
+                    Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
+                        'saved' => $saved,
+                    ]);
+                }
             }
 
             $offset += $limit;
@@ -91,6 +107,9 @@ final class MyAnimeListOfficialIngestion
         }
 
         $progressBar->finish();
+        Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
+            'saved' => $saved,
+        ]);
         $console->io()->info("Ingestion complete for {$config->getName()}");
     }
 

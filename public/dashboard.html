@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hiyori Dashboard</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#c9d1d9; --muted:#8b949e;
+          --ok:#3fb950; --warn:#d29922; --err:#f85149; --accent:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0; }
+  #clock { color:var(--muted); font-variant-numeric:tabular-nums; }
+  #healthdot { width:12px; height:12px; border-radius:50%; background:var(--ok); display:inline-block; }
+  main { padding:16px 20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .card h2 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td, th { padding:4px 6px; text-align:left; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .up { color:var(--ok); } .down { color:var(--err); }
+  .badge { padding:1px 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
+  .badge.run { color:var(--ok); border-color:var(--ok); }
+  .badge.done { color:var(--muted); }
+  .badge.err { color:var(--err); border-color:var(--err); }
+  .bar { height:6px; border-radius:4px; background:var(--line); overflow:hidden; min-width:60px; }
+  .bar i { display:block; height:100%; background:var(--accent); border-radius:4px; }
+  canvas.spark { width:100%; height:40px; display:block; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  .muted { color:var(--muted); }
+  ul.feed { margin:0; padding:0; list-style:none; max-height:220px; overflow:auto; font-size:12px; }
+  ul.feed li { padding:3px 0; border-bottom:1px dashed var(--line); }
+  ul.feed code { color:var(--warn); }
+  .btn { background:var(--panel); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:3px 10px; cursor:pointer; }
+  .btn:hover { border-color:var(--accent); }
+  footer { padding:12px 20px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <span id="healthdot"></span>
+  <h1>Hiyori Dashboard</h1>
+  <span id="clock"></span>
+  <span class="muted" id="mode"></span>
+  <span style="flex:1"></span>
+  <button class="btn" id="toggle">Pause</button>
+</header>
+<main>
+  <div class="grid">
+
+    <section class="card"><h2>Ingestion jobs</h2>
+      <table id="jobs"><thead><tr><th>Source</th><th>Phase</th><th>Progress</th><th class="num">Speed</th><th class="num">ETA</th><th class="num">Errors</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="card"><h2>Ingestion rates (entries/s, last ~6 min)</h2>
+      <div id="sparks"></div>
+    </section>
+
+    <section class="card"><h2>Dataset counts</h2>
+      <table id="counts"><tbody></tbody></table>
+    </section>
+
+    <section class="card"><h2>API health</h2>
+      <table id="health"><tbody></tbody></table>
+    </section>
+
+    <section class="card"><h2>Last combine</h2>
+      <div id="combine"><span class="muted">no combine run recorded yet</span></div>
+    </section>
+
+    <section class="card"><h2>Validation feed</h2>
+      <ul class="feed" id="validate"></ul>
+    </section>
+
+  </div>
+</main>
+<footer>
+  <span id="foot"></span>
+</footer>
+<script>
+(function () {
+  let running = true;
+  let last = null;
+  const $ = (s) => document.querySelector(s);
+
+  function spark(canvas, points, color) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 200, h = 40;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0,0,w,h);
+    if (!points || points.length < 2) { ctx.fillStyle = '#8b949e'; ctx.fillText('…', 4, 20); return; }
+    const max = Math.max(...points, 1), min = Math.min(...points, 0);
+    const span = (max - min) || 1;
+    ctx.strokeStyle = color || '#58a6ff'; ctx.lineWidth = 1.5; ctx.beginPath();
+    points.forEach((v, i) => {
+      const x = (i / (points.length - 1)) * (w - 4) + 2;
+      const y = h - 4 - ((v - min) / span) * (h - 8);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  function fmtSec(n) {
+    if (n == null || !isFinite(n)) return '—';
+    if (n < 90) return n + 's';
+    if (n < 5400) return Math.round(n/60) + 'm';
+    return Math.round(n/3600) + 'h ' + Math.round((n%3600)/60) + 'm';
+  }
+
+  function render(api) {
+    // Header
+    const h = api.health || {};
+    const ok = (h.status || '') === 'healthy';
+    $('#healthdot').style.background = ok ? 'var(--ok)' : 'var(--err)';
+    $('#clock').textContent = api.timestamp || '';
+
+    // Jobs
+    const tb = $('#jobs tbody'); tb.innerHTML = '';
+    const jobs = api.jobs || {};
+    const keys = Object.keys(jobs);
+    if (!keys.length) tb.innerHTML = '<tr><td colspan="6" class="muted">No job telemetry yet — start an ingestion</td></tr>';
+    keys.sort().forEach(k => {
+      const j = jobs[k]; if (!j || !j.source) return;
+      const pct = j.total ? Math.min(100, (j.processed / j.total) * 100) : 0;
+      const phase = (j.phase || 'idle');
+      const cls = phase === 'done' ? 'done' : phase === 'running' ? 'run' : 'err';
+      const row = document.createElement('tr');
+      row.innerHTML = '<td>' + (j.source || k) + '</td>'
+        + '<td><span class="badge ' + cls + '">' + phase + '</span></td>'
+        + '<td><div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i></div><span class="muted">' + (j.processed||0) + '/' + (j.total||'?') + '</span></td>'
+        + '<td class="num">' + (j.per_second != null ? j.per_second.toFixed(1) : '—') + '</td>'
+        + '<td class="num">' + fmtSec(j.eta_seconds) + '</td>'
+        + '<td class="num">' + (j.errors||0) + '</td>';
+      tb.appendChild(row);
+    });
+
+    // Sparks
+    const sp = $('#sparks'); sp.innerHTML = '';
+    Object.keys(jobs).sort().forEach(k => {
+      const j = jobs[k]; if (!j || !j.history) return;
+      const wrap = document.createElement('div');
+      const label = document.createElement('div'); label.className = 'muted';
+      label.textContent = j.source + '  (peak ' + Math.max(...j.history.map(p => p.v)).toFixed(1) + '/s)';
+      const cv = document.createElement('canvas'); cv.className = 'spark';
+      wrap.appendChild(label); wrap.appendChild(cv); sp.appendChild(wrap);
+      spark(cv, j.history.map(p => p.v));
+    });
+    if (!sp.children.length) sp.innerHTML = '<span class="muted">No history yet</span>';
+
+    // Counts
+    const ct = $('#counts tbody'); ct.innerHTML = '';
+    const counts = api.counts || {};
+    const totalDocs = Object.values(counts).reduce((a, b) => a + b, 0);
+    const baseline = (last && last.counts) || {};
+    Object.keys(counts).sort().forEach(k => {
+      const v = counts[k], b = baseline[k] || 0, d = v - b;
+      const row = document.createElement('tr');
+      row.innerHTML = '<td>' + k + '</td><td class="num">' + v.toLocaleString() + '</td>'
+        + '<td class="num ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'muted') + '">' + (d > 0 ? '+' : '') + d + '</td>';
+      ct.appendChild(row);
+    });
+    const tot = document.createElement('tr');
+    tot.innerHTML = '<td><b>total</b></td><td class="num"><b>' + totalDocs.toLocaleString() + '</b></td><td></td>';
+    ct.appendChild(tot);
+
+    // Health
+    const ht = $('#health tbody'); ht.innerHTML = '';
+    if (h.checks) {
+      ['mongodb', 'external_apis', 'rate_limiter', 'disk_space', 'memory'].forEach(name => {
+        const c = h.checks[name]; if (!c) return;
+        const row = document.createElement('tr');
+        let detail = '';
+        if (c.latency_ms != null) detail += ' ' + c.latency_ms + 'ms';
+        row.innerHTML = '<td><span class="dot" style="background:' + (c.healthy ? 'var(--ok)' : 'var(--err)') + '"></span>' + name + '</td><td class="muted">' + detail + '</td>';
+        ht.appendChild(row);
+      });
+      const ex = h.checks.external_apis;
+      if (ex && ex.endpoints) Object.keys(ex.endpoints).forEach(n => {
+        const e = ex.endpoints[n];
+        const row = document.createElement('tr');
+        row.innerHTML = '<td style="padding-left:20px">' + n + '</td><td class="num">' + (e.latency_ms != null ? e.latency_ms + 'ms' : (e.error || '')) + '</td>';
+        ht.appendChild(row);
+      });
+    } else {
+      ht.innerHTML = '<tr><td class="muted" colspan="2">no health data</td></tr>';
+    }
+
+    // Combine
+    const cm = $('#combine');
+    if (api.combine && api.combine.strategy) {
+      cm.innerHTML = '<table><tbody>'
+        + '<tr><td>Strategy</td><td>' + api.combine.strategy + '</td></tr>'
+        + '<tr><td>Base</td><td>' + (api.combine.base || '—') + '</td></tr>'
+        + '<tr><td>Merges</td><td class="num">' + (api.combine.merges || 0) + '</td></tr>'
+        + (api.combine.threshold != null ? '<tr><td>Threshold</td><td class="num">' + api.combine.threshold + '%</td></tr>' : '')
+        + (api.combine.scores ? '<tr><td>Score avg / min / max</td><td class="num">' + api.combine.scores.avg + ' / ' + api.combine.scores.min + ' / ' + api.combine.scores.max + '</td></tr>' : '')
+        + '<tr><td>Completed</td><td class="muted">' + (api.combine.completed_at || '—') + '</td></tr>'
+        + '</tbody></table>';
+    }
+
+    // Validation feed
+    const ul = $('#validate'); ul.innerHTML = '';
+    (api.validation || []).slice(0, 30).forEach(e => {
+      const li = document.createElement('li');
+      li.innerHTML = '<code>[' + (e.source || '?') + ']</code> <span class="muted">' + (e.title || '?') + '</span> — '
+        + Object.keys(e.errors || {}).join(', ') + ' <span class="muted">' + (e.ts || '') + '</span>';
+      ul.appendChild(li);
+    });
+    if (!ul.children.length) ul.innerHTML = '<li class="muted">no violations</li>';
+
+    $('#mode').textContent = 'refresh: 3s' + (last ? ' (delta vs prev poll)' : '');
+    $('#foot').textContent = 'polling ' + (running ? 'on' : 'off') + ' · Dashboard API: /api/status · Prometheus: /metrics';
+    last = api;
+  }
+
+  async function poll() {
+    if (!running) return;
+    try {
+      const r = await fetch('/api/status');
+      if (r.ok) render(await r.json());
+    } catch (e) { /* server not reachable yet */ }
+    setTimeout(poll, 3000);
+  }
+
+  $('#toggle').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Resume';
+    if (running) poll();
+  });
+
+  poll();
+})();
+</script>
+</body>
+</html>

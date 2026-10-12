@@ -71,5 +71,11 @@ final class RelationalMappingStrategy extends CombinerStrategy
         $progressBar->finish();
 
         $console->io()->info('Merge complete. Total Merged: ' . $totalMerged);
+        (new \Hiyori\Service\Telemetry())->update('combine-latest', [
+            'strategy' => self::NAME,
+            'base' => $source->get()->getTable(),
+            'merges' => $totalMerged,
+            'completed_at' => date('c'),
+        ]);
     }
 }

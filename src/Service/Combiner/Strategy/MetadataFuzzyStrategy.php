@@ -136,6 +136,19 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             }
             $console->io()->text('Merges by source: ' . implode(', ', $bySource));
         }
+
+        (new \Hiyori\Service\Telemetry())->update('combine-latest', [
+            'strategy' => self::NAME,
+            'base' => $source->get()->getTable(),
+            'merges' => $totalMerged,
+            'threshold' => round($threshold, 1),
+            'scores' => $scores !== [] ? [
+                'avg' => round(array_sum($scores) / count($scores), 1),
+                'min' => round(min($scores), 1),
+                'max' => round(max($scores), 1),
+            ] : null,
+            'completed_at' => date('c'),
+        ]);
     }
 
     /**
