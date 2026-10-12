@@ -7,24 +7,26 @@ use Hiyori\Requests\Request;
 
 class AniListEntryListMeta extends EntryListMeta
 {
-    const ENTRYPOINT = 'https://graphql.anilist.co';
+    public const ENTRYPOINT = 'https://graphql.anilist.co';
 
     private bool $hasNextPage = false;
+
     public static function create(&$currentPage = 1): self
     {
-        $self = new self;
+        $self = new self();
 
         $response = Request::fetch(
-            Request::POST,
             self::ENTRYPOINT,
+            Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-                'variables' => [
+            'variables' => [
                     'page' => $currentPage,
-                    'type' => 'ANIME',
-                ]
-            ]
-        )->toArray();
+            'type' => 'ANIME',
+            ],
+            ],
+        )
+            ->toArray();
 
         $self->setLastPage($response['data']['Page']['pageInfo']['lastPage']);
         $self->setTotalEntries($response['data']['Page']['pageInfo']['total']);
@@ -48,6 +50,7 @@ class AniListEntryListMeta extends EntryListMeta
     public function setHasNextPage(bool $hasNextPage): AniListEntryListMeta
     {
         $this->hasNextPage = $hasNextPage;
+
         return $this;
     }
 }

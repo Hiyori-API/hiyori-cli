@@ -16,14 +16,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'sweep',
     description: 'Clean up orphaned, duplicate, or incomplete entries',
     aliases: ['sweeper'],
-    hidden: false
+    hidden: false,
 )]
 final class SweeperCommand extends Command
 {
     public function __construct(
         private Hiyori $hiyori
-    )
-    {
+    ) {
         parent::__construct();
     }
 
@@ -131,8 +130,10 @@ final class SweeperCommand extends Command
         $duplicates = 0;
         foreach ($collection->aggregate($pipeline) as $group) {
             $ids = Helper::convertMongoResultToArray($group['ids']);
-            if (!is_array($ids)) continue;
-            
+            if (!is_array($ids)) {
+                continue;
+            }
+
             $toDelete = array_slice($ids, 1);
             if (!empty($toDelete)) {
                 $duplicates += count($toDelete);

@@ -24,7 +24,7 @@ class Logging
         $this->logger = new Logger('main');
         $this->logger
             ->pushHandler(new RotatingFileHandler(
-                __DIR__.'/../../storage/logs/daily',
+                __DIR__ . '/../../storage/logs/daily',
                 5,
                 $this->assertLogLevel(),
             ));
@@ -47,5 +47,4 @@ class Logging
     {
         return $this->logger;
     }
-
 }

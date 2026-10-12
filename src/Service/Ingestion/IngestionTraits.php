@@ -2,10 +2,8 @@
 
 namespace Hiyori\Service\Ingestion;
 
-use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use JMS\Serializer\Serializer;
 use MongoDB\Collection;
 
 trait IngestionTraits
@@ -25,7 +23,7 @@ trait IngestionTraits
                 if ($attempt < $maxRetries) {
                     $delay = $baseDelayMs * (2 ** ($attempt - 1));
                     $this->console->io()->info(
-                        "Attempt $attempt/$maxRetries failed: {$e->getMessage()}. Retrying in {$delay}ms..."
+                        "Attempt $attempt/$maxRetries failed: {$e->getMessage()}. Retrying in {$delay}ms...",
                     );
                     usleep($delay * 1000);
                 }
@@ -53,10 +51,11 @@ trait IngestionTraits
         if ($updateExisting && $idValue !== null) {
             /** @var Collection $collection */
             $collection = $db->getCollection($table);
+
             return $collection->replaceOne(
                 ['reference_ids.' . $shorthand => $idValue],
                 $data,
-                ['upsert' => true]
+                ['upsert' => true],
             );
         }
 
@@ -77,6 +76,7 @@ trait IngestionTraits
         if ($forUpdate) {
             return $db->get($table, $shorthand, $id, true);
         }
+
         return $db->exists($table, $shorthand, $id) ? ['exists' => true] : null;
     }
 
@@ -103,12 +103,14 @@ trait IngestionTraits
             return null;
         }
         $data = json_decode(file_get_contents($progressFile), true);
+
         return $data['last_page'] ?? null;
     }
 
     private function serializeEntry(Database $db, \Hiyori\Models\Common\Base $entry): array
     {
         $serializer = $db->getSerializer();
+
         return $serializer->toArray($entry, (new \JMS\Serializer\SerializationContext())->setSerializeNull(true));
     }
 }

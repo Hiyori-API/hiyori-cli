@@ -12,7 +12,7 @@ use Symfony\Component\Console\Output\OutputInterface;
     name: 'metrics',
     description: 'Expose Prometheus metrics',
     aliases: ['met'],
-    hidden: false
+    hidden: false,
 )]
 final class MetricsCommand extends Command
 {
@@ -31,9 +31,9 @@ final class MetricsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $metrics = $this->hiyori->getMetrics();
-        
+
         $output->write($metrics->render());
-        
+
         return Command::SUCCESS;
     }
 }

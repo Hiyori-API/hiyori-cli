@@ -3,10 +3,9 @@
 namespace Hiyori\Models\Manga\Base;
 
 use Hiyori\Helper;
+use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Manga\Status;
 use Hiyori\Models\Manga\Type;
-use Hiyori\Models\Common\Identifiers\Identifiers;
-use Hiyori\Models\Manga\Base\MangaBase;
 
 class AniListBase extends MangaBase
 {
@@ -15,11 +14,15 @@ class AniListBase extends MangaBase
         $self = new self();
 
         $node = $json['node'] ?? $json;
-        
+
         $self->title = $node['title']['romaji'] ?? $node['title']['english'] ?? $node['title']['native'] ?? '';
         $self->synonyms = $node['synonyms'] ?? [];
-        if (!empty($node['title']['english'])) $self->synonyms[] = $node['title']['english'];
-        if (!empty($node['title']['native'])) $self->synonyms[] = $node['title']['native'];
+        if (!empty($node['title']['english'])) {
+            $self->synonyms[] = $node['title']['english'];
+        }
+        if (!empty($node['title']['native'])) {
+            $self->synonyms[] = $node['title']['native'];
+        }
         $self->synonyms = array_unique($self->synonyms, SORT_STRING);
 
         $self->type = Type::fromString(Helper::prepareAsIdentifer($node['format'] ?? ''))->value;

@@ -3,15 +3,13 @@
 namespace Hiyori\Models\Anime\Base;
 
 use Hiyori\Models\Common\Base;
-use Hiyori\Models\Common\BaseInterface;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 
 class AnimeBase extends Base
 {
-
     public static function create(array $json): Base
     {
-        $self = new self;
+        $self = new self();
 
         $self->title = $json['title'];
         $self->synonyms = $json['synonyms'];
@@ -30,7 +28,7 @@ class AnimeBase extends Base
 
     public static function merge(array|object $entry, array|object $mergeEntry): Base
     {
-        $self = new self;
+        $self = new self();
 
         $self->title = $entry['title'] ?? $mergeEntry['title'];
 

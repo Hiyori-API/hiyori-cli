@@ -2,11 +2,6 @@
 
 namespace Hiyori;
 
-use Hiyori\Models\Anime\Season;
-use MongoDB\BSON\ObjectId;
-use MongoDB\Model\BSONArray;
-use MongoDB\Model\BSONDocument;
-
 class Helper
 {
     public static function cleanse(string $string): string
@@ -17,7 +12,7 @@ class Helper
     public static function prepareAsIdentifer(string $string): string
     {
         return strtolower(
-            self::cleanse($string)
+            self::cleanse($string),
         );
     }
 

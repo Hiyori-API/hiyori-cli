@@ -17,6 +17,7 @@ final class StrategyConfigurationFactory
     ];
 
     private ?CombinerStrategy $strategy = null;
+
     private array $config = [];
 
     public static function create(): self
@@ -48,12 +49,14 @@ final class StrategyConfigurationFactory
         if ($this->strategy === null) {
             throw new InvalidArgumentException("Unknown strategy called [{$strategy}]");
         }
+
         return $this;
     }
 
     public function setConfig(array $config): self
     {
         $this->config = $config;
+
         return $this;
     }
 }

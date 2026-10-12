@@ -2,13 +2,11 @@
 
 namespace Hiyori\Requests;
 
-
 /**
  *
  */
 abstract class EntryList implements EntryListInterface
 {
-
     /**
      * @var array
      */
@@ -28,7 +26,7 @@ abstract class EntryList implements EntryListInterface
     public function setList(array $list): self
     {
         $this->list = $list;
+
         return $this;
     }
-
 }

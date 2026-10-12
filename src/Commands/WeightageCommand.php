@@ -17,14 +17,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'weightage',
     description: 'Calculate ideal weightage between 2 sources for metadata fuzzy matching',
     aliases: ['weight'],
-    hidden: false
+    hidden: false,
 )]
 final class WeightageCommand extends Command
 {
     public function __construct(
         private Hiyori $hiyori
-    )
-    {
+    ) {
         parent::__construct();
     }
 
@@ -57,7 +56,7 @@ final class WeightageCommand extends Command
         $total2 = $coll2->countDocuments();
 
         if ($total1 === 0 || $total2 === 0) {
-            $io->error("One or both sources have no data. Run ingestion first.");
+            $io->error('One or both sources have no data. Run ingestion first.');
 
             return Command::FAILURE;
         }
@@ -203,6 +202,7 @@ final class WeightageCommand extends Command
             $set2 = array_flip((array)$v2);
             $intersection = count(array_intersect_key($set1, $set2));
             $union = count(array_merge($set1, $set2));
+
             /** @var int $union */
             return $union > 0 && ($intersection / $union) > 0.5;
         }

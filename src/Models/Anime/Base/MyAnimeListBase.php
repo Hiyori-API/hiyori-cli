@@ -13,7 +13,7 @@ class MyAnimeListBase extends Base
 {
     public static function create(array $json): self
     {
-        $self = new self;
+        $self = new self();
 
         // Handle official API response format
         $title = $json['title'] ?? '';
@@ -29,23 +29,23 @@ class MyAnimeListBase extends Base
             $synonyms[] = $altTitles['ja'];
         }
         $synonyms = array_unique($synonyms, SORT_STRING);
-        
+
         $self->title = $title;
         $self->synonyms = $synonyms;
-        
+
         $type = $json['media_type'] ?? null;
         $self->type = $type === null ? null : Type::fromString(Helper::prepareAsIdentifer($type))->value;
-        
+
         $self->episodes = $json['num_episodes'] ?? null;
-        
+
         $status = $json['status'] ?? null;
         $self->status = $status === null ? null : Status::fromString(Helper::prepareAsIdentifer($status))->value;
-        
+
         $season = $json['start_season']['season'] ?? null;
         $self->season = $season === null ? null : Season::fromString(Helper::prepareAsIdentifer($season))->value;
-        
+
         $self->year = $json['start_season']['year'] ?? null;
-        
+
         // Images
         if (!empty($json['main_picture']['large'])) {
             $self->images[] = $json['main_picture']['large'];
@@ -55,12 +55,12 @@ class MyAnimeListBase extends Base
 
         // References
         $self->references[] = "https://myanimelist.net/anime/{$json['id']}";
-        
+
         // Alternative titles as references
         if (!empty($altTitles['en'])) {
             $self->references[] = "https://myanimelist.net/anime/{$json['id']}/" . urlencode($altTitles['en']);
         }
-        
+
         $self->referenceIds = (new Identifiers($self->references))->getModel();
 
         // Genres/Tags

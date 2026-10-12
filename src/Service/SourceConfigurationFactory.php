@@ -8,13 +8,14 @@ use Hiyori\Models\SourceConfiguration;
 final class SourceConfigurationFactory
 {
     private array $sources;
+
     private string $current;
 
     public static function create(): self
     {
         $self = new self();
 
-        $sourceConfigs = include(__DIR__.'/../Config/Sources.php');
+        $sourceConfigs = include(__DIR__ . '/../Config/Sources.php');
 
         foreach ($sourceConfigs as $sourceName => $sourceConfig) {
             $self->sources[$sourceName] = new SourceConfiguration($sourceConfig);
@@ -52,6 +53,7 @@ final class SourceConfigurationFactory
     public function setCurrent(string $sourceName): self
     {
         $this->current = $sourceName;
+
         return $this;
     }
 }

@@ -11,6 +11,7 @@ abstract class Title
      * @var string
      */
     protected string $default;
+
     /**
      * @var array
      */
@@ -31,5 +32,4 @@ abstract class Title
     {
         return $this->synonyms;
     }
-
 }

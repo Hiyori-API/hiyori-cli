@@ -12,10 +12,13 @@ use MongoDB\Collection;
 
 final class RelationalMappingStrategy extends CombinerStrategy
 {
-    public const NAME = "relational_mapping";
+    public const NAME = 'relational_mapping';
 
     public static function process(
-        Database $db, ConsoleFactory $console, StrategyConfigurationFactory $strategy, SourceConfigurationFactory $source
+        Database $db,
+        ConsoleFactory $console,
+        StrategyConfigurationFactory $strategy,
+        SourceConfigurationFactory $source
     ): void {
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -26,7 +29,7 @@ final class RelationalMappingStrategy extends CombinerStrategy
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
-        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? "%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%");
+        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
 
         $totalMerged = 0;
@@ -42,22 +45,22 @@ final class RelationalMappingStrategy extends CombinerStrategy
                 if ($db->exists(
                     $currentSource->getTable(),
                     $currentSource->getShorthand(),
-                    $entryArray['reference_ids'][$sourceShorthand] ?? ''
+                    $entryArray['reference_ids'][$sourceShorthand] ?? '',
                 )) {
                     $matchEntry = $db->get(
                         $currentSource->getTable(),
                         $currentSource->getShorthand(),
                         $entryArray['reference_ids'][$sourceShorthand] ?? '',
-                        true
+                        true,
                     );
 
                     $db->mergeIntoOrganized(
                         AnimeBase::merge(
                             $entryArray,
-                            $matchEntry
+                            $matchEntry,
                         ),
                         $source->get()->getShorthand(),
-                        $source->get()->getJsonId()
+                        $source->get()->getJsonId(),
                     );
 
                     $totalMerged++;
@@ -67,6 +70,6 @@ final class RelationalMappingStrategy extends CombinerStrategy
         }
         $progressBar->finish();
 
-        $console->io()->info("Merge complete. Total Merged: ". $totalMerged);
+        $console->io()->info('Merge complete. Total Merged: ' . $totalMerged);
     }
 }

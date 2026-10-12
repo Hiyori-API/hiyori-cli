@@ -4,20 +4,20 @@ namespace Hiyori\Requests\MyAnimeList;
 
 use Hiyori\Requests\Entry;
 use Hiyori\Requests\Request;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\HttpClient\RetryableHttpClient;
 
 class MyAnimeListEntry extends Entry
 {
-    const ENTRYPOINT = 'https://api.jikan.moe/v4/anime/%d/full';
+    public const ENTRYPOINT = 'https://api.jikan.moe/v4/anime/%d/full';
+
     public static function create(&$id): self
     {
-        $self = new self;
+        $self = new self();
 
         $response = Request::fetch(
+            sprintf(self::ENTRYPOINT, $id),
             Request::GET,
-            sprintf(self::ENTRYPOINT, $id)
-        )->toArray();
+        )
+            ->toArray();
 
         $self->setData($response['data']);
 

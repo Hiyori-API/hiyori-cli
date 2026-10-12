@@ -7,7 +7,6 @@ namespace Hiyori\Requests;
  */
 abstract class Entry implements EntryInterface
 {
-
     /**
      * @var array
      */
@@ -27,9 +26,7 @@ abstract class Entry implements EntryInterface
     public function setData(array $data): self
     {
         $this->data = $data;
+
         return $this;
     }
-
-
-
 }
