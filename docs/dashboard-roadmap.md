@@ -135,3 +135,18 @@ token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/lim
 - metadata_fuzzy is now the DEFAULT combine strategy with tuned weights embedded.
 - Dev: `npm run dev` serves HMR at http://localhost:5173 (proxy → :8080); port pinned via
   strictPort + `@` alias added.
+
+## PWA + real-time (2026-10)
+
+- **PWA caching**: web/public/sw.js upgraded to `hiyori-v3` —
+  - /api/* GET: stale-while-revalidate → page reloads return the last-known
+    payload instantly, refreshed in the background (no full reload graph).
+  - /api/events (SSE): network only. Navigation + hashed assets: cache-first
+    (offline-capable). Cache versioning + cleanup; skipWaiting/clients.claim.
+  - SW registration guarded to skip the Vite dev port (5173).
+- **Real-time option**: `/api/events` SSE stream. StatusProvider gains a
+  `realtime` mode (Settings pref): full payload + slow 15s heartbeat, with
+  counts/jobs pushed instantly over SSE and merged into the UI. A **Live/Live
+  off** toggle sits in the top bar; header shows "live" vs the poll interval.
+  Enable via prefs.realtime (Settings → Live dashboard) or the header toggle.
+- Verify: build clean; /sw.js 200 with new strategy; SSE smoke OK.
