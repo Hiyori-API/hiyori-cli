@@ -55,6 +55,7 @@ final class MyAnimeListOfficialIngestion
         $processed = 0;
         $saved = 0;
         $errors = 0;
+        $skipped = 0;
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
@@ -75,6 +76,7 @@ final class MyAnimeListOfficialIngestion
                 $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
+                    $skipped++;
                     $progressBar->advance();
                     continue;
                 }
@@ -98,6 +100,7 @@ final class MyAnimeListOfficialIngestion
                 if ($processed % 25 === 0) {
                     Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
                         'saved' => $saved,
+                        'skipped' => $skipped,
                     ]);
                 }
             }
@@ -109,6 +112,7 @@ final class MyAnimeListOfficialIngestion
         $progressBar->finish();
         Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
             'saved' => $saved,
+            'skipped' => $skipped,
         ]);
         $console->io()->info("Ingestion complete for {$config->getName()}");
     }

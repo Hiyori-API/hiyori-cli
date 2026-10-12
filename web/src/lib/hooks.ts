@@ -9,7 +9,12 @@ export function usePolling(ms = 3000, enabled = true) {
   useEffect(() => {
     if (!enabled) return
     let stop = false
+    let hidden = document.hidden
+    const onVis = () => { hidden = document.hidden }
+    document.addEventListener('visibilitychange', onVis)
     const tick = async () => {
+      if (hidden) return
+      
       if (busy.current) return
       busy.current = true
       try {
@@ -29,6 +34,7 @@ export function usePolling(ms = 3000, enabled = true) {
     return () => {
       stop = true
       clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
     }
   }, [ms, enabled])
 

@@ -17,6 +17,11 @@ class Request
 
     public static function fetch(string $url, string $method = self::GET, ?array $options = []): ResponseInterface
     {
+        (new \Hiyori\Service\Telemetry())->update('cache', [
+            'requests' => (int) ((new \Hiyori\Service\Telemetry())->read('cache')['requests'] ?? 0) + 1,
+            'enabled' => (bool) ($_ENV['HTTP_CACHE'] ?? false),
+            'host' => (string) parse_url($url, PHP_URL_HOST),
+        ]);
         $client = new RetryableHttpClient(HttpClient::create());
 
         if (!boolval($_ENV['HTTP_CACHE'] ?? false)) {

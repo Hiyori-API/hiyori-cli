@@ -127,6 +127,31 @@ final class Telemetry
     }
 
     /**
+     * Whether a source is paused via a control file (dashboard /api/action).
+     */
+    public static function isPaused(string $source): bool
+    {
+        $t = new self();
+        $file = $t->stateDir() . '/control-' . $source . '.json';
+        if (!is_file($file)) {
+            return false;
+        }
+        $data = json_decode((string) @file_get_contents($file), true);
+
+        return (bool) ($data['paused'] ?? false);
+    }
+
+    /**
+     * Block until the source is resumed (checked once per second).
+     */
+    public static function waitIfPaused(string $source): void
+    {
+        while (self::isPaused($source)) {
+            sleep(1);
+        }
+    }
+
+    /**
      * One-shot ingestion progress tracker (convenience statics).
      */
     public static function track(
