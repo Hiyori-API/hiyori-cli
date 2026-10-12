@@ -20,8 +20,11 @@ final class CombinerTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $dotenv = new \Symfony\Component\Dotenv\Dotenv();
-        $dotenv->load(__DIR__ . '/../../.env');
+        $envFile = __DIR__ . '/../../.env';
+        if (is_file($envFile)) {
+            $dotenv = new \Symfony\Component\Dotenv\Dotenv();
+            $dotenv->load($envFile);
+        }
 
         self::$client = new Client($_ENV['MONGODB_URL']);
         self::$db = new Database(SerializerBuilder::create()->build());

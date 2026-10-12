@@ -18,30 +18,14 @@ final class DashboardApiTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $router = dirname(__DIR__, 2) . '/public/index.php';
-        if (!is_file($router)) {
-            self::markTestSkipped('public/index.php missing');
+        // Opt-in: point HIHYORI_API_BASE at a running dashboard server
+        // (e.g. php hiyori dashboard:serve --port 8080). Without it the class
+        // is skipped so CI never boots a server or probes external APIs.
+        self::$base = (string) (getenv('HIHYORI_API_BASE') ?: '');
+        if (self::$base === '') {
+            self::markTestSkipped('set HIHYORI_API_BASE to a running dashboard to run API smoke tests');
         }
-        $port = 18000 + random_int(0, 500);
-        self::$base = "http://127.0.0.1:$port";
         self::$stateDir = dirname(__DIR__, 2) . '/storage/state';
-
-        self::$proc = proc_open(
-            PHP_BINARY . ' -S 127.0.0.1:' . $port . ' ' . $router,
-            [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
-            self::$pipes,
-            dirname(__DIR__, 2),
-        );
-        // wait for readiness
-        for ($i = 0; $i < 30; $i++) {
-            $ctx = stream_context_create(['http' => ['timeout' => 1]]);
-            $s = @file_get_contents(self::$base . '/api/status', false, $ctx);
-            if ($s !== false) {
-                return;
-            }
-            usleep(200_000);
-        }
-        self::markTestSkipped('dashboard server did not start');
     }
 
     public static function tearDownAfterClass(): void
