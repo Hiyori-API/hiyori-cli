@@ -302,19 +302,33 @@ if ($path === '/api/backup') {
 if ($path === '/api/action') {
     $job = (string) ($_GET['job'] ?? '');
     $cmd2 = (string) ($_GET['cmd'] ?? '');
-    if ($job === '' || !in_array($cmd2, ['pause', 'resume', 'retry'], true)) {
-        sendJson(['error' => 'job + cmd (pause|resume|retry) required'], 400);
+    if ($job === '' || !in_array($cmd2, ['pause', 'resume', 'retry', 'start', 'runnow'], true)) {
+        sendJson(['error' => 'job + cmd (pause|resume|retry|start|runnow) required'], 400);
     }
-    if ($cmd2 === 'retry') {
+    if (in_array($cmd2, ['retry', 'start'], true)) {
         $src = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
         $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__, 2)), escapeshellarg($src));
         @exec($exe);
-        sendJson(['job' => $job, 'cmd' => 'retry', 'scheduled' => true]);
+        auditAppend('job.' . $cmd2, ['job' => $job]);
+        sendJson(['job' => $job, 'cmd' => $cmd2, 'scheduled' => true]);
+    }
+    if ($cmd2 === 'runnow') {
+        $srcs = $_ENV['SCHEDULE_SOURCES'] ?? 'anilist,myanimelist,kitsu';
+        foreach (explode(',', (string) $srcs) as $src) {
+            $src = trim($src);
+            if ($src !== '') {
+                $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__, 2)), escapeshellarg($src));
+                @exec($exe);
+            }
+        }
+        auditAppend('schedule.runnow', ['sources' => (string) $srcs]);
+        sendJson(['job' => $job, 'cmd' => 'runnow', 'scheduled' => true]);
     }
     $state = uniqid() === '' ? '' : (string) file_put_contents(
         dirname(__DIR__, 2) . '/storage/state/control-' . $job . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
+    auditAppend('job.' . $cmd2, ['job' => $job]);
 
     sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($job)]);
 }
@@ -333,8 +347,14 @@ if ($path === '/api/alerts') {
 
 if ($path === '/api/sample') {
     $collection = (string) ($_GET['collection'] ?? 'organized');
-    $doc = $client->selectDatabase('hiyori')->selectCollection($collection)->aggregate([['$sample' => ['size' => 1]]])->toArray()[0] ?? null;
-    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null]);
+    $min = (float) ($_GET['min'] ?? -1);
+    $pipeline = [];
+    if ($min >= 0) {
+        $pipeline[] = ['$match' => ['score' => ['$gte' => $min]]];
+    }
+    $pipeline[] = ['$sample' => ['size' => 1]];
+    $doc = $client->selectDatabase('hiyori')->selectCollection($collection)->aggregate($pipeline)->toArray()[0] ?? null;
+    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null, 'min' => $min]);
 }
 
 if ($path === '/api/jobsV2') {
@@ -390,6 +410,375 @@ if ($path === '/api/events') {
             break;
         }
         sleep(3);
+    }
+    exit;
+}
+
+
+// ===== Dashboard v2 endpoints =====
+function uiSettings(): array
+{
+    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $file = $dir . '/ui.json';
+    return is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
+}
+
+function saveUiSettings(array $s): void
+{
+    $dir = dirname(__DIR__, 2) . '/storage/state';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+    file_put_contents($dir . '/ui.json', json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
+function auditAppend(string $action, array $detail = []): void
+{
+    $dir = dirname(__DIR__, 2) . '/storage/state';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+    file_put_contents($dir . '/audit.jsonl', json_encode([
+        'ts' => date('c'),
+        'action' => $action,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'detail' => $detail,
+    ], JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
+}
+
+function tailLines(string $file, int $n): array
+{
+    if (!is_file($file)) {
+        return [];
+    }
+    $lines = file($file, FILE_IGNORE_NEW_LINES) ?: [];
+    $tail = array_slice($lines, max(0, count($lines) - $n));
+    $out = [];
+    foreach ($tail as $l) {
+        $decoded = json_decode($l, true);
+        if (is_array($decoded)) {
+            $out[] = $decoded;
+        }
+    }
+
+    return $out;
+}
+
+function backupsList(): array
+{
+    $dir = dirname(__DIR__, 2) . '/storage/backups';
+    $files = glob($dir . '/hiyori-*.gz') ?: [];
+    usort($files, static fn ($a, $b) => filemtime($b) - filemtime($a));
+
+    return array_map(static fn ($f) => ['file' => basename($f), 'mtime' => filemtime($f), 'size' => filesize($f)], $files);
+}
+
+function histogram(MongoClient $client): array
+{
+    $db = $client->selectDatabase('hiyori');
+    $bins = [];
+    foreach (['score', 'confidence'] as $field) {
+        try {
+            $pipeline = [
+                ['$match' => [$field => ['$exists' => true]]],
+                ['$group' => ['_id' => ['$floor' => ['$multiply' => [['$divide' => ['$' . $field, 10]], 1.0]]], 'n' => ['$sum' => 1]]],
+            ];
+            foreach ($db->selectCollection('organized')->aggregate($pipeline)->toArray() as $r) {
+                $bin = (int) ($r['_id'] ?? -1);
+                if ($bin >= 0 && $bin <= 10) {
+                    $bins[min(9, $bin) * 10] = (int) ($bins[min(9, $bin) * 10] ?? 0) + (int) ($r['n'] ?? 0);
+                }
+            }
+        } catch (\Throwable $e) {
+            // fall through to next field
+        }
+    }
+
+    $out = [];
+    for ($i = 0; $i < 10; $i++) {
+        $out[$i * 10] = $bins[$i * 10] ?? 0;
+    }
+
+    return $out;
+}
+
+function explore(MongoClient $client, array $q): array
+{
+    $collection = (string) ($q['collection'] ?? 'anilist');
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection)) {
+        return ['error' => 'bad collection'];
+    }
+    $page = max(1, (int) ($q['page'] ?? 1));
+    $per = min(100, max(1, (int) ($q['per'] ?? 25)));
+    $search = trim((string) ($q['q'] ?? ''));
+    $sort = (string) ($q['sort'] ?? '');
+    $dir = (strtolower((string) ($q['dir'] ?? 'asc')) === 'desc') ? -1 : 1;
+    $filter = (string) ($q['filter'] ?? '');
+
+    $coll = $client->selectDatabase('hiyori')->selectCollection($collection);
+    $mongoFilter = [];
+    if ($search !== '') {
+        $rx = new \MongoDB\BSON\Regex(preg_quote($search, '/'), 'i');
+        $or = [
+            ['title' => $rx],
+            ['title.romaji' => $rx],
+            ['title.english' => $rx],
+            ['title.native' => $rx],
+            ['synonyms' => $rx],
+            ['_id' => $rx],
+        ];
+        foreach (['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'adb', 'cr', 'nf', 'sb', 'ttv', 'tx', 'b', 'fm', 'yt', 'tvt', 'ap', 't'] as $sh) {
+            $or[] = ['reference_ids.' . $sh => $rx];
+        }
+        $mongoFilter['$or'] = $or;
+    }
+    switch ($filter) {
+        case 'no_mal':
+            $mongoFilter['reference_ids.mal'] = ['$exists' => false];
+            break;
+        case 'no_al':
+            $mongoFilter['reference_ids.al'] = ['$exists' => false];
+            break;
+        case 'no_k':
+            $mongoFilter['reference_ids.k'] = ['$exists' => false];
+            break;
+        case 'has_mal':
+            $mongoFilter['reference_ids.mal'] = ['$exists' => true];
+            break;
+        case 'no_refs':
+            $mongoFilter = ['reference_ids' => ['$exists' => false]];
+            break;
+        case 'empty_title':
+            $mongoFilter['title'] = ['$in' => [null, '', []]];
+            break;
+    }
+
+    $total = $coll->countDocuments($mongoFilter);
+    $opts = ['skip' => ($page - 1) * $per, 'limit' => $per];
+    if ($sort !== '' && preg_match('/^[A-Za-z0-9_.]+$/', $sort)) {
+        $opts['sort'] = [$sort => $dir];
+    }
+    $rows = [];
+    foreach ($coll->find($mongoFilter, $opts) as $doc) {
+        $rows[] = json_decode(json_encode($doc), true);
+    }
+    $fields = $rows !== [] ? array_keys($rows[0]) : [];
+
+    return [
+        'collection' => $collection,
+        'page' => $page,
+        'per' => $per,
+        'total' => $total,
+        'docs' => $rows,
+        'fields' => $fields,
+    ];
+}
+
+if ($path === '/api/explore') {
+    sendJson(explore($client, $_GET));
+}
+
+if ($path === '/api/meta') {
+    $cols = [];
+    $db = $client->selectDatabase('hiyori');
+    foreach ($db->listCollections() as $c) {
+        $name = $c->getName();
+        $doc = $db->selectCollection($name)->findOne();
+        $cols[$name] = [
+            'count' => $db->selectCollection($name)->countDocuments(),
+            'fields' => $doc ? array_keys(json_decode(json_encode($doc), true)) : [],
+        ];
+    }
+    sendJson(['collections' => $cols, 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/settings') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        if (isset($body['token_rotate'])) {
+            $token = bin2hex(random_bytes(24));
+            updateDotEnv('DASHBOARD_TOKEN', $token);
+            auditAppend('settings.token_rotate');
+            sendJson(['settings' => uiSettings(), 'token' => $token, 'note' => 'new token active on next request' ]);
+        }
+        if (array_key_exists('webhook', $body)) {
+            updateDotEnv('WEBHOOK_URL', (string) $body['webhook']);
+            $merged = array_merge(uiSettings(), array_diff_key($body, ['webhook' => true]));
+            saveUiSettings($merged);
+            auditAppend('settings.webhook');
+            sendJson(['settings' => $merged, 'webhook' => (string) $body['webhook']]);
+        }
+        if (isset($body['webhook_test']) && $body['webhook_test']) {
+            $hook = $_ENV['WEBHOOK_URL'] ?? '';
+            if ($hook === '') {
+                sendJson(['test' => 'no webhook configured'], 400);
+            }
+            $ok = @file_get_contents($hook, false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode(['text' => '[Hiyori] dashboard webhook test']),
+                    'timeout' => 5,
+                ],
+            ]));
+            auditAppend('settings.webhook_test', ['sent' => $ok !== false]);
+            sendJson(['test' => $ok !== false ? 'sent' : 'failed']);
+        }
+        if (isset($body['reset']) && $body['reset']) {
+            @unlink(dirname(__DIR__, 2) . '/storage/state/ui.json');
+            auditAppend('settings.reset');
+            sendJson(['settings' => [], 'reset' => true]);
+        }
+        $merged = array_merge(uiSettings(), $body);
+        saveUiSettings($merged);
+        auditAppend('settings.update', ['keys' => array_keys($body)]);
+        sendJson(['settings' => $merged]);
+    }
+    sendJson([
+        'settings' => uiSettings(),
+        'env' => [
+            'token_present' => isset($_ENV['DASHBOARD_TOKEN']) && $_ENV['DASHBOARD_TOKEN'] !== '',
+            'webhook' => $_ENV['WEBHOOK_URL'] ?? '',
+            'rate_max' => (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100),
+            'rate_window' => (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60),
+        ],
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/backups') {
+    sendJson(['backups' => backupsList(), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/restore') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+    $file = basename((string) ($body['file'] ?? ''));
+    if (!preg_match('/^hiyori-\d{8}-\d{6}\.gz$/', $file)) {
+        sendJson(['error' => 'bad archive name'], 400);
+    }
+    $archive = dirname(__DIR__, 2) . '/storage/backups/' . $file;
+    if (!is_file($archive)) {
+        sendJson(['error' => 'archive not found'], 404);
+    }
+    $cmd = sprintf(
+        'mongorestore --uri=%s --gzip --archive=%s --drop >/dev/null 2>&1 &',
+        escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'),
+        escapeshellarg($archive)
+    );
+    @exec($cmd);
+    auditAppend('restore', ['file' => $file]);
+    sendJson(['started' => true, 'file' => $file]);
+}
+
+if ($path === '/api/failures') {
+    sendJson(['failures' => $telemetry->tail('validation-log', 100), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/limits') {
+    $saved = uiSettings()['limits'] ?? [];
+    $cur = [
+        'max' => (int) ($saved['max'] ?? $_ENV['RATE_LIMIT_MAX'] ?? 100),
+        'window' => (int) ($saved['window'] ?? $_ENV['RATE_LIMIT_WINDOW'] ?? 60),
+    ];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $cur = [
+            'max' => max(1, (int) ($body['max'] ?? $cur['max'])),
+            'window' => max(1, (int) ($body['window'] ?? $cur['window'])),
+        ];
+        saveUiSettings(array_merge(uiSettings(), ['limits' => $cur]));
+        auditAppend('limits.update', $cur);
+    }
+    sendJson(['limits' => $cur, 'applied' => 'next ingest start']);
+}
+
+if ($path === '/api/audit') {
+    sendJson(['audit' => tailLines(dirname(__DIR__, 2) . '/storage/state/audit.jsonl', 100), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/history') {
+    sendJson([
+        'states' => $telemetry->allState(),
+        'runs' => $telemetry->tail('run-history', 100),
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/histogram') {
+    sendJson(['histogram' => histogram($client), 'bins' => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90], 'timestamp' => date('c')]);
+}
+
+
+function updateDotEnv(string $key, ?string $value): bool
+{
+    $envFile = dirname(__DIR__, 2) . '/.env';
+    if (!is_file($envFile)) {
+        return false;
+    }
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES) ?: [];
+    $found = false;
+    foreach ($lines as $i => $line) {
+        if (preg_match('/^\s*' . preg_quote($key, '/') . '=/', $line)) {
+            $lines[$i] = $key . '=' . ($value ?? '');
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        $lines[] = $key . '=' . ($value ?? '');
+    }
+    @copy($envFile, $envFile . '.bak');
+    file_put_contents($envFile, implode("\n", $lines) . "\n");
+
+    return true;
+}
+
+if ($path === '/api/explore/delete') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+    $collection = (string) ($body['collection'] ?? '');
+    $ids = array_values(array_filter(array_map('strval', (array) ($body['ids'] ?? []))));
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection) || $ids === []) {
+        sendJson(['error' => 'collection + ids required'], 400);
+    }
+    $result = $client->selectDatabase('hiyori')->selectCollection($collection)
+        ->deleteMany(['_id' => ['$in' => array_map('strval', $ids)]]);
+    auditAppend('explore.delete', ['collection' => $collection, 'ids' => count($ids)]);
+    sendJson(['deleted' => $result->getDeletedCount()]);
+}
+
+if ($path === '/api/export') {
+    $collection = (string) ($_GET['collection'] ?? 'organized');
+    $format = (string) ($_GET['format'] ?? 'jsonl');
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection) || !in_array($format, ['jsonl', 'csv'], true)) {
+        sendJson(['error' => 'collection + format (jsonl|csv) required'], 400);
+    }
+    $coll = $client->selectDatabase('hiyori')->selectCollection($collection);
+    header('Content-Type: ' . ($format === 'csv' ? 'text/csv' : 'application/x-ndjson'));
+    header('Content-Disposition: attachment; filename="' . $collection . '.' . ($format === 'csv' ? 'csv' : 'jsonl') . '"');
+    if ($format === 'csv') {
+        $head = false;
+        foreach ($coll->find() as $doc) {
+            $row = json_decode(json_encode($doc), true);
+            $flat = [];
+            foreach ($row as $k => $v) {
+                $flat[$k] = is_scalar($v) ? $v : json_encode($v, JSON_UNESCAPED_UNICODE);
+            }
+            if (!$head) {
+                echo implode(',', array_map(static fn ($k) => '"' . $k . '"', array_keys($flat))) . "\n";
+                $head = true;
+            }
+            echo implode(',', array_map(static fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', array_values($flat))) . "\n";
+        }
+    } else {
+        foreach ($coll->find() as $doc) {
+            echo json_encode(json_decode(json_encode($doc), true), JSON_UNESCAPED_UNICODE) . "\n";
+        }
     }
     exit;
 }

@@ -26,6 +26,18 @@ final class RateLimiter
         ?LoggerInterface $logger = null
     ) {
         $this->logger = $logger ?? new \Monolog\Logger('ratelimiter');
+
+        // Honor overrides saved from the dashboard Management page (storage/state/ui.json).
+        $overridesFile = dirname(__DIR__, 2) . '/storage/state/ui.json';
+        if (is_file($overridesFile)) {
+            $ui = json_decode((string) file_get_contents($overridesFile), true) ?: [];
+            if (isset($ui['limits']['max'])) {
+                $this->maxRequests = max(1, (int) $ui['limits']['max']);
+            }
+            if (isset($ui['limits']['window'])) {
+                $this->timeWindow = max(1, (int) $ui['limits']['window']);
+            }
+        }
     }
 
     public function acquire(string $key, int $tokens = 1): bool
