@@ -64,6 +64,19 @@ if ($path === '/' || $path === '/index.html') {
     exit;
 }
 
+// Static assets (vendored libs) — safe allowlist of extensions.
+if (str_starts_with($path, '/vendor/')) {
+    $file = __DIR__ . str_replace(['..', '//'], '', $path);
+    if (is_file($file)) {
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        $mime = ['js' => 'application/javascript', 'css' => 'text/css', 'woff2' => 'font/woff2'][$ext] ?? 'application/octet-stream';
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=3600');
+        echo file_get_contents($file);
+        exit;
+    }
+}
+
 if ($path === '/metrics') {
     header('Content-Type: ' . $metrics->getContentType());
     echo $metrics->render();

@@ -4,216 +4,317 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hiyori Dashboard</title>
+<script src="/vendor/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#c9d1d9; --muted:#8b949e;
-          --ok:#3fb950; --warn:#d29922; --err:#f85149; --accent:#58a6ff; }
+  :root {
+    --bg:#0b0f14; --panel:#131a22; --panel2:#0f151d; --line:#1f2a36; --line2:#2a3a4c;
+    --fg:#dce6f0; --muted:#7d8fa3; --ok:#3fd06a; --warn:#e8b64c; --err:#ff5f57;
+    --accent:#4fb3ff; --accent2:#9b7bff; --green:#3fd06a; --yellow:#e8b64c;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
-  header { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
-  header h1 { font-size:16px; margin:0; }
-  #clock { color:var(--muted); font-variant-numeric:tabular-nums; }
-  #healthdot { width:12px; height:12px; border-radius:50%; background:var(--ok); display:inline-block; }
-  main { padding:16px 20px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
-  .card h2 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  html,body { margin:0; }
+  body { font:14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(79,179,255,.08), transparent),
+      radial-gradient(900px 500px at -10% 10%, rgba(155,123,255,.06), transparent),
+      var(--bg); color:var(--fg); min-height:100vh; }
+  header { display:flex; align-items:center; gap:16px; padding:14px 22px;
+      background:rgba(19,26,34,.8); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+      position:sticky; top:0; z-index:20; }
+  .logo { font-weight:800; font-size:17px; letter-spacing:.3px; }
+  .logo b { color:var(--accent); }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
+  .chip i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .chip.live i { background:var(--ok); box-shadow:0 0 0 0 rgba(63,208,106,.6); animation:pulse 2s infinite; }
+  @keyframes pulse { 70% { box-shadow:0 0 0 7px rgba(63,208,106,0); } }
+  #clock { font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px; }
+  main { padding:20px 22px 40px; max-width:1500px; margin:0 auto; }
+  .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px;
+      box-shadow:0 4px 24px rgba(0,0,0,.25); }
+  .card h2 { margin:0 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:600; }
+  .card h2 small { float:right; text-transform:none; letter-spacing:0; color:var(--muted); font-weight:400; }
+  .span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; }
+  .span-6 { grid-column: span 6; } .span-12 { grid-column: span 12; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
-  td, th { padding:4px 6px; text-align:left; border-bottom:1px solid var(--line); }
-  th { color:var(--muted); font-weight:600; }
+  tr, td, th { border:0; }
+  td, th { padding:6px 8px; text-align:left; }
+  th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+  tbody tr { border-top:1px solid var(--line); }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
   .up { color:var(--ok); } .down { color:var(--err); }
-  .badge { padding:1px 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
-  .badge.run { color:var(--ok); border-color:var(--ok); }
-  .badge.done { color:var(--muted); }
-  .badge.err { color:var(--err); border-color:var(--err); }
-  .bar { height:6px; border-radius:4px; background:var(--line); overflow:hidden; min-width:60px; }
-  .bar i { display:block; height:100%; background:var(--accent); border-radius:4px; }
-  canvas.spark { width:100%; height:40px; display:block; }
-  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  .badge { padding:2px 9px; border-radius:999px; font-size:11px; border:1px solid; white-space:nowrap; }
+  .badge.run { color:var(--ok); border-color:rgba(63,208,106,.4); background:rgba(63,208,106,.08); }
+  .badge.done { color:var(--muted); border-color:var(--line2); }
+  .badge.err { color:var(--err); border-color:rgba(255,95,87,.4); background:rgba(255,95,87,.08); }
+  .bar { height:5px; border-radius:4px; background:var(--line); overflow:hidden; min-width:70px; }
+  .bar i { display:block; height:100%; border-radius:4px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+  .ok { background:var(--ok); } .warn { background:var(--warn); } .err { background:var(--err); } .idle { background:var(--muted); }
   .muted { color:var(--muted); }
-  ul.feed { margin:0; padding:0; list-style:none; max-height:220px; overflow:auto; font-size:12px; }
-  ul.feed li { padding:3px 0; border-bottom:1px dashed var(--line); }
-  ul.feed code { color:var(--warn); }
-  .btn { background:var(--panel); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:3px 10px; cursor:pointer; }
-  .btn:hover { border-color:var(--accent); }
-  footer { padding:12px 20px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+  ul.feed { margin:0; padding:0; list-style:none; max-height:240px; overflow:auto; font-size:12.5px; }
+  ul.feed li { padding:5px 0; border-top:1px solid var(--line); }
+  ul.feed li:first-child { border-top:0; }
+  ul.feed code { color:var(--yellow); }
+  ul.feed .t { color:var(--muted); font-size:11px; float:right; }
+  .statgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; }
+  .stat { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .stat .k { font-size:11px; color:var(--muted); text-transform:uppercase; }
+  .stat .v { font-size:20px; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .chartbox { position:relative; height:220px; }
+  button { background:var(--panel2); border:1px solid var(--line2); color:var(--fg); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:12px; }
+  button:hover { border-color:var(--accent); }
+  .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+  .toolbar .grow { flex:1; }
+  footer { padding:18px 22px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); display:flex; gap:18px; flex-wrap:wrap; }
+  @media (max-width: 1000px) { .span-8,.span-4,.span-6 { grid-column: span 12; } }
 </style>
 </head>
 <body>
 <header>
-  <span id="healthdot"></span>
-  <h1>Hiyori Dashboard</h1>
-  <span id="clock"></span>
-  <span class="muted" id="mode"></span>
+  <span class="logo">Hiyori<b>DB</b> · Live</span>
+  <span class="chip live"><i></i> LIVE</span>
+  <span class="chip" id="healthchip"><i class="idle"></i><span id="healthlabel">connecting…</span></span>
+  <span id="clock" class="chip"></span>
   <span style="flex:1"></span>
-  <button class="btn" id="toggle">Pause</button>
+  <button id="toggle">Pause</button>
 </header>
 <main>
+  <div class="toolbar">
+    <span class="muted" id="modetext">auto-refresh every 3s</span>
+    <span class="grow"></span>
+    <button id="btn1h">1h</button>
+    <button id="btn5m">5m</button>
+    <button id="btn1m">1m</button>
+  </div>
   <div class="grid">
-
-    <section class="card"><h2>Ingestion jobs</h2>
-      <table id="jobs"><thead><tr><th>Source</th><th>Phase</th><th>Progress</th><th class="num">Speed</th><th class="num">ETA</th><th class="num">Errors</th></tr></thead><tbody></tbody></table>
+    <section class="card span-8">
+      <h2>Ingestion jobs</h2>
+      <table id="jobs"><thead><tr><th>Source</th><th>Status</th><th>Progress</th><th class="num">Speed</th><th class="num">Saved</th><th class="num">ETA</th><th class="num">Errors</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="card span-4">
+      <h2>Dataset split</h2>
+      <div class="chartbox"><canvas id="chartSplit"></canvas></div>
+      <table id="counts" style="margin-top:8px"></table>
     </section>
 
-    <section class="card"><h2>Ingestion rates (entries/s, last ~6 min)</h2>
-      <div id="sparks"></div>
+    <section class="card span-6">
+      <h2>Ingestion rate <small>entries/s</small></h2>
+      <div class="chartbox"><canvas id="chartRates"></canvas></div>
+    </section>
+    <section class="card span-6">
+      <h2>Collection counts <small>time series</small></h2>
+      <div class="chartbox"><canvas id="chartCounts"></canvas></div>
     </section>
 
-    <section class="card"><h2>Dataset counts</h2>
-      <table id="counts"><tbody></tbody></table>
+    <section class="card span-4">
+      <h2>API health</h2>
+      <div class="statgrid" id="healthstats"></div>
+      <table id="health" style="margin-top:10px"></table>
+    </section>
+    <section class="card span-4">
+      <h2>Rate limiters / circuit breakers</h2>
+      <table id="limiters"></table>
+    </section>
+    <section class="card span-4">
+      <h2>Last combine</h2>
+      <div id="combine" class="muted">No combine run recorded yet.</div>
     </section>
 
-    <section class="card"><h2>API health</h2>
-      <table id="health"><tbody></tbody></table>
+    <section class="card span-12">
+      <h2>Validation feed</h2>
+      <ul class="feed" id="validate"><li class="muted">no violations</li></ul>
     </section>
-
-    <section class="card"><h2>Last combine</h2>
-      <div id="combine"><span class="muted">no combine run recorded yet</span></div>
-    </section>
-
-    <section class="card"><h2>Validation feed</h2>
-      <ul class="feed" id="validate"></ul>
-    </section>
-
   </div>
 </main>
 <footer>
+  <span>Dashboard API: <span class="mono">/api/status</span></span>
+  <span>Prometheus: <span class="mono">/metrics</span></span>
   <span id="foot"></span>
 </footer>
 <script>
 (function () {
+  'use strict';
   let running = true;
-  let last = null;
-  const $ = (s) => document.querySelector(s);
+  let apiData = null;
+  const maxPts = 60;              // ~3 min at 3s
+  const historyCounts = {};       // coll -> [{t,v}]
+  const historyRates = {};        // source -> [{t,v}]
+  let charts = {};
 
-  function spark(canvas, points, color) {
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth || 200, h = 40;
-    canvas.width = w * dpr; canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0,0,w,h);
-    if (!points || points.length < 2) { ctx.fillStyle = '#8b949e'; ctx.fillText('…', 4, 20); return; }
-    const max = Math.max(...points, 1), min = Math.min(...points, 0);
-    const span = (max - min) || 1;
-    ctx.strokeStyle = color || '#58a6ff'; ctx.lineWidth = 1.5; ctx.beginPath();
-    points.forEach((v, i) => {
-      const x = (i / (points.length - 1)) * (w - 4) + 2;
-      const y = h - 4 - ((v - min) / span) * (h - 8);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  const palettes = ['#4fb3ff','#3fd06a','#e8b64c','#9b7bff','#ff8fd8','#ff5f57','#2fb5b0','#a3b8cc'];
+
+  const $ = s => document.querySelector(s);
+
+  function newChart(id, type, labels, datasets, opts) {
+    const el = document.getElementById(id);
+    if (!el || !window.Chart) return null;
+    if (charts[id]) { charts[id].destroy(); }
+    const ctx = el.getContext('2d');
+    charts[id] = new Chart(ctx, {
+      type: type,
+      data: { labels: labels, datasets: datasets },
+      options: Object.assign({
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#7d8fa3', boxWidth: 10 } } },
+        scales: {
+          x: { ticks: { color: '#7d8fa3', maxTicksLimit: 6 }, grid: { color: '#1f2a36' } },
+          y: { ticks: { color: '#7d8fa3' }, grid: { color: '#1f2a36' } }
+        }
+      }, opts || {})
     });
-    ctx.stroke();
+    return charts[id];
   }
 
   function fmtSec(n) {
     if (n == null || !isFinite(n)) return '—';
     if (n < 90) return n + 's';
-    if (n < 5400) return Math.round(n/60) + 'm';
-    return Math.round(n/3600) + 'h ' + Math.round((n%3600)/60) + 'm';
+    if (n < 5400) return Math.round(n / 60) + 'm';
+    return Math.round(n / 3600) + 'h ' + Math.round((n % 3600) / 60) + 'm';
   }
+  function fmt(n) { return (n == null) ? '—' : Number(n).toLocaleString(); }
+  function push(arr, t, v, cap) { arr.push({ t: t, v: v }); if (arr.length > cap) arr.shift(); }
 
   function render(api) {
-    // Header
+    apiData = api;
     const h = api.health || {};
-    const ok = (h.status || '') === 'healthy';
-    $('#healthdot').style.background = ok ? 'var(--ok)' : 'var(--err)';
-    $('#clock').textContent = api.timestamp || '';
+    const healthy = (h.status || '') === 'healthy';
+    $('#healthchip').innerHTML = '<i class="' + (healthy ? 'ok' : 'err') + '"></i><span>' + (healthy ? 'healthy' : 'degraded') + '</span>';
+    $('#clock').textContent = api.timestamp ? 'updated ' + new Date(api.timestamp).toLocaleTimeString() : '';
+    const now = Date.now();
 
-    // Jobs
-    const tb = $('#jobs tbody'); tb.innerHTML = '';
-    const jobs = api.jobs || {};
-    const keys = Object.keys(jobs);
-    if (!keys.length) tb.innerHTML = '<tr><td colspan="6" class="muted">No job telemetry yet — start an ingestion</td></tr>';
-    keys.sort().forEach(k => {
-      const j = jobs[k]; if (!j || !j.source) return;
-      const pct = j.total ? Math.min(100, (j.processed / j.total) * 100) : 0;
-      const phase = (j.phase || 'idle');
-      const cls = phase === 'done' ? 'done' : phase === 'running' ? 'run' : 'err';
-      const row = document.createElement('tr');
-      row.innerHTML = '<td>' + (j.source || k) + '</td>'
-        + '<td><span class="badge ' + cls + '">' + phase + '</span></td>'
-        + '<td><div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i></div><span class="muted">' + (j.processed||0) + '/' + (j.total||'?') + '</span></td>'
-        + '<td class="num">' + (j.per_second != null ? j.per_second.toFixed(1) : '—') + '</td>'
-        + '<td class="num">' + fmtSec(j.eta_seconds) + '</td>'
-        + '<td class="num">' + (j.errors||0) + '</td>';
-      tb.appendChild(row);
-    });
-
-    // Sparks
-    const sp = $('#sparks'); sp.innerHTML = '';
-    Object.keys(jobs).sort().forEach(k => {
-      const j = jobs[k]; if (!j || !j.history) return;
-      const wrap = document.createElement('div');
-      const label = document.createElement('div'); label.className = 'muted';
-      label.textContent = j.source + '  (peak ' + Math.max(...j.history.map(p => p.v)).toFixed(1) + '/s)';
-      const cv = document.createElement('canvas'); cv.className = 'spark';
-      wrap.appendChild(label); wrap.appendChild(cv); sp.appendChild(wrap);
-      spark(cv, j.history.map(p => p.v));
-    });
-    if (!sp.children.length) sp.innerHTML = '<span class="muted">No history yet</span>';
-
-    // Counts
-    const ct = $('#counts tbody'); ct.innerHTML = '';
+    // --- counts history + split ---
     const counts = api.counts || {};
-    const totalDocs = Object.values(counts).reduce((a, b) => a + b, 0);
-    const baseline = (last && last.counts) || {};
-    Object.keys(counts).sort().forEach(k => {
-      const v = counts[k], b = baseline[k] || 0, d = v - b;
-      const row = document.createElement('tr');
-      row.innerHTML = '<td>' + k + '</td><td class="num">' + v.toLocaleString() + '</td>'
-        + '<td class="num ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'muted') + '">' + (d > 0 ? '+' : '') + d + '</td>';
-      ct.appendChild(row);
-    });
-    const tot = document.createElement('tr');
-    tot.innerHTML = '<td><b>total</b></td><td class="num"><b>' + totalDocs.toLocaleString() + '</b></td><td></td>';
-    ct.appendChild(tot);
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    Object.keys(counts).forEach(k => { push(historyCounts[k], now, counts[k], maxPts); });
 
-    // Health
-    const ht = $('#health tbody'); ht.innerHTML = '';
+    // jobs + rates history
+    const jobs = api.jobs || {};
+    Object.keys(historyRates).forEach(k => { if (!jobs[k]) delete historyRates[k]; });
+    Object.keys(jobs).forEach(k => {
+      const j = jobs[k] || {};
+      if (!j.source) return;
+      const rate = j.per_second || 0;
+      push(historyRates[k], now, rate, maxPts);
+    });
+
+    // --- jobs table ---
+    const tb = $('#jobs tbody'); tb.innerHTML = '';
+    const sj = Object.keys(jobs).filter(k => jobs[k] && jobs[k].source).sort();
+    if (!sj.length) tb.innerHTML = '<tr><td colspan="7" class="muted">No job telemetry yet — start an ingestion (restart existing ones to pick up instrumentation).</td></tr>';
+    sj.forEach(k => {
+      const j = jobs[k];
+      const pct = j.total ? Math.min(100, (j.processed / j.total) * 100) : 0;
+      const phase = j.phase || 'idle';
+      const cls = phase === 'done' ? 'done' : phase === 'running' ? 'run' : 'err';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (j.source || k) + '</td>'
+        + '<td><span class="badge ' + cls + '">' + phase + '</span></td>'
+        + '<td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:' + pct.toFixed(1) + '%"></i></div><span class="muted">' + fmt(j.processed) + '/' + (j.total || '?') + '</span></div></td>'
+        + '<td class="num">' + (j.per_second != null ? j.per_second.toFixed(1) : '—') + '</td>'
+        + '<td class="num">' + fmt(j.saved) + '</td>'
+        + '<td class="num">' + fmtSec(j.eta_seconds) + '</td>'
+        + '<td class="num">' + fmt(j.errors) + '</td>';
+      tb.appendChild(tr);
+    });
+
+    // --- dataset split doughnut + counts table ---
+    const colorMap = {};
+    Object.keys(counts).sort().forEach((k, i) => colorMap[k] = palettes[i % palettes.length]);
+    const ct = $('#counts'); ct.innerHTML = '';
+    let rows = '';
+    Object.keys(counts).sort().forEach(k => {
+      rows += '<tr><td><span class="dot" style="background:' + colorMap[k] + '"></span>' + k + '</td><td class="num">' + fmt(counts[k]) + '</td></tr>';
+    });
+    rows += '<tr><td>Total</td><td class="num"><b>' + fmt(total) + '</b></td></tr>';
+    ct.innerHTML = rows;
+    if (window.Chart) {
+      newChart('chartSplit', 'doughnut', [], [{
+        data: Object.keys(counts).sort().map(k => counts[k]),
+        backgroundColor: Object.keys(counts).sort().map(k => colorMap[k]),
+        borderColor: '#131a22', borderWidth: 2,
+      }], { cutout: '68%', plugins: { legend: { display: false } } });
+    }
+
+    // --- rates chart ---
+    if (window.Chart) {
+      const labels = Array.from({ length: maxPts }, (_, i) => new Date(now - (maxPts - 1 - i) * 3000).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }));
+      const ds = Object.keys(historyRates).sort().map((k, i) => ({
+        label: k.replace('ingest-', ''), data: historyRates[k].map(p => p.v), borderColor: palettes[i % palettes.length], backgroundColor: 'transparent', tension: .25, pointRadius: 0,
+      }));
+      newChart('chartRates', 'line', labels, ds.length ? ds : [{ label: 'none', data: [], borderColor: '#7d8fa3' }], {});
+    }
+
+    // --- counts time series ---
+    if (window.Chart) {
+      const labels = Array.from({ length: maxPts }, (_, i) => new Date(now - (maxPts - 1 - i) * 3000).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }));
+      const ds = Object.keys(historyCounts).sort().map((k, i) => ({
+        label: k, data: historyCounts[k].map(p => p.v), borderColor: colorMap[k], backgroundColor: 'transparent', tension: .25, pointRadius: 0,
+      }));
+      newChart('chartCounts', 'line', labels, ds.length ? ds : [{ label: 'none', data: [], borderColor: '#7d8fa3' }], {});
+    }
+
+    // --- health stats ---
+    const hs = $('#healthstats'); hs.innerHTML = '';
     if (h.checks) {
-      ['mongodb', 'external_apis', 'rate_limiter', 'disk_space', 'memory'].forEach(name => {
-        const c = h.checks[name]; if (!c) return;
-        const row = document.createElement('tr');
-        let detail = '';
-        if (c.latency_ms != null) detail += ' ' + c.latency_ms + 'ms';
-        row.innerHTML = '<td><span class="dot" style="background:' + (c.healthy ? 'var(--ok)' : 'var(--err)') + '"></span>' + name + '</td><td class="muted">' + detail + '</td>';
-        ht.appendChild(row);
+      const cards = [
+        ['MongoDB', h.checks.mongodb ? (h.checks.mongodb.healthy ? 'ok' : 'err') : 'idle', h.checks.mongodb ? (h.checks.mongodb.latency_ms + 'ms') : '—'],
+        ['External APIs', (h.checks.external_apis && h.checks.external_apis.healthy) ? 'ok' : (h.checks.external_apis ? 'err' : 'idle'), ''],
+        ['Rate limiters', (h.checks.rate_limiter && h.checks.rate_limiter.healthy) ? 'ok' : (h.checks.rate_limiter ? 'warn' : 'idle'), ''],
+        ['Disk', h.checks.disk_space ? (h.checks.disk_space.healthy ? 'ok' : 'err') : 'idle', h.checks.disk_space ? h.checks.disk_space.used_percent + '%' : '—'],
+      ];
+      cards.forEach(c => {
+        hs.innerHTML += '<div class="stat"><div class="k"><span class="dot ' + c[1] + '"></span>' + c[0] + '</div><div class="v">' + c[2] + '</div></div>';
       });
+      const ht = $('#health');
+      let hrows = '';
       const ex = h.checks.external_apis;
       if (ex && ex.endpoints) Object.keys(ex.endpoints).forEach(n => {
         const e = ex.endpoints[n];
-        const row = document.createElement('tr');
-        row.innerHTML = '<td style="padding-left:20px">' + n + '</td><td class="num">' + (e.latency_ms != null ? e.latency_ms + 'ms' : (e.error || '')) + '</td>';
-        ht.appendChild(row);
+        const ok = e.healthy !== false;
+        hrows += '<tr><td><span class="dot ' + (ok ? 'ok' : 'err') + '"></span>' + n + '</td><td class="num">' + (e.latency_ms != null ? e.latency_ms + 'ms' : (e.error || 'err')) + '</td></tr>';
       });
-    } else {
-      ht.innerHTML = '<tr><td class="muted" colspan="2">no health data</td></tr>';
+      ht.innerHTML = hrows || '<tr><td class="muted">no endpoints</td></tr>';
+
+      // limiters
+      const lt = $('#limiters');
+      let lrows = '';
+      const rl = h.checks.rate_limiter;
+      if (rl && rl.limiters) Object.keys(rl.limiters).forEach(k => {
+        const s = rl.limiters[k];
+        const st = s.circuit_state || 'closed';
+        const dot = st === 'closed' ? 'ok' : st === 'half-open' ? 'warn' : 'err';
+        lrows += '<tr><td><span class="dot ' + dot + '"></span>' + k + '</td><td class="num">' + st + '</td><td class="num">' + s.tokens_available + ' tok</td></tr>';
+      });
+      lt.innerHTML = lrows || '<tr><td class="muted">no limiter data</td></tr>';
     }
 
-    // Combine
+    // --- combine ---
     const cm = $('#combine');
     if (api.combine && api.combine.strategy) {
-      cm.innerHTML = '<table><tbody>'
-        + '<tr><td>Strategy</td><td>' + api.combine.strategy + '</td></tr>'
-        + '<tr><td>Base</td><td>' + (api.combine.base || '—') + '</td></tr>'
-        + '<tr><td>Merges</td><td class="num">' + (api.combine.merges || 0) + '</td></tr>'
-        + (api.combine.threshold != null ? '<tr><td>Threshold</td><td class="num">' + api.combine.threshold + '%</td></tr>' : '')
-        + (api.combine.scores ? '<tr><td>Score avg / min / max</td><td class="num">' + api.combine.scores.avg + ' / ' + api.combine.scores.min + ' / ' + api.combine.scores.max + '</td></tr>' : '')
-        + '<tr><td>Completed</td><td class="muted">' + (api.combine.completed_at || '—') + '</td></tr>'
-        + '</tbody></table>';
+      cm.innerHTML = '<div class="statgrid">'
+        + '<div class="stat"><div class="k">Strategy</div><div class="v" style="font-size:14px">' + api.combine.strategy + '</div></div>'
+        + '<div class="stat"><div class="k">Base</div><div class="v" style="font-size:14px">' + (api.combine.base || '—') + '</div></div>'
+        + '<div class="stat"><div class="k">Merges</div><div class="v">' + fmt(api.combine.merges) + '</div></div>'
+        + (api.combine.threshold != null ? '<div class="stat"><div class="k">Threshold</div><div class="v">' + api.combine.threshold + '%</div></div>' : '')
+        + (api.combine.scores ? '<div class="stat"><div class="k">Score avg</div><div class="v">' + api.combine.scores.avg + '</div></div>' : '')
+        + '</div><div class="muted" style="margin-top:8px">' + (api.combine.completed_at || '') + '</div>';
     }
 
-    // Validation feed
+    // --- validation feed ---
     const ul = $('#validate'); ul.innerHTML = '';
-    (api.validation || []).slice(0, 30).forEach(e => {
+    (api.validation || []).slice(0, 60).forEach(e => {
       const li = document.createElement('li');
-      li.innerHTML = '<code>[' + (e.source || '?') + ']</code> <span class="muted">' + (e.title || '?') + '</span> — '
-        + Object.keys(e.errors || {}).join(', ') + ' <span class="muted">' + (e.ts || '') + '</span>';
+      const fields = Object.keys(e.errors || {}).join(', ');
+      li.innerHTML = '<code>[' + (e.source || '?') + ']</code> ' + (e.title ? '<span class="muted">' + e.title + '</span>' : '') + ' — ' + fields
+        + '<span class="t">' + (e.ts || '') + '</span>';
       ul.appendChild(li);
     });
     if (!ul.children.length) ul.innerHTML = '<li class="muted">no violations</li>';
 
-    $('#mode').textContent = 'refresh: 3s' + (last ? ' (delta vs prev poll)' : '');
-    $('#foot').textContent = 'polling ' + (running ? 'on' : 'off') + ' · Dashboard API: /api/status · Prometheus: /metrics';
-    last = api;
+    $('#foot').textContent = 'counts: ' + Object.keys(counts).length + ' collections · ' + sj.length + ' jobs · ' + (api.validation || []).length + ' recent violations';
   }
 
   async function poll() {
@@ -221,16 +322,26 @@
     try {
       const r = await fetch('/api/status');
       if (r.ok) render(await r.json());
-    } catch (e) { /* server not reachable yet */ }
+    } catch (e) { /* server unreachable */ }
     setTimeout(poll, 3000);
   }
 
   $('#toggle').addEventListener('click', function () {
-    running = !running;
-    this.textContent = running ? 'Pause' : 'Resume';
+    running = !running; this.textContent = running ? 'Pause' : 'Resume';
     if (running) poll();
   });
 
+  /* zero-out / prune history per range */
+  function windowButtons() {
+    $('#btn1m').onclick = () => prune(20);
+    $('#btn5m').onclick = () => prune(100);
+    $('#btn1h').onclick = () => prune(900);
+  }
+  function prune(cap) {
+    Object.values(historyCounts).forEach(a => { while (a.length > cap) a.shift(); });
+    Object.values(historyRates).forEach(a => { while (a.length > cap) a.shift(); });
+  }
+  windowButtons();
   poll();
 })();
 </script>

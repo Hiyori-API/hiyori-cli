@@ -8,3 +8,4 @@
 .php-cs-fixer.cache
 .phpunit.result.cache
 /storage/state/
+/storage/logs/dashboard-serve.log
