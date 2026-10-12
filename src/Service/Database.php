@@ -115,7 +115,8 @@ class Database
     public function mergeIntoOrganized(
         AnimeBaseModel $entry,
         ?string $identifier = null,
-        ?string $identifierValue = null
+        ?string $identifierValue = null,
+        string $collection = 'organized'
     ): UpdateResult {
         $entry = $this->serializer
             ->toArray(
@@ -124,7 +125,7 @@ class Database
                     ->setSerializeNull(true),
             );
 
-        return $this->getCollection('organized')
+        return $this->getCollection($collection)
             ->replaceOne(
                 [
                     'reference_ids.' . $identifier => $identifierValue,
