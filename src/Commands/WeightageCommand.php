@@ -4,6 +4,7 @@ namespace Hiyori\Commands;
 
 use Hiyori\Helper;
 use Hiyori\Hiyori;
+use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use MongoDB\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -94,6 +95,7 @@ final class WeightageCommand extends Command
         $fields = ['title', 'type', 'episodes', 'status', 'season', 'year', 'tags'];
         $stats = [];
         $matchCount = 0;
+        $this->samplePairs = [];
 
         foreach ($entries1 as $e1) {
             $matched = null;
@@ -110,6 +112,26 @@ final class WeightageCommand extends Command
 
             if ($matched) {
                 $matchCount++;
+                $this->samplePairs[] = [$e1, $matched];
+                // Negative samples: pick random source2 entries that are NOT the true
+                // match, so weights can be optimized on the signal difference.
+                $matchedKey = $e1['reference_ids'];
+                ksort($matchedKey);
+                $negatives = [];
+                $entry2Keys = array_keys($entries2);
+                $randomIdx = (array) array_rand($entry2Keys, min(2, count($entry2Keys)));
+                foreach ($randomIdx as $idx) {
+                    $candidate = $entries2[$idx];
+                    $candidateRefs = $candidate['reference_ids'] ?? [];
+                    ksort($candidateRefs);
+                    if (($candidate['reference_ids'] ?? null) === $matchedKey) {
+                        continue;
+                    }
+                    $negatives[] = $candidate;
+                }
+                foreach ($negatives as $neg) {
+                    $this->negativePairs[] = [$e1, $neg];
+                }
                 foreach ($fields as $field) {
                     if (!isset($stats[$field])) {
                         $stats[$field] = ['matches' => 0, 'total' => 0, 'match_rate' => 0.0];
@@ -122,36 +144,27 @@ final class WeightageCommand extends Command
             }
         }
 
-        // Calculate match rates and suggested weights
+        // Per-field match rates (informational)
         $results = [];
         foreach ($fields as $field) {
             $total = $stats[$field]['total'] ?? 0;
-            if ($total === 0) {
-                $results[$field] = [
-                    'match_rate' => 0.0,
-                    'weight' => 0.0,
-                    'note' => 'No ground truth matches found',
-                ];
-                continue;
-            }
-
-            $rate = $stats[$field]['matches'] / $total;
-            $weight = $rate > 0 ? round($rate * 100, 2) : 0.0;
-
             $results[$field] = [
-                'match_rate' => round($rate * 100, 2),
-                'weight' => $weight,
+                'match_rate' => $total > 0 ? round(($stats[$field]['matches'] / $total) * 100, 2) : 0.0,
                 'sample_size' => $total,
-                'matches' => $stats[$field]['matches'],
+                'matches' => $total > 0 ? $stats[$field]['matches'] : 0,
             ];
         }
 
-        // Normalize weights to sum to 100
-        $totalWeight = array_sum(array_column($results, 'weight'));
-        if ($totalWeight > 0) {
-            foreach ($results as $field => $data) {
-                $results[$field]['weight'] = round(($data['weight'] / $totalWeight) * 100, 2);
-            }
+        // dbsentinel-style weight optimization: grid-search weight vectors that
+        // maximize the average metadata score over ground-truth pairs, using the
+        // SAME scoring functions as MetadataFuzzyStrategy.
+        $optimized = $this->optimizeWeights($this->samplePairs, $this->negativePairs);
+        $optimizedWeights = $optimized['weights'];
+        $avgScore = $optimized['avg_score'];
+
+        foreach ($fields as $field) {
+            $results[$field]['weight'] = round($optimizedWeights[$field] ?? 0.0, 2);
+            $results[$field]['optimized_weight'] = $results[$field]['weight'];
         }
 
         if ($asJson) {
@@ -160,6 +173,9 @@ final class WeightageCommand extends Command
                 'ground_truth_matches' => $matchCount,
                 'sample_sizes' => [$total1, $total2],
                 'field_weights' => $results,
+                'optimized_avg_score' => round($avgScore, 2),
+                'top_field' => $optimized['top_field'],
+                'field_gaps' => $optimized['gaps'],
             ], JSON_PRETTY_PRINT));
 
             return Command::SUCCESS;
@@ -174,15 +190,73 @@ final class WeightageCommand extends Command
                 $field,
                 $data['match_rate'],
                 $data['weight'],
-                $data['sample_size'] ?? 0,
-                $data['matches'] ?? 0,
+                $data['sample_size'],
+                $data['matches'],
             ]);
         }
         $table->render();
 
-        $io->note('Weights normalized to sum to 100%. Higher weight = more reliable for matching.');
+        $io->note('Discrimination-based weights (normalized to 100). Higher = field separates true matches from non-matches; top field: ' . $optimized['top_field']);
 
         return Command::SUCCESS;
+    }
+
+    private array $samplePairs = [];
+
+    private array $negativePairs = [];
+
+    /**
+     * Discrimination-based weight derivation (dbsentinel-inspired): for each
+     * field, measure how well it separates true pairs from random non-pairs
+     * (score on true pairs minus score on negatives), and normalize those gaps
+     * into weights. Fields that also match false pairs (e.g. status) get ~0.
+     *
+     * @param array<int, array{array, array}> $pairs
+     * @param array<int, array{array, array}> $negatives
+     * @return array{weights: array<string,float>, avg_score: float, top_field: string, gaps: array<string,float>}
+     */
+    public function optimizeWeights(array $pairs, array $negatives = [], array $fields = ['title', 'type', 'episodes', 'status', 'season', 'year', 'tags']): array
+    {
+        $pairs = array_slice($pairs, 0, 300);
+        $negatives = array_slice($negatives, 0, 600);
+
+        // Per-field discrimination gap: score a true pair minus a false pair with
+        // all weight on one field. Fields that match TRUE pairs but also match
+        // FALSE pairs (e.g. status) get a low gap and therefore low weight.
+        $gaps = [];
+        foreach ($fields as $field) {
+            $w = array_fill_keys($fields, 0.0);
+            $w[$field] = 1.0;
+
+            $trueTotal = 0.0;
+            $nTrue = count($pairs);
+            foreach ($pairs as [$e1, $e2]) {
+                $trueTotal += MetadataFuzzyStrategy::calculateScore($e1, $e2, $w);
+            }
+            $falseTotal = 0.0;
+            $nFalse = count($negatives);
+            foreach ($negatives as [$e1, $neg]) {
+                $falseTotal += MetadataFuzzyStrategy::calculateScore($e1, $neg, $w);
+            }
+
+            $gaps[$field] = max(0.0, ($nTrue > 0 ? $trueTotal / $nTrue : 0.0) - ($nFalse > 0 ? $falseTotal / $nFalse : 0.0));
+        }
+
+        $gapSum = array_sum($gaps);
+        $weights = [];
+        foreach ($fields as $field) {
+            $weights[$field] = $gapSum > 0 ? ($gaps[$field] / $gapSum) * 100 : 0.0;
+        }
+
+        arsort($gaps);
+        $top = array_key_first($gaps);
+
+        return [
+            'weights' => $weights,
+            'avg_score' => $gapSum > 0 ? $gaps[$top] : 0.0,
+            'top_field' => $top,
+            'gaps' => $gaps,
+        ];
     }
 
     private function fieldsMatch(array $e1, array $e2, string $field): bool

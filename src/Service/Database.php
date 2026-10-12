@@ -116,7 +116,8 @@ class Database
         AnimeBaseModel $entry,
         ?string $identifier = null,
         ?string $identifierValue = null,
-        string $collection = 'organized'
+        string $collection = 'organized',
+        array $extra = []
     ): UpdateResult {
         $entry = $this->serializer
             ->toArray(
@@ -124,6 +125,10 @@ class Database
                 (new SerializationContext())
                     ->setSerializeNull(true),
             );
+
+        if ($extra !== []) {
+            $entry = array_merge($entry, $extra);
+        }
 
         return $this->getCollection($collection)
             ->replaceOne(
