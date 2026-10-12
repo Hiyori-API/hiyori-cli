@@ -38,13 +38,15 @@ final class IngestionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if (!$this->lock()) {
-            $output->writeln('The command is already running in another process.');
+        $source = $input->getArgument('source');
+
+        // Lock per source (not per command) so different sources can ingest in parallel.
+        if (!$this->lock('ingest-' . $source)) {
+            $output->writeln("The ingestion for '{$source}' is already running in another process.");
 
             return Command::SUCCESS;
         }
 
-        $source = $input->getArgument('source');
         $delay = (int) $input->getOption('delay');
         $update = $input->getOption('update');
         $resumePage = $input->getOption('resume-page') ? (int) $input->getOption('resume-page') : null;
