@@ -8,7 +8,6 @@ use Hiyori\Models\Anime\Status;
 use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
-use Hiyori\Models\Common\MyAnimeListTitle;
 
 class MyAnimeListBase extends Base
 {
@@ -16,38 +15,68 @@ class MyAnimeListBase extends Base
     {
         $self = new self;
 
-        $titles = new MyAnimeListTitle($json['title'], $json['titles']);
-        $self->title = $titles->getDefault();
-        $self->synonyms = $titles->getSynonyms();
-        $self->type = $json['type'] === null ? null : Type::fromString(Helper::prepareAsIdentifer($json['type']))->value;
-        $self->episodes = $json['episodes'];
-        $self->status = Status::fromString(Helper::prepareAsIdentifer($json['status']))->value;
-        $self->season = $json['season'] === null ? null : Season::fromString(Helper::prepareAsIdentifer($json['season']))->value;
-        $self->year = $json['year'];
-        $self->images[] = $json['images']['jpg']['image_url'];
+        // Handle official API response format
+        $title = $json['title'] ?? '';
+        $altTitles = $json['alternative_titles'] ?? [];
+        $synonyms = [];
+        if (!empty($altTitles['synonyms'])) {
+            $synonyms = array_merge($synonyms, $altTitles['synonyms']);
+        }
+        if (!empty($altTitles['en'])) {
+            $synonyms[] = $altTitles['en'];
+        }
+        if (!empty($altTitles['ja'])) {
+            $synonyms[] = $altTitles['ja'];
+        }
+        $synonyms = array_unique($synonyms, SORT_STRING);
+        
+        $self->title = $title;
+        $self->synonyms = $synonyms;
+        
+        $type = $json['media_type'] ?? null;
+        $self->type = $type === null ? null : Type::fromString(Helper::prepareAsIdentifer($type))->value;
+        
+        $self->episodes = $json['num_episodes'] ?? null;
+        
+        $status = $json['status'] ?? null;
+        $self->status = $status === null ? null : Status::fromString(Helper::prepareAsIdentifer($status))->value;
+        
+        $season = $json['start_season']['season'] ?? null;
+        $self->season = $season === null ? null : Season::fromString(Helper::prepareAsIdentifer($season))->value;
+        
+        $self->year = $json['start_season']['year'] ?? null;
+        
+        // Images
+        if (!empty($json['main_picture']['large'])) {
+            $self->images[] = $json['main_picture']['large'];
+        } elseif (!empty($json['main_picture']['medium'])) {
+            $self->images[] = $json['main_picture']['medium'];
+        }
 
-        $self->references[] = $json['url'];
-        foreach ($json['external'] ?? [] as $link) {
-            $self->references[] = $link['url'];
-        };
-        foreach ($json['streaming'] ?? [] as $link) {
-            $self->references[] = $link['url'];
-        };
-
+        // References
+        $self->references[] = "https://myanimelist.net/anime/{$json['id']}";
+        
+        // Alternative titles as references
+        if (!empty($altTitles['en'])) {
+            $self->references[] = "https://myanimelist.net/anime/{$json['id']}/" . urlencode($altTitles['en']);
+        }
+        
         $self->referenceIds = (new Identifiers($self->references))->getModel();
 
-        foreach ($json['genres'] as $tag) {
-            $self->tags[] = Helper::prepareAsIdentifer($tag['name']);
-        };
-        foreach ($json['explicit_genres'] as $tag) {
-            $self->tags[] = Helper::prepareAsIdentifer($tag['name']);
-        };
-        foreach ($json['themes'] as $tag) {
-            $self->tags[] = Helper::prepareAsIdentifer($tag['name']);
-        };
-        foreach ($json['demographics'] as $tag) {
-            $self->tags[] = Helper::prepareAsIdentifer($tag['name']);
-        };
+        // Genres/Tags
+        foreach ($json['genres'] ?? [] as $genre) {
+            $self->tags[] = Helper::prepareAsIdentifer($genre['name']);
+        }
+        foreach ($json['explicit_genres'] ?? [] as $genre) {
+            $self->tags[] = Helper::prepareAsIdentifer($genre['name']);
+        }
+        foreach ($json['themes'] ?? [] as $genre) {
+            $self->tags[] = Helper::prepareAsIdentifer($genre['name']);
+        }
+        foreach ($json['demographics'] ?? [] as $genre) {
+            $self->tags[] = Helper::prepareAsIdentifer($genre['name']);
+        }
+        $self->tags = array_unique($self->tags, SORT_STRING);
 
         return $self;
     }

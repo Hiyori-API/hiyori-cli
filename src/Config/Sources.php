@@ -5,8 +5,8 @@ return [
         "name" => "MyAnimeList",
         "table" => "myanimelist",
         "shorthand" => "mal",
-        "json_id" => "mal_id",
-        "ingestion_service" => \Hiyori\Service\Ingestion\Source\MyAnimeListIngestion::class
+        "json_id" => "id",
+        "ingestion_service" => \Hiyori\Service\Ingestion\Source\MyAnimeListOfficialIngestion::class
     ],
     "kitsu" => [
         "name" => "Kitsu",
