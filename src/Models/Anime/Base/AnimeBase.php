@@ -3,7 +3,6 @@
 namespace Hiyori\Models\Anime\Base;
 
 use Hiyori\Models\Common\Base;
-use Hiyori\Models\Common\Identifiers\Identifiers;
 
 class AnimeBase extends Base
 {
@@ -44,7 +43,12 @@ class AnimeBase extends Base
 
         $references = array_merge($entry['references'] ?? [], $mergeEntry['references'] ?? []);
         $self->references = array_unique($references, SORT_STRING);
-        $self->referenceIds = (new Identifiers($self->references))->getModel();
+        // Union the parsed reference IDs instead of re-parsing URLs: re-parsing the
+        // merged URL list picks up OTHER entries' source URLs (e.g. a kitsu entry
+        // exposes unrelated anilist URLs), corrupting a document's own source IDs.
+        // Merge candidate IDs first so the base entry's own source IDs win on
+        // conflicts (e.g. a kitsu candidate claiming a different anilist id).
+        $self->referenceIds = array_merge($mergeEntry['reference_ids'] ?? [], $entry['reference_ids'] ?? []);
 
         $tags = array_merge($entry['tags'] ?? [], $mergeEntry['tags'] ?? []);
         $self->tags = array_unique($tags, SORT_STRING);
