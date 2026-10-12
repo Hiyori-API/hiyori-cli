@@ -14,7 +14,8 @@ import {
   fetchAudit, fetchBackups, fetchFailures, fetchLimits, postAction, postLimits, restoreBackup,
   runBackup, type AuditItem, type BackupItem, type ValidationEvent,
 } from '@/lib/api'
-import { useSettings, useSmartPolling } from '@/lib/hooks'
+import { useSettings } from '@/lib/hooks'
+import { useStatus } from '@/lib/status-context'
 import { EmptyState } from '../empty'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { PageHead, Section } from '../widgets'
@@ -39,7 +40,7 @@ function mb(n?: number): string {
 }
 
 export function ManagementPage() {
-  const { data } = useSmartPolling(5000, true)
+  const { data } = useStatus()
   const { settings, update } = useSettings()
   const [backups, setBackups] = useState<BackupItem[]>([])
   const [failures, setFailures] = useState<ValidationEvent[]>([])
@@ -125,10 +126,10 @@ export function ManagementPage() {
                     <span className="flex-1 text-sm">{SOURCE_LABEL[src] ?? src}<span className="ml-1 text-[10px] text-muted-foreground">{src}</span></span>
                     <SourceStatusLabel status={sourceStatus(data?.health, src)} />
                     <Badge variant={phase === 'done' ? 'secondary' : phase === 'running' ? 'outline' : 'ghost'}>{paused ? 'paused' : phase}</Badge>
-                    <Button size="icon-sm" variant="ghost" title="Start" onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Pause" onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Resume" onClick={() => void run('resume', src)}><RefreshCw className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Retry from scratch" onClick={() => setConfirm({ cmd: 'retry', src })}><RotateCcw className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon-sm" variant="ghost" title="Start" aria-label={`Start ${src}`} onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon-sm" variant="ghost" title="Pause" aria-label={`Pause ${src}`} onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon-sm" variant="ghost" title="Resume" aria-label={`Resume ${src}`} onClick={() => void run('resume', src)}><RefreshCw className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon-sm" variant="ghost" title="Retry from scratch" aria-label={`Retry ${src}`} onClick={() => setConfirm({ cmd: 'retry', src })}><RotateCcw className="h-3.5 w-3.5" /></Button>
                   </div>
                 )
               })}
@@ -167,7 +168,7 @@ export function ManagementPage() {
                   <span className="flex-1 truncate text-muted-foreground">{b.file}</span>
                   <span className="tabular-nums">{mb(b.size)}</span>
                   <span className="text-muted-foreground">{ago(b.mtime)}</span>
-                  <a href={`/storage/backups/${b.file}`} className="text-muted-foreground hover:text-foreground" title="Download"><Download className="h-3.5 w-3.5" /></a>
+                  <a href={`/storage/backups/${b.file}`} download={b.file} className="text-muted-foreground hover:text-foreground" title="Download"><Download className="h-3.5 w-3.5" /></a>
                   <Button size="icon-xs" variant="ghost" title="Restore" onClick={() => setRestorePick(b.file ?? null)}><Trash2 className="h-3.5 w-3.5 rotate-90" /></Button>
                 </div>
               ))}
@@ -235,7 +236,7 @@ export function ManagementPage() {
                     <span className="flex-1 truncate">{f.title ?? '(no title)'}</span>
                     <Button size="icon-xs" variant="ghost" title="Retry source" onClick={() => void run('retry', f.source ?? 'anilist')}><RotateCcw className="h-3 w-3" /></Button>
                   </div>
-                  <div className="mt-1 text-amber-500">{Object.keys(f.errors ?? {}).join(', ') || (Array.isArray(f.errors) && false)}</div>
+                  <div className="mt-1 text-amber-500">{Object.keys(f.errors ?? {}).join(', ')}</div>
                 </div>
               ))}
             </div>

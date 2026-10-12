@@ -13,6 +13,7 @@ import { QualityPage } from './pages/QualityPage'
 import { LogsPage } from './pages/LogsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AlertToasts } from './alert-toast'
+import { StatusProvider } from '@/lib/status-context'
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
 
@@ -30,6 +31,7 @@ export function Dashboard() {
   const nav = NAV.find(n => n.id === view) ?? NAV[0]
 
   return (
+    <StatusProvider>
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <Sidebar collapsible="icon">
@@ -99,5 +101,6 @@ export function Dashboard() {
       </div>
       <AlertToasts />
     </SidebarProvider>
+    </StatusProvider>
   )
 }

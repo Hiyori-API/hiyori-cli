@@ -7,7 +7,8 @@ import { Slider } from '@/components/ui/slider'
 import {
   downloadExport, fetchBenchmark, fetchFailures, fetchHistogram, fetchSample, type BenchmarkRow, type ValidationEvent,
 } from '@/lib/api'
-import { useSettings, useSmartPolling } from '@/lib/hooks'
+import { useDebouncedCallback, useSettings } from '@/lib/hooks'
+import { useStatus } from '@/lib/status-context'
 import { BenchmarkBars, CompletenessRadar, DensityHistogram, ThresholdScatter } from '../chartcard'
 import { COLORS } from '../charts'
 import { EmptyState } from '../empty'
@@ -19,7 +20,7 @@ const DEFAULT_WEIGHTS = { title: 31, episodes: 31, year: 15, season: 14, type: 6
 const DEMO_SIMS = { title: 0.86, episodes: 1, year: 1, season: 1, type: 1, tags: 0.5, status: 1 }
 
 export function QualityPage() {
-  const { data } = useSmartPolling(6000, true)
+  const { data } = useStatus()
   const { settings, update } = useSettings()
   const [bench, setBench] = useState<{ seeded?: BenchmarkRow[]; latest?: unknown } | null>(null)
   const [hist, setHist] = useState<{ histogram?: Record<string, number>; bins?: number[] } | null>(null)
@@ -28,6 +29,11 @@ export function QualityPage() {
   const [minConf, setMinConf] = useState(0)
   const [feed, setFeed] = useState({ right: 0, wrong: 0 })
   const weights: Record<string, number> = { ...DEFAULT_WEIGHTS, ...(settings.prefs?.weights ?? {}) }
+  const [weightsLocal, setWeightsLocal] = useState<Record<string, number>>(weights)
+  useEffect(() => setWeightsLocal(weights), [JSON.stringify(weights)])
+  const persistWeights = useDebouncedCallback((w: Record<string, number>) => {
+    void update({ prefs: { ...settings.prefs, weights: w } })
+  }, 400)
 
   useEffect(() => {
     void fetchBenchmark().then(setBench)
@@ -243,7 +249,7 @@ export function QualityPage() {
             {Object.entries(weights as Record<string, number>).map(([k, v]) => (
               <div key={k} className="flex items-center gap-3">
                 <span className="w-20 text-xs capitalize">{k}</span>
-                <Slider value={[v]} min={0} max={50} step={1} onValueChange={(val) => { const nv = Array.isArray(val) ? val[0] : val; void update({ prefs: { ...settings.prefs, weights: { ...weights, [k]: Number(nv ?? 0) } } }) }} className="flex-1" />
+                <Slider value={[weightsLocal[k] ?? v]} min={0} max={50} step={1} onValueChange={(val) => { const nv = Array.isArray(val) ? val[0] : val; const next = { ...weightsLocal, [k]: Number(nv ?? 0) }; setWeightsLocal(next); persistWeights(next) }} className="flex-1" />
                 <span className="w-8 text-right text-sm tabular-nums">{v}</span>
               </div>
             ))}

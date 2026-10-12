@@ -153,6 +153,18 @@ export function useSettings(): { settings: UiSettings; update: (patch: object) =
   return { settings, update, refresh }
 }
 
+
+/** Debounce high-frequency callbacks (e.g. slider onValueChange -> POST). */
+export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, delay = 400) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fnRef = useRef(fn)
+  fnRef.current = fn
+  return useCallback((...args: A) => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => fnRef.current(...args), delay)
+  }, [delay])
+}
+
 export function usePrefs(): UiSettings['prefs'] {
   const { settings } = useSettings()
   return settings.prefs ?? {}

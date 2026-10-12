@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchFailures, fetchHistory, type Job, type ValidationEvent } from '@/lib/api'
-import { useSmartPolling } from '@/lib/hooks'
+import { useStatus } from '@/lib/status-context'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
 
@@ -16,7 +16,7 @@ function timeStr(ts: string | undefined): string {
 }
 
 export function LogsPage() {
-  const { data, error } = useSmartPolling(8000, true)
+  const { data, error } = useStatus()
   const [failures, setFailures] = useState<ValidationEvent[]>([])
   const [history, setHistory] = useState<Record<string, Job> | null>(null)
   const [srcFilter, setSrcFilter] = useState('all')
@@ -184,7 +184,7 @@ export function LogsPage() {
             <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Requests</div><div className="font-medium tabular-nums">{cache.requests?.toLocaleString() ?? '—'}</div></div>
             <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Enabled</div><div className="font-medium">{cache.enabled ? 'yes' : 'no'}</div></div>
             <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Host</div><div className="font-medium">{cache.host ?? '—'}</div></div>
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Slow p95</div><div className="font-medium tabular-nums">{data?.slow?.[0]?.ms ? `${data.slow[0].ms}ms` : '—'}</div></div>
+            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Max slow ms</div><div className="font-medium tabular-nums">{data?.slow?.length ? `${Math.max(...data.slow.map(s => s.ms ?? 0))}ms` : '—'}</div></div>
           </div>
         )}
       </Section>

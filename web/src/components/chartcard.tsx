@@ -118,7 +118,7 @@ export function PipelineFunnel({ stages }: { stages: { name: string; value: numb
           <ResponsiveContainer width="100%" height="100%">
             <FunnelChart margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
               <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Funnel dataKey="value" data={stages} isAnimationActive>
+              <Funnel dataKey="value" data={stages} isAnimationActive={false}>
                 <LabelList position="right" fill="var(--muted-foreground)" stroke="none" dataKey="name" fontSize={11} />
                 {stages.map((s, i) => <Cell key={i} fill={s.color} />)}
               </Funnel>
@@ -202,7 +202,7 @@ export function BenchmarkBars({ title, rows }: { title: string; rows: Array<{ na
                 <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} unit="%" />
                 <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, n: unknown) => [n === 'dev' ? `${Number(v).toFixed(1)}% vs baseline` : `${v}`, String(n)]} />
-                <Bar dataKey="dev" radius={[0, 4, 4, 0]} isAnimationActive>
+                <Bar dataKey="dev" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {data.map(d => <Cell key={d.idx} fill={d.dev <= 0 ? '#3fd06a' : '#ff8f6b'} />)}
                   <LabelList dataKey="wall_s" position="right" formatter={(v: unknown) => `${Math.round(Number(v) / 60)}m`} fill="var(--muted-foreground)" fontSize={10} />
                 </Bar>
@@ -234,7 +234,7 @@ export function DensityHistogram({ title, bins, counts, color = ['#4fb3ff', '#7a
                 <XAxis dataKey="bin" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={30} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={40} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Bar dataKey="n" name="records" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="n" name="records" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                   {data.map(d => <Cell key={d.idx} fill={color[d.idx % color.length]} />)}
                 </Bar>
               </ComposedChart>

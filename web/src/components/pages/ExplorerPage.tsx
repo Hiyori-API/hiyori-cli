@@ -64,6 +64,8 @@ export function ExplorerPage() {
   const [queryName, setQueryName] = useState('')
   const [resolver, setResolver] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const seq = useRef(0)
+  const colsInit = useRef(false)
 
   const refetch = useCallback((res: { total?: number; docs?: ExploreRow[]; fields?: string[] }) => {
     setData({ total: res.total, docs: res.docs, fields: res.fields })
@@ -88,15 +90,18 @@ export function ExplorerPage() {
   const exploreFilter = filter === '__all' ? '' : filter
 
   useEffect(() => {
+    const id = ++seq.current
     setLoading(true)
     void fetchExplore({ collection, page, per, q: qDebounced, filter: exploreFilter, sort, dir }).then(res => {
+      if (seq.current !== id) return
       refetch(res)
-      if (res.fields && cols.length === 0) {
+      if (res.fields && !colsInit.current) {
+        colsInit.current = true
         const preferred = ['title', 'reference_ids', 'format', 'status', 'episodes', 'start_date', 'season', 'genres']
         setCols(preferred.filter(f => res.fields?.includes(f)).concat((res.fields ?? []).filter(f => !preferred.includes(f))).slice(0, 6))
       }
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => { if (seq.current === id) setLoading(false) })
   }, [collection, page, per, qDebounced, filter, sort, dir, refetch])
 
   const total = data?.total ?? 0
@@ -313,11 +318,11 @@ export function ExplorerPage() {
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           <span className="mr-1 text-[10px] text-muted-foreground">{refs.slice(0, 3).map(([sh]) => sh).join('·') || 'no refs'}</span>
-                          <Button size="icon-xs" variant="ghost" title="Inspect" onClick={() => setDetail(d)}><ListFilter className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon-xs" variant="ghost" title="Add to diff" disabled={diffPair.length >= 2 && !diffPair.includes(d)} onClick={() => setDiffPair(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d])}>
+                          <Button size="icon-xs" variant="ghost" title="Inspect" aria-label={`Inspect row ${id}`} onClick={() => setDetail(d)}><ListFilter className="h-3.5 w-3.5" /></Button>
+                          <Button size="icon-xs" variant="ghost" title="Add to diff" aria-label="Toggle diff pair" disabled={diffPair.length >= 2 && !diffPair.includes(d)} onClick={() => setDiffPair(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d])}>
                             <GitCompareArrows className={`h-3.5 w-3.5 ${diffPair.includes(d) ? 'text-primary' : ''}`} />
                           </Button>
-                          <Button size="icon-xs" variant="ghost" title="Delete" onClick={() => setConfirmDel([id])}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          <Button size="icon-xs" variant="ghost" title="Delete" aria-label={`Delete row ${id}`} onClick={() => setConfirmDel([id])}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </td>
                     </tr>
@@ -414,8 +419,8 @@ function fieldOf(d: ExploreRow, key: string): unknown {
 function prettyVal(d: ExploreRow, key: string): ReactNode {
   const v = d[key]
   if (v === null || v === undefined || v === '') return <span className="text-muted-foreground">·</span>
-  if (typeof v === 'object') return <span className="text-muted-foreground">{'{…}'}</span>
   if (Array.isArray(v)) return <span className="text-muted-foreground">[…{v.length}]</span>
+  if (typeof v === 'object') return <span className="text-muted-foreground">{'{…}'}</span>
   return String(v)
 }
 function previewVal(v: unknown): string {

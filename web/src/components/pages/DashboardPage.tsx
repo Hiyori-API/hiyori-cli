@@ -9,11 +9,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSmartPolling, useSettings } from '@/lib/hooks'
+import { useSettings } from '@/lib/hooks'
+import { useStatus } from '@/lib/status-context'
 import { COLORS } from '../charts'
 import { postAction, type Job } from '@/lib/api'
 import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
-import { pushAlerts } from '@/lib/alerts'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, PipelineFunnel, SeriesChartCard } from '../chartcard'
 import { EmptyState } from '../empty'
@@ -43,11 +43,10 @@ const WIDGET_IDS = ['kpi', 'fleet', 'rates', 'counts', 'dataset', 'health', 'pip
 
 export function DashboardPage() {
   const { settings, update } = useSettings()
-  const refreshMs = settings.prefs?.refresh ?? 3000
   const widgets = settings.prefs?.widgets
   const visible = (id: string) => !widgets || widgets.includes(id)
   const hiddenCollections = settings.prefs?.hiddenCollections ?? []
-  const { data, error } = useSmartPolling(refreshMs, true)
+  const { data, error, intervalMs } = useStatus()
   const [focus, setFocus] = useState<string | null>(null)
   const [win, setWin] = useState(100)
   const startedAt = useRef(Date.now())
@@ -140,13 +139,6 @@ export function DashboardPage() {
 
   const dataReady = !!data || !!error
 
-  useEffect(() => {
-    if (!data) return
-    if (visible('alerts')) {
-      pushAlerts(data.alerts ?? [])
-    }
-  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <div className="space-y-4">
       <PageHead
@@ -155,7 +147,7 @@ export function DashboardPage() {
         actions={
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Timer className="h-3.5 w-3.5" />
-            {fmtSec((Date.now() - startedAt.current) / 1000)} uptime
+            {fmtSec((Date.now() - startedAt.current) / 1000)} uptime · poll {Math.round(intervalMs / 1000)}s
             <StatusDot ok={!error} pulse /> {error ? 'offline' : (data?.health?.status ?? '…')}
           </div>
         }
@@ -178,7 +170,7 @@ export function DashboardPage() {
               <KpiCard label="Total docs" value={fmt(totalDocs)} icon={Database} sub={`${fmt(activeJobs.length)} active sources`} color={COLORS[0]} id="kpi-docs" />
               <KpiCard label="Ingest rate" value={`${activeRate.toFixed(1)}/s`} icon={Gauge} sub="combined entries per second" color={COLORS[1]} id="kpi-rate" />
               <KpiCard label="Errors" value={fmt(totalErrors)} icon={Hash} sub="since start" color={COLORS[5]} id="kpi-err" />
-              <KpiCard label="Last backup" value={data?.backup?.last ? ago(data.backup.last.mtime) : 'none'} icon={Archive} sub={data?.backup?.last ? `${(data.backup.last.size ?? 0 / 1048576).toFixed(1)} MB` : 'run one in Management'} color={COLORS[3]} id="kpi-backup" />
+              <KpiCard label="Last backup" value={data?.backup?.last ? ago(data.backup.last.mtime) : 'none'} icon={Archive} sub={data?.backup?.last ? `${((data.backup.last.size ?? 0) / 1048576).toFixed(1)} MB` : 'run one in Management'} color={COLORS[3]} id="kpi-backup" />
             </div>
           )}
 
@@ -250,7 +242,7 @@ export function DashboardPage() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={150}>
                     <PieChart>
-                      <Pie data={dataset} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2} strokeWidth={0}>
+                      <Pie data={dataset} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
                         {dataset.map(e => <Cell key={e.name} fill={e.color} />)}
                       </Pie>
                       <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
@@ -279,7 +271,7 @@ export function DashboardPage() {
                         <div className="relative h-20 w-20">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                              <Pie data={[{ value: g.value }]} dataKey="value" startAngle={225} endAngle={-45} innerRadius="70%" outerRadius="100%" cornerRadius={20} strokeWidth={0}>
+                              <Pie data={[{ value: g.value }]} dataKey="value" startAngle={225} endAngle={-45} innerRadius="70%" outerRadius="100%" cornerRadius={20} strokeWidth={0} isAnimationActive={false}>
                                 <Cell fill={g.color} />
                               </Pie>
                             </PieChart>
