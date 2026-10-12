@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchHistory, type Job, type SlowEntry } from '@/lib/api'
+import { fetchHistory, type Job, type SlowEntry, type ValidationEvent } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { timeStr } from '@/lib/format'
@@ -103,18 +103,7 @@ export function LogsPage() {
           {validation.length === 0 ? (
             <EmptyState icon={ListChecks} title="All clear" description="No validation violations recorded." />
           ) : (
-            <div className="max-h-72 space-y-1.5 overflow-auto">
-              {validation.slice(0, 60).map((v, i) => (
-                <div key={i} className="rounded-lg border px-2 py-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground tabular-nums">{timeStr(v.ts, tz)}</span>
-                    <Badge variant="outline">{v.source}</Badge>
-                    <span className="flex-1 truncate">{v.title ?? ''}</span>
-                  </div>
-                  <div className="mt-0.5 text-amber-500">{Object.keys(v.errors ?? {}).join(', ')}</div>
-                </div>
-              ))}
-            </div>
+            <ValidationTable rows={validation} tz={tz} />
           )}
         </Section>
 
@@ -146,6 +135,61 @@ export function LogsPage() {
 interface RunRow { key: string; job: Job }
 
 const runHelper = createColumnHelper<DataTableFeatures, RunRow>()
+
+type ValidationRow = ValidationEvent & { key: string }
+
+function ValidationTable({ rows, tz }: { rows: ValidationEvent[]; tz: Tz }) {
+  const data: ValidationRow[] = useMemo(
+    () => rows.map((v, i) => ({ ...v, key: `${v.ts}-${i}` })),
+    [rows],
+  )
+  const columns = useMemo<ColumnDef<DataTableFeatures, ValidationRow, any>[]>(() => [
+    {
+      id: 'ts',
+      header: 'Time',
+      accessorFn: r => r.ts ?? '',
+      cell: info => <span className="tabular-nums text-muted-foreground">{timeStr(info.row.original.ts, tz)}</span>,
+      sortingFn: 'basic',
+      meta: { align: 'left' } as const,
+    },
+    {
+      id: 'source',
+      header: 'Source',
+      accessorFn: r => r.source ?? '?',
+      cell: info => <Badge variant="outline">{info.row.original.source ?? '?'}</Badge>,
+      sortingFn: 'basic',
+      meta: { align: 'left' } as const,
+    },
+    {
+      id: 'title',
+      header: 'Title',
+      accessorFn: r => r.title ?? '',
+      cell: info => <span className="truncate">{info.row.original.title ?? ''}</span>,
+      sortingFn: 'basic',
+      meta: { align: 'left' } as const,
+    },
+    {
+      id: 'errors',
+      header: 'Errors',
+      accessorFn: r => Object.keys(r.errors ?? {}).join(', '),
+      cell: info => <span className="text-amber-500">{Object.keys(info.row.original.errors ?? {}).join(', ')}</span>,
+      sortingFn: 'basic',
+      meta: { align: 'left' } as const,
+    },
+  ], [tz])
+  return (
+    <DataTable
+      columns={columns}
+      data={data}
+      getRowId={r => r.key}
+      initialSorting={[{ id: 'ts', desc: true }]}
+      initialPageSize={10}
+      sortDescFirst
+      maxHeight="18rem"
+      ariaLabel="Validation violations"
+    />
+  )
+}
 
 function RunHistoryTable({ rows, tz }: { rows: RunRow[]; tz: Tz }) {
   const columns = useMemo<ColumnDef<DataTableFeatures, RunRow, any>[]>(() => [
