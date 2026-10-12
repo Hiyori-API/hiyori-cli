@@ -17,7 +17,7 @@ enum Type: string
     public static function fromString(string $status): Type
     {
         return match(true) {
-            $status === 'tv', $status === 'tv_short' => Type::TV,
+            $status === 'tv', $status === 'tv_short', $status === 'tv_special' => Type::TV,
             $status === 'movie' => Type::MOVIE,
             $status === 'ova' => Type::OVA,
             $status === 'ona' => Type::ONA,

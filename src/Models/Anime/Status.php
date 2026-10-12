@@ -17,11 +17,11 @@ enum Status: string
     {
         return match(true) {
             $status === 'finished' => Status::FINISHED,
-            $status === 'finished airing' => Status::FINISHED,
+            $status === 'finished airing' || $status === 'finished_airing' => Status::FINISHED,
             $status === 'completed' => Status::FINISHED,
             $status === 'airing' => Status::AIRING,
-            $status === 'currently airing' => Status::AIRING,
-            $status === 'releasing' => Status::AIRING,
+            $status === 'currently airing' || $status === 'currently_airing' => Status::AIRING,
+            $status === 'releasing' || $status === 'currently_airing' => Status::AIRING,
             $status === 'current' => Status::AIRING,
             $status === 'ongoing' => Status::AIRING,
             $status === 'not yet aired' => Status::TO_BE_AIRED,
