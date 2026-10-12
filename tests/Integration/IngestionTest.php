@@ -15,12 +15,26 @@ class IngestionTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $dotenv = new \Symfony\Component\Dotenv\Dotenv();
-        $dotenv->load(__DIR__ . '/../../.env');
+        $envFile = __DIR__ . '/../../.env';
+        if (is_file($envFile)) {
+            $dotenv = new \Symfony\Component\Dotenv\Dotenv();
+            $dotenv->load($envFile);
+        }
 
         self::$client = new Client($_ENV['MONGODB_URL']);
         $serializer = SerializerBuilder::create()->build();
         self::$db = new Database($serializer);
+
+        // Fresh CI MongoDB has no data — seed empty collections so the
+        // connection / collection-existence assertions hold on a clean runner.
+        $db = self::$client->selectDatabase('hiyori');
+        foreach (['anilist', 'kitsu', 'myanimelist'] as $name) {
+            try {
+                $db->createCollection($name);
+            } catch (\Throwable $e) {
+                // already exists — fine in repeated runs
+            }
+        }
     }
 
     public function testAniListEntryListFetch(): void
