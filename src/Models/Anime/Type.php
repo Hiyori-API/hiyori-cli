@@ -12,7 +12,7 @@ enum Type: string
     case OVA = 'ova';
     case ONA = 'ona';
     case SPECIAL = 'special';
-    case MUSIC = 'music;';
+    case MUSIC = 'music';
 
     public static function fromString(string $status): Type
     {
