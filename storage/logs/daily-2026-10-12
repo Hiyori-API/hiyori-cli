@@ -16,3 +16,6 @@
 [2026-10-12T17:26:07.505220+00:00] main.DEBUG: Started ingestion of myanimelist {"delay":1,"update":false,"resume_page":null} []
 [2026-10-12T17:26:07.505234+00:00] main.DEBUG: Started ingestion of anilist {"delay":1,"update":false,"resume_page":null} []
 [2026-10-12T17:26:07.505242+00:00] main.DEBUG: Started ingestion of kitsu {"delay":1,"update":false,"resume_page":null} []
+[2026-10-12T19:04:39.697452+00:00] main.DEBUG: Started ingestion of anilist {"delay":1,"update":false,"resume_page":null} []
+[2026-10-12T19:06:46.563659+00:00] main.DEBUG: Started ingestion of anilist {"delay":1,"update":false,"resume_page":null} []
+[2026-10-12T19:07:53.630759+00:00] main.DEBUG: Started ingestion of anilist {"delay":1,"update":false,"resume_page":null} []
