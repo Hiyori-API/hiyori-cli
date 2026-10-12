@@ -17,18 +17,21 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     public const NAME = 'metadata_fuzzy';
 
     /**
-     * Default weights (sum does not need to be 100; they are normalized).
-     * Supported fields: title, synonyms, type, episodes, status, season, year, tags.
+     * Default weights derived from the weightage study (field match rates
+     * measured on ground-truth pairs, e.g. myanimelist vs anilist):
+     *   status 100%, episodes 99%, type 98%, title 74%, season 57%, year 57%, tags ~0%
+     * Tags are intentionally near-zero: different sources use disjoint tag sets.
+     * Sum does not need to be 100; weights are normalized at runtime.
      */
     private const DEFAULT_WEIGHTS = [
-        'title' => 20,
-        'synonyms' => 5,
-        'type' => 15,
-        'episodes' => 12,
-        'status' => 12,
-        'season' => 8,
-        'year' => 10,
-        'tags' => 18,
+        'title' => 31,
+        'synonyms' => 0,
+        'type' => 6,
+        'episodes' => 31,
+        'status' => 0,
+        'season' => 14,
+        'year' => 15,
+        'tags' => 3,
     ];
 
     public static function process(
@@ -87,6 +90,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                         AnimeBase::merge($entryArray, $bestMatch),
                         $source->get()->getShorthand(),
                         (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
+                        'organized',
+                        ['confidence' => $score],
                     );
                     $totalMerged++;
                 }
@@ -99,16 +104,32 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
 
         // Confidence summary
         if ($scores !== []) {
-            $mean = array_sum($scores) / count($scores);
+            sort($scores);
+            $n = count($scores);
+            $mean = array_sum($scores) / $n;
+            $median = $scores[intdiv($n, 2)];
+            $g90 = count(array_filter($scores, fn ($s) => $s >= 90.0));
+            $g85 = count(array_filter($scores, fn ($s) => $s >= 85.0));
+            $g80 = count(array_filter($scores, fn ($s) => $s >= 80.0));
             $console->io()->text(sprintf(
-                'Confidence: n=%d, min=%.1f%%, avg=%.1f%%, max=%.1f%%',
-                count($scores),
-                min($scores),
+                'Confidence: n=%d, min=%.1f%%, median=%.1f%%, avg=%.1f%%, max=%.1f%%',
+                $n,
+                $scores[0],
+                $median,
                 $mean,
-                max($scores),
+                $scores[$n - 1],
+            ));
+            $console->io()->text(sprintf(
+                'Score distribution: >=90%%: %d (%.1f%%), >=85%%: %d (%.1f%%), >=80%%: %d (%.1f%%)',
+                $g90,
+                $g90 / $n * 100,
+                $g85,
+                $g85 / $n * 100,
+                $g80,
+                $g80 / $n * 100,
             ));
             $low = count(array_filter($scores, fn ($s) => $s < 80.0));
-            $console->io()->text(sprintf('Merges below 80%%: %d (%.1f%%)', $low, $low / count($scores) * 100));
+            $console->io()->text(sprintf('Merges below 80%%: %d (%.1f%%)', $low, $low / $n * 100));
             $bySource = [];
             foreach ($mergedSources as $src => $n) {
                 $bySource[] = "$src=$n";
@@ -253,10 +274,18 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             case 'tags':
                 return self::tagsSimilarity((array) $v1, (array) $v2);
             case 'episodes':
-            case 'year':
                 return (int) $v1 === (int) $v2 ? 1.0 : 0.0;
+            case 'year':
+                return self::yearSimilarity($v1, $v2);
             default:
-                return strtolower(trim((string) $v1)) === strtolower(trim((string) $v2)) ? 1.0 : 0.0;
+                $s1 = strtolower(trim((string) $v1));
+                $s2 = strtolower(trim((string) $v2));
+                if ($s1 === $s2) {
+                    return 1.0;
+                }
+
+                // Fuzzy fallback for enum-ish fields (e.g. 'tv' vs 'tv_short')
+                return max(self::jaroWinkler($s1, $s2), self::tokenJaccard($s1, $s2));
         }
     }
 
@@ -329,6 +358,103 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         return $threshold;
+    }
+
+    /**
+     * Graded year similarity (dbsentinel-style): exact years score 1.0, each
+     * year of difference removes 20% of the score (1 - |dy|/5, clamped to 0).
+     */
+    public static function yearSimilarity(mixed $y1, mixed $y2): float
+    {
+        $y1 = $y1 === null || $y1 === '' ? 0 : (int) $y1;
+        $y2 = $y2 === null || $y2 === '' ? 0 : (int) $y2;
+
+        if ($y1 === 0 || $y2 === 0) {
+            return 0.0;
+        }
+        if ($y1 === $y2) {
+            return 1.0;
+        }
+
+        return max(0.0, 1.0 - (abs($y1 - $y2) / 5.0));
+    }
+
+    /**
+     * Jaro-Winkler similarity (0-1). Exposed for reuse by the weightage tool.
+     */
+    public static function jaroWinkler(string $a, string $b): float
+    {
+        $a = strtolower(trim($a));
+        $b = strtolower(trim($b));
+
+        if ($a === $b) {
+            return 1.0;
+        }
+
+        $aLen = strlen($a);
+        $bLen = strlen($b);
+        if ($aLen === 0 || $bLen === 0) {
+            return 0.0;
+        }
+
+        $matchDistance = intdiv(max($aLen, $bLen), 2) - 1;
+        if ($matchDistance < 0) {
+            $matchDistance = 0;
+        }
+
+        $aMatches = array_fill(0, $aLen, false);
+        $bMatches = array_fill(0, $bLen, false);
+        $matches = 0;
+
+        for ($i = 0; $i < $aLen; $i++) {
+            $start = max(0, $i - $matchDistance);
+            $end = min($i + $matchDistance + 1, $bLen);
+            for ($j = $start; $j < $end; $j++) {
+                if ($bMatches[$j] || $a[$i] !== $b[$j]) {
+                    continue;
+                }
+                $aMatches[$i] = true;
+                $bMatches[$j] = true;
+                $matches++;
+                break;
+            }
+        }
+
+        if ($matches === 0) {
+            return 0.0;
+        }
+
+        $transpositions = 0;
+        $k = 0;
+        for ($i = 0; $i < $aLen; $i++) {
+            if (!$aMatches[$i]) {
+                continue;
+            }
+            while (!$bMatches[$k]) {
+                $k++;
+            }
+            if ($a[$i] !== $b[$k]) {
+                $transpositions++;
+            }
+            $k++;
+        }
+        $transpositions /= 2;
+
+        $m = $matches;
+        $jaro = (($m / $aLen) + ($m / $bLen) + (($m - $transpositions) / $m)) / 3;
+
+        // Winkler boost for common prefix (up to 4 chars)
+        $prefix = 0;
+        $maxPrefix = min(4, $aLen, $bLen);
+        for ($i = 0; $i < $maxPrefix; $i++) {
+            if ($a[$i] === $b[$i]) {
+                $prefix++;
+            } else {
+                break;
+            }
+        }
+
+        return $jaro + ($prefix * 0.1 * (1.0 - $jaro));
     }
 
     private static function normalizeTitle(?string $title): string
