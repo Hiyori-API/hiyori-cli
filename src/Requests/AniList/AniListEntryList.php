@@ -9,7 +9,7 @@ class AniListEntryList extends EntryList
 {
     public const ENTRYPOINT = 'https://graphql.anilist.co';
 
-    public static function create(&$currentPage): self
+    public static function create(&$currentPage, ?int $seasonYear = null): self
     {
         $self = new self();
 
@@ -18,10 +18,11 @@ class AniListEntryList extends EntryList
             Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-                'variables' => [
+                'variables' => array_filter([
                     'page' => $currentPage,
                     'type' => 'ANIME',
-                ],
+                    'seasonYear' => $seasonYear,
+                ], static fn ($v) => $v !== null),
             ],
         )
             ->toArray();
