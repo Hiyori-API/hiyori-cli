@@ -34,8 +34,10 @@ final class AniListIngestion
         $processed = 0;
         $saved = 0;
         $errors = 0;
+        $skipped = 0;
 
         while ($meta->hasNextPage()) {
+            Telemetry::waitIfPaused($sourceKey);
             $currentPage = $meta->getCurrentPage();
 
             $list = $rateLimiter->executeWithRetry(
@@ -51,6 +53,7 @@ final class AniListIngestion
                 $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
+                    $skipped++;
                     $progressBar->advance();
                     continue;
                 }
@@ -87,6 +90,7 @@ final class AniListIngestion
         $progressBar->finish();
         Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
             'saved' => $saved,
+            'skipped' => $skipped,
         ]);
     }
 }

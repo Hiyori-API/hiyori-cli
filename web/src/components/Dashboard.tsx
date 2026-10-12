@@ -11,15 +11,27 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 import { usePolling } from '@/lib/hooks'
 import { COLORS, MultiLine } from './charts'
-import type { Job } from '@/lib/api'
+import { postAction, runBackup, type Job } from '@/lib/api'
 
 const CAP = 120
 
 function fmt(n: number | undefined | null): string {
   if (n === undefined || n === null || Number.isNaN(n)) return '—'
   return n.toLocaleString()
+}
+function mb(n: number | undefined | null): string {
+  if (n === undefined || n === null) return '—'
+  return (n / 1024 / 1024).toFixed(1) + ' MB'
+}
+function ago(ts?: number): string {
+  if (!ts) return '—'
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts))
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s / 60) + 'm ago'
+  return Math.floor(s / 3600) + 'h ago'
 }
 function fmtSec(n: number | undefined | null): string {
   if (n === undefined || n === null || !Number.isFinite(n)) return '—'
@@ -163,7 +175,25 @@ export function Dashboard() {
                       const badge = job.phase === 'done' ? 'secondary' : job.phase === 'running' ? 'green' : 'red'
                       return (
                         <tr key={key} className="border-t">
-                          <td className="px-4 py-2">{job.source}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <span>{job.source}</span>
+                              <button
+                                className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent"
+                                onClick={async () => {
+                                  const r = await postAction(String(job.source), 'pause')
+                                  toast(r?.error ? `error: ${r.error}` : `${job.source} paused`)
+                                }}
+                              >⏸</button>
+                              <button
+                                className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent"
+                                onClick={async () => {
+                                  const r = await postAction(String(job.source), 'resume')
+                                  toast(r?.error ? `error: ${r.error}` : `${job.source} resumed`)
+                                }}
+                              >▶</button>
+                            </div>
+                          </td>
                           <td className="px-2 py-2"><Badge variant={badge === 'green' ? 'outline' : badge === 'red' ? 'destructive' : 'secondary'}>{job.phase ?? 'idle'}</Badge></td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-2">
@@ -259,6 +289,51 @@ export function Dashboard() {
                 <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Base</div><div className="font-medium">{data.combine.base}</div></div>
                 <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Merges</div><div className="font-medium">{fmt(data.combine.merges)}</div></div>
                 {data.combine.scores && <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Score avg</div><div className="font-medium">{data.combine.scores.avg}</div></div>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* DB + BACKUP */}
+        <Card className="col-span-12 md:col-span-4">
+          <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Database & backups</CardTitle></CardHeader>
+          <CardContent>
+            {!data?.db ? <p className="text-sm text-muted-foreground">no db stats</p> : (
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Data</div><div className="font-medium">{mb(data.db.dataSize)}</div></div>
+                <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Index</div><div className="font-medium">{mb(data.db.indexSize)}</div></div>
+                <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Storage</div><div className="font-medium">{mb(data.db.storageSize)}</div></div>
+                <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Docs</div><div className="font-medium">{fmt(data.db.totalDocuments)}</div></div>
+              </div>
+            )}
+            <div className="mt-3 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Last backup</span>
+                <span className="tabular-nums">{data?.backup?.last ? `${ago(data.backup.last.mtime)} · ${(data.backup.last.size ?? 0 / 1048576).toFixed(1)} MB` : 'none'}</span>
+              </div>
+              <Button size="sm" variant="outline" className="w-full" disabled={!data} onClick={async () => { await runBackup(); toast('backup started'); }}>
+                Backup now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* CONFIDENCE HISTOGRAM */}
+        <Card className="col-span-12 md:col-span-4">
+          <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Merge confidence histogram</CardTitle></CardHeader>
+          <CardContent>
+            {!data?.combine?.score_histogram ? <p className="text-sm text-muted-foreground">run metadata_fuzzy to populate</p> : (
+              <div className="flex h-36 items-end gap-2">
+                {([['70-80', data.combine.score_histogram.p70_80], ['80-90', data.combine.score_histogram.p80_90], ['90-100', data.combine.score_histogram.p90_100]] as const).map(([label, v]) => {
+                  const max = Math.max(data.combine.score_histogram!.p70_80 ?? 1, data.combine.score_histogram!.p80_90 ?? 1, data.combine.score_histogram!.p90_100 ?? 1)
+                  return (
+                    <div key={label} className="flex flex-1 flex-col items-center gap-1">
+                      <span className="text-xs tabular-nums">{v ?? 0}</span>
+                      <div className="w-full rounded-t-md bg-gradient-to-t from-primary to-primary/40" style={{ height: `${(((v ?? 0) / max) * 100).toFixed(0)}%` }} />
+                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>

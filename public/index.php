@@ -109,6 +109,51 @@ function collectionCounts(MongoClient $client): array
     return $out;
 }
 
+
+function dbStats(MongoClient $client): array
+{
+    $db = $client->selectDatabase('hiyori');
+    $stats = $db->command(['dbstats' => 1])->toArray()[0] ?? [];
+    $out = [
+        'dataSize' => (int) ($stats['dataSize'] ?? 0),
+        'indexSize' => (int) ($stats['indexSize'] ?? 0),
+        'storageSize' => (int) ($stats['storageSize'] ?? 0),
+        'collections' => [],
+    ];
+    $total = 0;
+    foreach ($db->listCollections() as $col) {
+        $n = $db->selectCollection($col->getName())->countDocuments();
+        $total += $n;
+        $out['collections'][$col->getName()] = $n;
+    }
+    $out['totalDocuments'] = $total;
+
+    return $out;
+}
+
+function backupInfo(): array
+{
+    $dir = dirname(__DIR__, 2) . '/storage/backups';
+    $files = glob($dir . '/hiyori-*.gz') ?: [];
+    $last = null;
+    foreach ($files as $f) {
+        $mtime = filemtime($f);
+        if ($last === null || $mtime > $last['mtime']) {
+            $last = ['file' => basename($f), 'mtime' => $mtime, 'size' => filesize($f)];
+        }
+    }
+
+    return ['exists' => $last !== null, 'last' => $last, 'count' => count($files)];
+}
+
+function controls(string $source): array
+{
+    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $file = $dir . '/control-' . $source . '.json';
+
+    return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
+}
+
 if ($path === '/api/counts') {
     sendJson(['counts' => collectionCounts($client), 'timestamp' => date('c')]);
 }
@@ -125,11 +170,53 @@ if ($path === '/api/validate') {
     sendJson(['recent' => $telemetry->tail('validation-log', 100), 'timestamp' => date('c')]);
 }
 
+if ($path === '/api/db') {
+    sendJson(['db' => dbStats($client), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/backup') {
+    if (($_GET['run'] ?? '') === '1') {
+        $out = dirname(__DIR__, 2) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
+        if (!is_dir(dirname($out))) {
+            mkdir(dirname($out), 0777, true);
+        }
+        $cmd = sprintf('mongodump --uri=%s --db=hiyori --gzip --archive=%s >/dev/null 2>&1 &', escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'), escapeshellarg($out));
+        @exec($cmd);
+        sendJson(['started' => true, 'archive' => basename($out), 'backup' => backupInfo()]);
+    }
+    sendJson(['backup' => backupInfo(), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/action') {
+    $job = (string) ($_GET['job'] ?? '');
+    $cmd2 = (string) ($_GET['cmd'] ?? '');
+    if ($job === '' || !in_array($cmd2, ['pause', 'resume'], true)) {
+        sendJson(['error' => 'job + cmd (pause|resume) required'], 400);
+    }
+    $state = uniqid() === '' ? '' : (string) file_put_contents(
+        dirname(__DIR__, 2) . '/storage/state/control-' . $job . '.json',
+        json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
+    );
+
+    sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($job)]);
+}
+
 if ($path === '/api/status') {
+    $controlsMap = [];
+    foreach (array_keys($telemetry->allState()) as $k) {
+        if (str_starts_with($k, 'ingest-')) {
+            $controlsMap[$k] = controls(substr($k, 7));
+        }
+    }
+
     sendJson([
         'timestamp' => date('c'),
         'counts' => collectionCounts($client),
+        'db' => dbStats($client),
         'jobs' => $telemetry->allState(),
+        'controls' => $controlsMap,
+        'backup' => backupInfo(),
+        'cache' => $telemetry->read('cache'),
         'health' => $health->check(),
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),

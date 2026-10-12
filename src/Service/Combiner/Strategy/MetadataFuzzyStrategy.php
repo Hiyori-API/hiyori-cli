@@ -147,6 +147,11 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                 'min' => round(min($scores), 1),
                 'max' => round(max($scores), 1),
             ] : null,
+            'score_histogram' => [
+                'p70_80' => count(array_filter($scores, fn ($s) => $s >= 70 && $s < 80)),
+                'p80_90' => count(array_filter($scores, fn ($s) => $s >= 80 && $s < 90)),
+                'p90_100' => count(array_filter($scores, fn ($s) => $s >= 90)),
+            ],
             'completed_at' => date('c'),
         ]);
     }
