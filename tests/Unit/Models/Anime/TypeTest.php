@@ -52,6 +52,6 @@ final class TypeTest extends TestCase
         $this->assertSame('ova', Type::OVA->value);
         $this->assertSame('ona', Type::ONA->value);
         $this->assertSame('special', Type::SPECIAL->value);
-        $this->assertSame('music;', Type::MUSIC->value);
+        $this->assertSame('music', Type::MUSIC->value);
     }
 }
