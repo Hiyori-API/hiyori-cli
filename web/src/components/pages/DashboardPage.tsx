@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Activity, Archive, CircleDot, Database, Gauge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer, X,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { cn } from 'cn'
 import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -13,10 +15,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { COLORS } from '../charts'
-import { postAction, type Job } from '@/lib/api'
+import { postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
-import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
+import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, PipelineFunnel, SeriesChartCard } from '../chartcard'
+import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 
 const MAX = 120
@@ -169,43 +172,15 @@ export function DashboardPage() {
               {jobKeys.length === 0 ? (
                 <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source (Management → Sources) to see live progress, speed and ETA." />
               ) : (
-                <div className="space-y-2">
-                  {jobKeys.map(k => {
-                    const job = jobs[k] as Job
-                    const src = String(job.source ?? k)
-                    const srcStatus = sourceStatus(data?.health, src)
-                    const pct = job.total ? Math.min(100, ((job.processed ?? 0) / job.total) * 100) : 0
-                    const pending = Math.max(0, (job.total ?? 0) - (job.processed ?? 0))
-                    const isFocus = focus === src
-                    return (
-                      <div key={k} className={`rounded-lg border p-3 ${isFocus ? 'border-primary/60 bg-primary/5' : ''}`}>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setFocus(isFocus ? null : src)} title="Drill down">
-                            {srcStatus.level !== 'none' && <SourceStatusBlip status={srcStatus} />}
-                            <CircleDot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            <span className="font-medium">{src}</span>
-                            <SourceStatusLabel status={srcStatus} />
-                            <Badge variant={job.phase === 'done' ? 'secondary' : 'outline'}>{job.phase ?? 'idle'}</Badge>
-                            <span className="text-xs text-muted-foreground">{job.mode ?? ''}</span>
-                          </button>
-                          <div className="flex items-center gap-1.5">
-                            <Button size="icon-sm" variant="ghost" title="Pause" onClick={() => void setPause(src, true)}><Pause className="h-3.5 w-3.5" /></Button>
-                            <Button size="icon-sm" variant="ghost" title="Resume" onClick={() => void setPause(src, false)}><Play className="h-3.5 w-3.5" /></Button>
-                            <Button size="icon-sm" variant="ghost" title="Retry" onClick={() => void retry(src)}><RotateCcw className="h-3.5 w-3.5" /></Button>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                            <div className="h-full bg-primary transition-all" style={{ width: `${pct.toFixed(1)}%` }} />
-                          </div>
-                          <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                            <ChangePulse value={`${job.per_second?.toFixed(1) ?? '—'}/s`} /> · {fmt(job.processed)}/{job.total ?? '?'} · pend {fmt(pending)} · ETA {fmtSec(job.eta_seconds)}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <SourcesTable
+                  jobs={jobs}
+                  health={data?.health}
+                  focus={focus}
+                  onToggleFocus={src => setFocus(focus === src ? null : src)}
+                  onPause={src => void setPause(src, true)}
+                  onResume={src => void setPause(src, false)}
+                  onRetry={src => void retry(src)}
+                />
               )}
             </Section>
           )}
@@ -309,5 +284,178 @@ function SelectWindow({ win, setWin }: { win: number; setWin: (n: number) => voi
       <option value={100}>5m</option>
       <option value={300}>15m</option>
     </select>
+  )
+}
+
+interface SourceRow {
+  key: string
+  job: Job
+  src: string
+  status: SourceStatus
+  pct: number
+  pending: number
+}
+
+/** Ingestion fleet rendered as a shared DataTable (Source / Phase / Progress / Speed / Pending / ETA / Done~ / Actions). */
+function SourcesTable({
+  jobs, health, focus, onToggleFocus, onPause, onResume, onRetry,
+}: {
+  jobs: Record<string, Job>
+  health: HealthCheck | undefined
+  focus: string | null
+  onToggleFocus: (src: string) => void
+  onPause: (src: string) => void
+  onResume: (src: string) => void
+  onRetry: (src: string) => void
+}) {
+  const rows = useMemo<SourceRow[]>(
+    () =>
+      Object.keys(jobs)
+        .filter(k => (jobs[k] as Job)?.source)
+        .sort()
+        .map(k => {
+          const job = jobs[k] as Job
+          const src = String(job.source ?? k)
+          const total = job.total ?? 0
+          const processed = job.processed ?? 0
+          const pct = total ? Math.min(100, (processed / total) * 100) : 0
+          const pending = Math.max(0, total - processed)
+          return { key: k, job, src, status: sourceStatus(health, src), pct, pending }
+        }),
+    [jobs, health],
+  )
+
+  const columns = useMemo<ColumnDef<DataTableFeatures, SourceRow, any>[]>(
+    () => [
+      {
+        id: 'source',
+        header: 'Source',
+        accessorFn: r => r.src,
+        sortingFn: 'alphanumeric',
+        meta: { align: 'left' } as const,
+        cell: ({ row }) => {
+          const { src, status } = row.original
+          const isFocused = focus === src
+          return (
+            <span className="flex min-w-0 items-center gap-2">
+              {status.level !== 'none' && <SourceStatusBlip status={status} />}
+              <CircleDot className={cn('h-3.5 w-3.5 shrink-0', isFocused ? 'text-primary' : 'text-muted-foreground')} />
+              <span className={cn('font-medium', isFocused && 'text-primary')}>{src}</span>
+              <SourceStatusLabel status={status} />
+              <span className="text-xs text-muted-foreground">{row.original.job.mode ?? ''}</span>
+            </span>
+          )
+        },
+      },
+      {
+        id: 'phase',
+        header: 'Phase',
+        accessorFn: r => r.job.phase ?? 'idle',
+        sortingFn: 'basic',
+        meta: { align: 'left' } as const,
+        cell: ({ row }) => (
+          <Badge variant={row.original.job.phase === 'done' ? 'secondary' : 'outline'}>
+            {row.original.job.phase ?? 'idle'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'progress',
+        header: 'Progress',
+        accessorFn: r => r.pct,
+        sortingFn: 'basic',
+        meta: { align: 'left' } as const,
+        cell: ({ row }) => (
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+              <span className="block h-full bg-primary transition-all" style={{ width: `${row.original.pct.toFixed(1)}%` }} />
+            </span>
+            <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+              {fmt(row.original.job.processed)}/{row.original.job.total ?? '?'}
+            </span>
+          </span>
+        ),
+      },
+      {
+        id: 'speed',
+        header: 'Speed',
+        accessorFn: r => r.job.per_second ?? 0,
+        sortingFn: 'basic',
+        meta: { align: 'right' } as const,
+        cell: ({ row }) => <ChangePulse value={`${row.original.job.per_second?.toFixed(1) ?? '—'}/s`} />,
+      },
+      {
+        id: 'pending',
+        header: 'Pending',
+        accessorFn: r => r.pending,
+        sortingFn: 'basic',
+        meta: { align: 'right' } as const,
+        cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{fmt(row.original.pending)}</span>,
+      },
+      {
+        id: 'eta',
+        header: 'ETA',
+        accessorFn: r => r.job.eta_seconds ?? Infinity,
+        sortingFn: 'basic',
+        meta: { align: 'right' } as const,
+        cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{fmtSec(row.original.job.eta_seconds)}</span>,
+      },
+      {
+        id: 'done_at',
+        header: 'Done~',
+        accessorFn: r => r.job.eta_seconds ?? Infinity,
+        sortingFn: 'basic',
+        meta: { align: 'right' } as const,
+        cell: ({ row }) => {
+          const eta = row.original.job.eta_seconds
+          if (eta == null || !Number.isFinite(eta)) return <span className="text-muted-foreground">—</span>
+          const doneAt = new Date(Date.now() + eta * 1000)
+          return (
+            <span className="tabular-nums text-muted-foreground">
+              {doneAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        meta: { align: 'right', stickyRight: true } as const,
+        cell: ({ row }) => {
+          const src = row.original.src
+          return (
+            <span className="flex items-center justify-end gap-1">
+              <Button size="icon-sm" variant="ghost" title="Pause" onClick={() => onPause(src)}>
+                <Pause className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon-sm" variant="ghost" title="Resume" onClick={() => onResume(src)}>
+                <Play className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon-sm" variant="ghost" title="Retry" onClick={() => onRetry(src)}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          )
+        },
+      },
+    ],
+    [focus, onPause, onResume, onRetry],
+  )
+
+  return (
+    <DataTable<SourceRow>
+      columns={columns}
+      data={rows}
+      getRowId={r => r.key}
+      onRowClick={row => onToggleFocus(row.src)}
+      initialSorting={[{ id: 'source', desc: false }]}
+      initialPageSize={8}
+      pageSizeOptions={[8, 10, 25, 50]}
+      sortDescFirst
+      maxHeight="22rem"
+      ariaLabel="Ingestion sources"
+      footerLeft={`${rows.length} sources`}
+    />
   )
 }

@@ -1,4 +1,12 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import {
   createPaginatedRowModel,
   createSortedRowModel,
@@ -67,6 +75,11 @@ export type DataTableFeatures = typeof features
 const SELECT_COLUMN = 'select'
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
+/** Column-resize bounds in px (only used when `resizable` is enabled). */
+const RESIZE_MIN_WIDTH = 64
+const RESIZE_MAX_WIDTH = 640
+const RESIZE_DEFAULT_WIDTH = 160
+
 export interface DataTableProps<TData extends RowData> {
   columns: ColumnDef<DataTableFeatures, TData, any>[]
   data: TData[]
@@ -108,6 +121,8 @@ export interface DataTableProps<TData extends RowData> {
   sortDescFirst?: boolean
   ariaLabel?: string
   className?: string
+  /** When true, each sortable header gets a drag handle to resize column widths. */
+  resizable?: boolean
 }
 
 /**
@@ -146,10 +161,13 @@ export function DataTable<TData extends RowData>({
   sortDescFirst,
   ariaLabel,
   className,
+  resizable = false,
 }: DataTableProps<TData>) {
   const [intSorting, setIntSorting] = useState<SortingState>(initialSorting ?? [])
   const [intPagination, setIntPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: initialPageSize })
   const [intRowSelection, setIntRowSelection] = useState<RowSelectionState>({})
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const resizeSessionRef = useRef<{ columnId: string; startX: number; startWidth: number } | null>(null)
 
   const sortState = manualSorting ? (sortingProp ?? []) : intSorting
   const paginationState = manualPagination
@@ -241,6 +259,52 @@ export function DataTable<TData extends RowData>({
 
   const rows = table.getRowModel().rows
 
+  const handleWindowPointerMove = useCallback((e: PointerEvent) => {
+    const session = resizeSessionRef.current
+    if (!session) return
+    const nextWidth = Math.min(
+      RESIZE_MAX_WIDTH,
+      Math.max(RESIZE_MIN_WIDTH, session.startWidth + (e.clientX - session.startX)),
+    )
+    setColumnWidths((prev) => (prev[session.columnId] === nextWidth ? prev : { ...prev, [session.columnId]: nextWidth }))
+  }, [])
+
+  const handleWindowPointerUp = useCallback(() => {
+    resizeSessionRef.current = null
+    window.removeEventListener('pointermove', handleWindowPointerMove)
+    window.removeEventListener('pointerup', handleWindowPointerUp)
+    window.removeEventListener('pointercancel', handleWindowPointerUp)
+  }, [handleWindowPointerMove])
+
+  const handleResizePointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>, columnId: string) => {
+      e.preventDefault()
+      resizeSessionRef.current = {
+        columnId,
+        startX: e.clientX,
+        startWidth: columnWidths[columnId] ?? RESIZE_DEFAULT_WIDTH,
+      }
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        // Capture unavailable (unlikely) — the window listeners below still track the drag.
+      }
+      window.addEventListener('pointermove', handleWindowPointerMove)
+      window.addEventListener('pointerup', handleWindowPointerUp)
+      window.addEventListener('pointercancel', handleWindowPointerUp)
+    },
+    [columnWidths, handleWindowPointerMove, handleWindowPointerUp],
+  )
+
+  useEffect(
+    () => () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove)
+      window.removeEventListener('pointerup', handleWindowPointerUp)
+      window.removeEventListener('pointercancel', handleWindowPointerUp)
+    },
+    [handleWindowPointerMove, handleWindowPointerUp],
+  )
+
   return (
     <div className={cn('data-table w-full', className)}>
       {toolbar ? <div className="mb-2 flex flex-wrap items-center gap-2">{toolbar}</div> : null}
@@ -281,6 +345,8 @@ export function DataTable<TData extends RowData>({
                       const canSort = !header.isPlaceholder && header.column.getCanSort()
                       const sorted = canSort ? header.column.getIsSorted() : false
                       const isSelect = column.id === SELECT_COLUMN
+                      const canResize = resizable && canSort && !isSelect && !meta?.stickyRight
+                      const columnWidth = canResize ? (columnWidths[column.id] ?? RESIZE_DEFAULT_WIDTH) : undefined
                       return (
                         <th
                           key={header.id}
@@ -300,7 +366,9 @@ export function DataTable<TData extends RowData>({
                             meta?.stickyRight && 'sticky right-0 z-20 bg-background',
                             meta?.className,
                             isSelect && 'w-8 px-3',
+                            canResize && 'relative',
                           )}
+                          style={columnWidth !== undefined ? { width: columnWidth, minWidth: columnWidth } : undefined}
                         >
                           {canSort ? (
                             <button
@@ -321,6 +389,18 @@ export function DataTable<TData extends RowData>({
                           ) : (
                             flexRender(column.columnDef.header, header.getContext())
                           )}
+                          {canResize ? (
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label={`Resize column ${column.id}`}
+                              onPointerDown={(e) => handleResizePointerDown(e, column.id)}
+                              className="group absolute inset-y-0 right-0 flex w-2.5 cursor-col-resize items-stretch justify-center"
+                              style={{ touchAction: 'none' }}
+                            >
+                              <div className="w-px bg-border transition-colors group-hover:bg-primary/70" />
+                            </div>
+                          ) : null}
                         </th>
                       )
                     })}
@@ -354,6 +434,11 @@ export function DataTable<TData extends RowData>({
                         const meta = cell.column.columnDef.meta
                         const isSelect = cell.column.id === SELECT_COLUMN
                         const stickyActions = !!meta?.stickyRight
+                        const canResizeCell =
+                          resizable && !isSelect && !stickyActions && cell.column.getCanSort()
+                        const columnWidth = canResizeCell
+                          ? (columnWidths[cell.column.id] ?? RESIZE_DEFAULT_WIDTH)
+                          : undefined
                         return (
                           <td
                             key={cell.id}
@@ -368,6 +453,7 @@ export function DataTable<TData extends RowData>({
                               meta?.className,
                               isSelect && 'w-8 px-3',
                             )}
+                            style={columnWidth !== undefined ? { width: columnWidth, minWidth: columnWidth } : undefined}
                           >
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
