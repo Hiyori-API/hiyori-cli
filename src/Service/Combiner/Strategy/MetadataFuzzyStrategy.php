@@ -68,7 +68,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $db->mergeIntoOrganized(
                         AnimeBase::merge($entryArray, $bestMatch),
                         $source->get()->getShorthand(),
-                        $source->get()->getJsonId(),
+                        (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
                     );
                     $totalMerged++;
                     break; // One match per source entry

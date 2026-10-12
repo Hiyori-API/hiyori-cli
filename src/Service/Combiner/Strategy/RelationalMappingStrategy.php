@@ -60,7 +60,7 @@ final class RelationalMappingStrategy extends CombinerStrategy
                             $matchEntry,
                         ),
                         $source->get()->getShorthand(),
-                        $source->get()->getJsonId(),
+                        (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
                     );
 
                     $totalMerged++;
