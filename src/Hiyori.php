@@ -8,6 +8,9 @@ use Hiyori\Service\Logging;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\RateLimiter;
+use Hiyori\Service\MetricsCollector;
+use Hiyori\Service\HealthCheck;
 
 class Hiyori
 {
@@ -17,7 +20,10 @@ class Hiyori
         private Combiner $combiner,
         private StrategyConfigurationFactory $strategy,
         private Logging $logging,
-        private Database $database
+        private Database $database,
+        private RateLimiter $rateLimiter,
+        private MetricsCollector $metricsCollector,
+        private HealthCheck $healthCheck
     )
     {
     }
@@ -53,5 +59,20 @@ class Hiyori
     public function getDatabase(): Database
     {
         return $this->database;
+    }
+
+    public function getRateLimiter(): RateLimiter
+    {
+        return $this->rateLimiter;
+    }
+
+    public function getMetrics(): MetricsCollector
+    {
+        return $this->metricsCollector;
+    }
+
+    public function getHealthCheck(): HealthCheck
+    {
+        return $this->healthCheck;
     }
 }
