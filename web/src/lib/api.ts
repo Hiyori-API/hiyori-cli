@@ -204,6 +204,7 @@ export interface UiSettings {
     hiddenCollections?: string[]
     weights?: Record<string, number>
     acks?: string[]
+    realtime?: boolean
   }
   limits?: { max?: number; window?: number }
   [k: string]: unknown
@@ -279,4 +280,17 @@ export async function downloadExport(collection: string, format: 'jsonl' | 'csv'
   a.href = `/api/export?collection=${encodeURIComponent(collection)}&format=${format}`
   a.download = `${collection}.${format}`
   a.click()
+}
+
+/** Open the /api/events SSE stream for near-instant updates. */
+export interface StreamEvent { counts?: Record<string, number>; jobs?: Record<string, Job>; timestamp?: string }
+export function openStatusStream(onEvent: (e: StreamEvent) => void, onError?: (ev: Event) => void): EventSource {
+  const es = new EventSource('/api/events')
+  es.onmessage = (e) => {
+    try {
+      onEvent(JSON.parse(e.data) as StreamEvent)
+    } catch { /* ignore malformed frames */ }
+  }
+  if (onError) es.onerror = onError
+  return es
 }

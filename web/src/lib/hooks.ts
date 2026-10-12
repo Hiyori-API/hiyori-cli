@@ -97,7 +97,7 @@ export function useSmartPolling(ms = 3000, enabled = true, factor = 3, capMs = 3
     }
   }, [enabled, factor, capMs, ms])
 
-  return { data, error, intervalMs }
+  return { data, error, intervalMs, setData }
 }
 
 /** Rolling per-widget time window (D8): append value to a shared per-key buffer. */

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Activity, Database, GitMerge, LayoutDashboard, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
+import { Activity, Database, GitMerge, LayoutDashboard, Radio, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -13,7 +14,7 @@ import { QualityPage } from './pages/QualityPage'
 import { LogsPage } from './pages/LogsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AlertToasts } from './alert-toast'
-import { StatusProvider } from '@/lib/status-context'
+import { StatusProvider, useStatus } from '@/lib/status-context'
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
 
@@ -88,6 +89,9 @@ export function Dashboard() {
                 <BreadcrumbItem><BreadcrumbPage className="text-muted-foreground">{nav.label}</BreadcrumbPage></BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+            <div className="ml-auto flex items-center gap-2">
+              <LiveToggle />
+            </div>
           </header>
           <main className="flex-1 p-6">
             {view === 'dashboard' && <DashboardPage />}
@@ -102,5 +106,22 @@ export function Dashboard() {
       <AlertToasts />
     </SidebarProvider>
     </StatusProvider>
+  )
+}
+
+
+function LiveToggle() {
+  const { realtime, setRealtime } = useStatus()
+  return (
+    <Button
+      size="sm"
+      variant={realtime ? 'default' : 'outline'}
+      title={realtime ? 'Real-time updates on (SSE)' : 'Enable real-time updates (SSE)'}
+      aria-pressed={realtime}
+      onClick={() => setRealtime(!realtime)}
+    >
+      <Radio className={`mr-1.5 h-3.5 w-3.5 ${realtime ? '' : 'text-muted-foreground'}`} />
+      {realtime ? 'Live' : 'Live off'}
+    </Button>
   )
 }

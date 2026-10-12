@@ -46,7 +46,7 @@ export function DashboardPage() {
   const widgets = settings.prefs?.widgets
   const visible = (id: string) => !widgets || widgets.includes(id)
   const hiddenCollections = settings.prefs?.hiddenCollections ?? []
-  const { data, error, intervalMs } = useStatus()
+  const { data, error, intervalMs, realtime } = useStatus()
   const [focus, setFocus] = useState<string | null>(null)
   const [win, setWin] = useState(100)
   const startedAt = useRef(Date.now())
@@ -147,7 +147,7 @@ export function DashboardPage() {
         actions={
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Timer className="h-3.5 w-3.5" />
-            {fmtSec((Date.now() - startedAt.current) / 1000)} uptime · poll {Math.round(intervalMs / 1000)}s
+            {fmtSec((Date.now() - startedAt.current) / 1000)} uptime · {realtime ? 'live' : `poll ${Math.round(intervalMs / 1000)}s`}
             <StatusDot ok={!error} pulse /> {error ? 'offline' : (data?.health?.status ?? '…')}
           </div>
         }
