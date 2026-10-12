@@ -44,9 +44,9 @@ final class AniListMangaIngestion
         // Manga have no seasonYear, so chunk by startDate year windows; AniList
         // pageInfo caps at 5000 per query, so each year window stays well under.
         $yearNow = (int) date('Y');
-        $windows = [[0, 1950]];
-        for ($y = 1950; $y <= $yearNow; $y++) {
-            $windows[] = [$y, $y + 1];
+        $windows = [];
+        for ($y = 1900; $y <= $yearNow; $y++) {
+            $windows[] = [$y, $y + 1]; // startDate_greater: 0 is invalid for FuzzyDateInt
         }
         $windows[] = [null, null]; // catch-all for entries outside/without dates
 
