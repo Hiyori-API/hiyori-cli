@@ -6,7 +6,6 @@ use Hiyori\Helper;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Manga\Status;
 use Hiyori\Models\Manga\Type;
-use Hiyori\Models\Manga\Base\MangaBase;
 
 class MyAnimeListBase extends MangaBase
 {
@@ -16,8 +15,12 @@ class MyAnimeListBase extends MangaBase
 
         $self->title = $json['title'];
         $self->synonyms = $json['alternative_titles']['synonyms'] ?? [];
-        if (!empty($json['alternative_titles']['en'])) $self->synonyms[] = $json['alternative_titles']['en'];
-        if (!empty($json['alternative_titles']['ja'])) $self->synonyms[] = $json['alternative_titles']['ja'];
+        if (!empty($json['alternative_titles']['en'])) {
+            $self->synonyms[] = $json['alternative_titles']['en'];
+        }
+        if (!empty($json['alternative_titles']['ja'])) {
+            $self->synonyms[] = $json['alternative_titles']['ja'];
+        }
         $self->synonyms = array_unique($self->synonyms, SORT_STRING);
 
         $self->type = Type::fromString(Helper::prepareAsIdentifer($json['media_type'] ?? ''))->value;
@@ -32,7 +35,7 @@ class MyAnimeListBase extends MangaBase
 
         $pairs = [];
         foreach ($json['external'] ?? [] as $link) {
-            $site = explode("/", $link['url'])[0] ?? '';
+            $site = explode('/', $link['url'])[0] ?? '';
             $id = basename($link['url']);
             if ($site && $id) {
                 $pairs[] = [$site, $id];

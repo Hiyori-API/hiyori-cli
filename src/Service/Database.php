@@ -2,8 +2,6 @@
 
 namespace Hiyori\Service;
 
-use Hiyori\Helper;
-use Hiyori\Models\Anime\Base\KitsuBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
@@ -15,11 +13,20 @@ use MongoDB\UpdateResult;
 class Database
 {
     private Client $client;
+
+    private Validator $validator;
+
     public function __construct(
-        private Serializer $serializer
-    )
-    {
+        private Serializer $serializer,
+        ?Validator $validator = null
+    ) {
+        $this->validator = $validator ?? new Validator();
         $this->connect();
+    }
+
+    public function getValidator(): Validator
+    {
+        return $this->validator;
     }
 
     public function connect(Client $client = null)
@@ -55,7 +62,7 @@ class Database
     public function exists(string $source, string $sourceId, string $id): bool
     {
         $response = $this->getCollection($source)
-            ->findOne(['reference_ids.'.$sourceId => $id]);
+            ->findOne(['reference_ids.' . $sourceId => $id]);
 
         return !($response === null);
     }
@@ -65,13 +72,13 @@ class Database
         if ($toArray) {
             return $this->getCollection($source)
                 ->findOne(
-                    ['reference_ids.'.$sourceId => $id],
-                    ['typeMap' => ['root' => 'array', 'document' => 'array']]
+                    ['reference_ids.' . $sourceId => $id],
+                    ['typeMap' => ['root' => 'array', 'document' => 'array']],
                 );
         }
 
         return $this->getCollection($source)
-            ->findOne(['reference_ids.'.$sourceId => $id]);
+            ->findOne(['reference_ids.' . $sourceId => $id]);
     }
 
     public function save(string $source, AnimeBaseModel $entry): InsertOneResult
@@ -80,34 +87,52 @@ class Database
             ->toArray(
                 $entry,
                 (new SerializationContext())
-                    ->setSerializeNull(true)
+                    ->setSerializeNull(true),
             );
+
+        // Validate before persisting; log violations but keep the record moving.
+        $errors = $this->validator->validate($entry);
+        if ($errors !== []) {
+            $summary = [];
+            foreach ($errors as $field => $messages) {
+                $summary[] = $field . '=' . implode(',', $messages);
+            }
+            error_log(sprintf('[validator] %s entry validation issues: %s', $source, implode('; ', $summary)));
+        }
 
         return $this->getCollection($source)
             ->insertOne($entry);
     }
 
+    /**
+     * Validate a raw payload before transformation.
+     */
+    public function validatePayload(array $payload): array
+    {
+        return $this->validator->validatePayload($payload);
+    }
+
     public function mergeIntoOrganized(
         AnimeBaseModel $entry,
         ?string $identifier = null,
-        ?string $identifierValue = null): UpdateResult
-    {
+        ?string $identifierValue = null
+    ): UpdateResult {
         $entry = $this->serializer
             ->toArray(
                 $entry,
                 (new SerializationContext())
-                    ->setSerializeNull(true)
+                    ->setSerializeNull(true),
             );
 
         return $this->getCollection('organized')
             ->replaceOne(
                 [
-                    'reference_ids.'.$identifier => $identifierValue
+                    'reference_ids.' . $identifier => $identifierValue,
                 ],
                 $entry,
                 [
-                    'upsert' => true
-                ]
+                    'upsert' => true,
+                ],
             );
     }
 

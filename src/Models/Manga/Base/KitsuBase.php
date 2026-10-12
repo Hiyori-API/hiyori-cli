@@ -3,10 +3,9 @@
 namespace Hiyori\Models\Manga\Base;
 
 use Hiyori\Helper;
+use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Manga\Status;
 use Hiyori\Models\Manga\Type;
-use Hiyori\Models\Common\Identifiers\Identifiers;
-use Hiyori\Models\Manga\Base\MangaBase;
 
 class KitsuBase extends MangaBase
 {
@@ -15,11 +14,11 @@ class KitsuBase extends MangaBase
         $self = new self();
 
         $attrs = $json['attributes'] ?? $json;
-        
+
         $self->title = $attrs['canonicalTitle'] ?? '';
         $self->synonyms = array_merge(
             array_values($attrs['titles'] ?? []),
-            $attrs['abbreviatedTitles'] ?? []
+            $attrs['abbreviatedTitles'] ?? [],
         );
         $self->synonyms = array_unique($self->synonyms, SORT_STRING);
 
@@ -45,7 +44,7 @@ class KitsuBase extends MangaBase
 
         $pairs = [];
         foreach ($attrs['external'] ?? [] as $link) {
-            $site = explode("/", $link['attributes']['externalSite'])[0] ?? '';
+            $site = explode('/', $link['attributes']['externalSite'])[0] ?? '';
             $id = $link['attributes']['externalId'] ?? '';
             if ($site && $id) {
                 $pairs[] = [$site, $id];

@@ -5,18 +5,29 @@ namespace Hiyori\Models\Common;
 abstract class Base implements BaseInterface
 {
     protected string $title;
+
     protected array $synonyms = [];
+
     protected ?string $type = null;
+
     protected ?int $episodes = null;
+
     protected ?int $chapters = null;
+
     protected ?int $volumes = null;
+
     protected ?string $status = null;
+
     protected ?string $season = null;
+
     protected ?int $year = null;
+
     protected array $images = [];
+
     protected array $referenceIds = [];
 
     protected array $references = [];
+
     protected array $tags = [];
 
     public function getTitle(): string
@@ -27,6 +38,7 @@ abstract class Base implements BaseInterface
     public function setTitle(string $title): self
     {
         $this->title = $title;
+
         return $this;
     }
 
@@ -38,6 +50,7 @@ abstract class Base implements BaseInterface
     public function setSynonyms(array $synonyms): self
     {
         $this->synonyms = $synonyms;
+
         return $this;
     }
 
@@ -49,6 +62,7 @@ abstract class Base implements BaseInterface
     public function setType(?string $type): self
     {
         $this->type = $type;
+
         return $this;
     }
 
@@ -60,6 +74,7 @@ abstract class Base implements BaseInterface
     public function setEpisodes(?int $episodes): self
     {
         $this->episodes = $episodes;
+
         return $this;
     }
 
@@ -71,6 +86,7 @@ abstract class Base implements BaseInterface
     public function setChapters(?int $chapters): self
     {
         $this->chapters = $chapters;
+
         return $this;
     }
 
@@ -82,6 +98,7 @@ abstract class Base implements BaseInterface
     public function setVolumes(?int $volumes): self
     {
         $this->volumes = $volumes;
+
         return $this;
     }
 
@@ -93,6 +110,7 @@ abstract class Base implements BaseInterface
     public function setStatus(?string $status): self
     {
         $this->status = $status;
+
         return $this;
     }
 
@@ -104,6 +122,7 @@ abstract class Base implements BaseInterface
     public function setSeason(?string $season): self
     {
         $this->season = $season;
+
         return $this;
     }
 
@@ -115,6 +134,7 @@ abstract class Base implements BaseInterface
     public function setYear(?int $year): self
     {
         $this->year = $year;
+
         return $this;
     }
 
@@ -126,6 +146,7 @@ abstract class Base implements BaseInterface
     public function setImages(array $images): self
     {
         $this->images = $images;
+
         return $this;
     }
 
@@ -137,6 +158,7 @@ abstract class Base implements BaseInterface
     public function setReferenceIds(array $referenceIds): self
     {
         $this->referenceIds = $referenceIds;
+
         return $this;
     }
 
@@ -148,6 +170,7 @@ abstract class Base implements BaseInterface
     public function setReferences(array $references): self
     {
         $this->references = $references;
+
         return $this;
     }
 
@@ -159,6 +182,7 @@ abstract class Base implements BaseInterface
     public function setTags(array $tags): self
     {
         $this->tags = $tags;
+
         return $this;
     }
 }

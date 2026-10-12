@@ -27,6 +27,7 @@ abstract class Identifier implements IdentifierInterface
     public function setId(int|string $id): self
     {
         $this->id = $id;
+
         return $this;
     }
 }

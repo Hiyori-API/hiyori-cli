@@ -3,16 +3,18 @@
 namespace Hiyori\Service;
 
 use Psr\Log\LoggerInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 final class RateLimiter
 {
     private array $buckets = [];
+
     private array $circuitBreakers = [];
+
     private LoggerInterface $logger;
 
     public function __construct(
@@ -28,7 +30,7 @@ final class RateLimiter
     public function acquire(string $key, int $tokens = 1): bool
     {
         $now = time();
-        
+
         if (!isset($this->buckets[$key])) {
             $this->buckets[$key] = [
                 'tokens' => $this->maxRequests,
@@ -37,7 +39,7 @@ final class RateLimiter
         }
 
         $bucket = &$this->buckets[$key];
-        
+
         $elapsed = $now - $bucket['lastRefill'];
         if ($elapsed > 0) {
             $refill = ($elapsed / $this->timeWindow) * $this->maxRequests;
@@ -47,30 +49,33 @@ final class RateLimiter
 
         if ($this->isCircuitOpen($key)) {
             $this->logger->warning("Circuit breaker open for {$key}");
+
             return false;
         }
 
         if ($bucket['tokens'] >= $tokens) {
             $bucket['tokens'] -= $tokens;
+
             return true;
         }
 
         $this->logger->warning("Rate limit exceeded for {$key}");
+
         return false;
     }
 
     public function waitForToken(string $key, int $tokens = 1, int $maxWait = 300): bool
     {
         $start = time();
-        
+
         while (time() - $start < $maxWait) {
             if ($this->acquire($key, $tokens)) {
                 return true;
             }
-            
+
             usleep(100000);
         }
-        
+
         return false;
     }
 
@@ -94,14 +99,14 @@ final class RateLimiter
 
         $cb = &$this->circuitBreakers[$key];
         $cb['failures']++;
-        
+
         $totalRequests = $cb['failures'] + max(1, $this->maxRequests - ($this->buckets[$key]['tokens'] ?? $this->maxRequests));
         $failureRate = $cb['failures'] / $totalRequests;
 
         if ($failureRate >= $this->circuitBreakerThreshold && $cb['state'] === 'closed') {
             $cb['state'] = 'open';
             $cb['openedAt'] = time();
-            $this->logger->error("Circuit breaker OPENED for {$key} (failure rate: " . round($failureRate * 100, 1) . "%)");
+            $this->logger->error("Circuit breaker OPENED for {$key} (failure rate: " . round($failureRate * 100, 1) . '%)');
         }
     }
 
@@ -112,7 +117,7 @@ final class RateLimiter
         }
 
         $cb = $this->circuitBreakers[$key];
-        
+
         if ($cb['state'] === 'closed') {
             return false;
         }
@@ -120,6 +125,7 @@ final class RateLimiter
         if ($cb['state'] === 'open' && (time() - $cb['openedAt']) >= $this->circuitBreakerTimeout) {
             $this->circuitBreakers[$key]['state'] = 'half-open';
             $this->logger->info("Circuit breaker HALF-OPEN for {$key}");
+
             return false;
         }
 
@@ -145,6 +151,7 @@ final class RateLimiter
             try {
                 $result = $operation();
                 $this->recordSuccess($key);
+
                 return $result;
             } catch (TransportExceptionInterface $e) {
                 $lastException = $e;

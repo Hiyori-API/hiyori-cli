@@ -6,7 +6,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
  * Preflight
  */
 $dotenv = new \Symfony\Component\Dotenv\Dotenv();
-$dotenv->load(__DIR__.'/../.env');
+$dotenv->load(__DIR__ . '/../.env');
 
 /**
  * Create application
@@ -24,8 +24,10 @@ $container->setParameter('rate_limit.max_requests', (int)($_ENV['RATE_LIMIT_MAX'
 $container->setParameter('rate_limit.time_window', (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60));
 
 // Register Serializer as a service using a static method
-class SerializerFactory {
-    public static function create(): \JMS\Serializer\Serializer {
+class SerializerFactory
+{
+    public static function create(): \JMS\Serializer\Serializer
+    {
         return \JMS\Serializer\SerializerBuilder::create()->build();
     }
 }
@@ -53,7 +55,7 @@ $container->autowire(\Hiyori\Service\HealthCheck::class)
         '$mongoClient' => new \MongoDB\Client($_ENV['MONGODB_URL']),
         '$rateLimiter' => new \Hiyori\Service\RateLimiter(
             (int)($_ENV['RATE_LIMIT_MAX'] ?? 100),
-            (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60)
+            (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60),
         ),
     ]);
 $container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);
@@ -69,6 +71,8 @@ $hiyori = $container->get(\Hiyori\Hiyori::class);
  */
 $app->addCommands([
     new \Hiyori\Commands\IngestionCommand($hiyori),
+    new \Hiyori\Commands\IngestAllCommand($hiyori),
+    new \Hiyori\Commands\ScheduleCommand(),
     new \Hiyori\Commands\CombinerCommand($hiyori),
     new \Hiyori\Commands\ReferencesCommand($hiyori),
     new \Hiyori\Commands\WeightageCommand($hiyori),
@@ -76,6 +80,9 @@ $app->addCommands([
     new \Hiyori\Commands\ExportCommand($hiyori),
     new \Hiyori\Commands\HealthCommand($hiyori),
     new \Hiyori\Commands\MetricsCommand($hiyori),
+    new \Hiyori\Commands\BackupCommand(),
+    new \Hiyori\Commands\ValidateCommand($hiyori),
+    new \Hiyori\Commands\RestoreCommand(),
 ]);
 
 /**

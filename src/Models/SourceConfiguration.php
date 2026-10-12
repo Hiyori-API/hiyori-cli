@@ -5,13 +5,19 @@ namespace Hiyori\Models;
 class SourceConfiguration
 {
     private string $name;
+
     private string $table;
+
     private string $shorthand;
+
     private string $jsonId;
+
     private string $ingestionService;
 
     private int $delay = 0;
+
     private bool $update = false;
+
     private ?int $resumePage = null;
 
     /**
@@ -39,6 +45,7 @@ class SourceConfiguration
     public function setName(string $name): self
     {
         $this->name = $name;
+
         return $this;
     }
 
@@ -50,6 +57,7 @@ class SourceConfiguration
     public function setTable(string $table): self
     {
         $this->table = $table;
+
         return $this;
     }
 
@@ -61,6 +69,7 @@ class SourceConfiguration
     public function setShorthand(string $shorthand): self
     {
         $this->shorthand = $shorthand;
+
         return $this;
     }
 
@@ -72,6 +81,7 @@ class SourceConfiguration
     public function setJsonId(string $jsonId): self
     {
         $this->jsonId = $jsonId;
+
         return $this;
     }
 
@@ -83,6 +93,7 @@ class SourceConfiguration
     public function setDelay(int $delay): self
     {
         $this->delay = $delay;
+
         return $this;
     }
 
@@ -94,6 +105,7 @@ class SourceConfiguration
     public function setUpdate(bool $update): self
     {
         $this->update = $update;
+
         return $this;
     }
 
@@ -105,6 +117,7 @@ class SourceConfiguration
     public function setResumePage(?int $resumePage): self
     {
         $this->resumePage = $resumePage;
+
         return $this;
     }
 }

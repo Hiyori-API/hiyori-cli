@@ -9,13 +9,12 @@ use Hiyori\Models\Anime\Type;
 use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Common\KitsuTitle;
-use Hiyori\Models\Common\Title;
 
 class KitsuBase extends Base
 {
     public static function create(array $json): self
     {
-        $self = new self;
+        $self = new self();
 
         $titles = array_values($json['attributes']['titles'] ?? []);
         $abbreviatedTitles = $json['attributes']['abbreviatedTitles'] ?? [];
@@ -42,11 +41,11 @@ class KitsuBase extends Base
 
         $self->images[] = $json['attributes']['posterImage']['original'] ?? '';
 
-        $self->references[] = "https://kitsu.io/anime/".($json['id'] ?? '')."/".($json['attributes']['slug'] ?? '');
+        $self->references[] = 'https://kitsu.io/anime/' . ($json['id'] ?? '') . '/' . ($json['attributes']['slug'] ?? '');
 
         $pairs = [];
         foreach ($json['external'] ?? [] as $link) {
-            $site = explode("/", $link['attributes']['externalSite'] ?? '')[0] ?? '';
+            $site = explode('/', $link['attributes']['externalSite'] ?? '')[0] ?? '';
             $extId = $link['attributes']['externalId'] ?? '';
             if ($site && $extId) {
                 $pairs[] = [$site, $extId];

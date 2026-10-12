@@ -17,14 +17,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'export',
     description: 'Export data from sources or combined DB',
     aliases: ['exp'],
-    hidden: false
+    hidden: false,
 )]
 final class ExportCommand extends Command
 {
     public function __construct(
         private Hiyori $hiyori
-    )
-    {
+    ) {
         parent::__construct();
     }
 
@@ -53,7 +52,7 @@ final class ExportCommand extends Command
 
         $validSources = ['myanimelist', 'anilist', 'kitsu', 'organized'];
         if (!in_array($source, $validSources)) {
-            $io->error("Invalid source. Choose from: " . implode(', ', $validSources));
+            $io->error('Invalid source. Choose from: ' . implode(', ', $validSources));
 
             return Command::FAILURE;
         }
@@ -92,15 +91,27 @@ final class ExportCommand extends Command
                 $doc = Helper::convertMongoResultToArray($doc);
                 if (!$first) {
                     $sep = $format === 'json' ? ',' : "\n";
-                    if ($isFile) fwrite($handle, $sep); else $output->write($sep);
+                    if ($isFile) {
+                        fwrite($handle, $sep);
+                    } else {
+                        $output->write($sep);
+                    }
                 }
                 $json = $pretty ? json_encode($doc, JSON_PRETTY_PRINT) : json_encode($doc);
-                if ($isFile) fwrite($handle, $json); else $output->write($json);
+                if ($isFile) {
+                    fwrite($handle, $json);
+                } else {
+                    $output->write($json);
+                }
                 $first = false;
                 $count++;
             }
             if ($format === 'json') {
-                if ($isFile) fwrite($handle, ']'); else $output->write(']');
+                if ($isFile) {
+                    fwrite($handle, ']');
+                } else {
+                    $output->write(']');
+                }
             }
         } elseif ($format === 'csv') {
             $first = true;
@@ -108,11 +119,19 @@ final class ExportCommand extends Command
                 $doc = Helper::convertMongoResultToArray($doc);
                 if ($first) {
                     $headers = array_keys($doc);
-                    if ($isFile) fputcsv($handle, $headers); else $output->write(implode(',', $headers));
+                    if ($isFile) {
+                        fputcsv($handle, $headers);
+                    } else {
+                        $output->write(implode(',', $headers));
+                    }
                     $first = false;
                 }
-                $row = array_map(fn($v) => is_array($v) ? json_encode($v) : $v, $doc);
-                if ($isFile) fputcsv($handle, $row); else $output->write(implode(',', $row));
+                $row = array_map(fn ($v) => is_array($v) ? json_encode($v) : $v, $doc);
+                if ($isFile) {
+                    fputcsv($handle, $row);
+                } else {
+                    $output->write(implode(',', $row));
+                }
                 $count++;
             }
         }

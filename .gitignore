@@ -2,3 +2,8 @@
 /storage/exports
 /storage/logs/daily
 .env
+/coverage/
+/.phpunit.cache/
+/storage/backups/
+.php-cs-fixer.cache
+.phpunit.result.cache

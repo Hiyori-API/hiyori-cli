@@ -2,11 +2,7 @@
 
 namespace Hiyori\Models\Manga\Base;
 
-use Hiyori\Helper;
-use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
-use Hiyori\Models\Manga\Status;
-use Hiyori\Models\Manga\Type;
 
 class MangaBase extends \Hiyori\Models\Common\Base
 {

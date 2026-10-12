@@ -14,7 +14,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'health',
     description: 'Health check for services and dependencies',
     aliases: ['hc'],
-    hidden: false
+    hidden: false,
 )]
 final class HealthCommand extends Command
 {
@@ -57,6 +57,7 @@ final class HealthCommand extends Command
 
                 sleep($interval);
             }
+
             // Watch mode runs indefinitely until Ctrl+C
             return Command::SUCCESS;
         } else {
@@ -71,6 +72,7 @@ final class HealthCommand extends Command
     {
         if ($asJson) {
             $io->writeln(json_encode($result, JSON_PRETTY_PRINT));
+
             return;
         }
 

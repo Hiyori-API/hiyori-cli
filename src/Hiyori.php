@@ -3,14 +3,14 @@
 namespace Hiyori;
 
 use Hiyori\Service\Combiner\Combiner;
+use Hiyori\Service\Database;
+use Hiyori\Service\HealthCheck;
 use Hiyori\Service\Ingestion\Ingestion;
 use Hiyori\Service\Logging;
+use Hiyori\Service\MetricsCollector;
+use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
-use Hiyori\Service\Database;
-use Hiyori\Service\RateLimiter;
-use Hiyori\Service\MetricsCollector;
-use Hiyori\Service\HealthCheck;
 
 class Hiyori
 {
@@ -24,13 +24,12 @@ class Hiyori
         private RateLimiter $rateLimiter,
         private MetricsCollector $metricsCollector,
         private HealthCheck $healthCheck
-    )
-    {
+    ) {
     }
 
     public function ingest(string $source, array $config): void
     {
-        $this->logging->getLogger()->debug("Started ingestion of ".$source, $config);
+        $this->logging->getLogger()->debug('Started ingestion of ' . $source, $config);
 
         $this->sources
             ->setCurrent($source)

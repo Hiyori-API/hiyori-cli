@@ -27,8 +27,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mongodb, mbstring, xml, curl, zip
-          coverage: none
+          extensions: mongodb, mbstring, xml, curl, zip, pcov
+          coverage: pcov
           tools: composer:v2
 
       - name: Cache Composer
@@ -42,24 +42,34 @@ jobs:
       - name: Install Dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: PHP Lint
+        run: find src -name "*.php" -exec php -l {} \;
+
+      - name: Code Style (PHP CS Fixer)
+        run: composer cs
+
+      - name: Static Analysis (PHPStan)
+        run: composer lint
+
       - name: Run Unit Tests
-        run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Unit
+        run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Unit --no-coverage
 
       - name: Run Integration Tests
-        run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Integration
+        run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Integration --no-coverage
         env:
           MONGODB_URL: mongodb://localhost:27017
           APP_ENV: test
           APP_DEBUG: true
           APP_VERSION: "1.0.0-test"
 
-      - name: Static Analysis (PHPStan)
-        run: ./vendor/bin/phpstan analyse src --level=5 --memory-limit=512M
-        continue-on-error: true
+      - name: Code Coverage
+        run: php -d pcov.enabled=1 ./vendor/bin/phpunit -c phpunit.xml.dist --coverage-clover coverage/coverage.xml --coverage-text
 
-      - name: Code Style (PHP CS Fixer)
-        run: ./vendor/bin/php-cs-fixer fix --dry-run --diff
-        continue-on-error: true
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
 
   lint:
     runs-on: ubuntu-latest
@@ -71,7 +81,5 @@ jobs:
           php-version: '8.3'
       - name: Install
         run: composer install --no-interaction --prefer-dist --no-progress
-      - name: PHP Lint
-        run: find src -name "*.php" -exec php -l {} \;
       - name: Composer Validate
         run: composer validate --strict

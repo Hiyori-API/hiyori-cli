@@ -14,15 +14,14 @@ class Ingestion
         private ConsoleFactory $console,
         private SourceConfigurationFactory $sources,
         private RateLimiter $rateLimiter,
-    )
-    {
+    ) {
     }
 
     public function start(): void
     {
         $this->console->io()
-            ->section("Ingestion: ".$this->sources->get()->getName());
+            ->section('Ingestion: ' . $this->sources->get()->getName());
 
-        call_user_func($this->sources->get()->getIngestionService()."::process", $this->db, $this->console, $this->sources, $this->rateLimiter);
+        call_user_func($this->sources->get()->getIngestionService() . '::process', $this->db, $this->console, $this->sources, $this->rateLimiter);
     }
 }

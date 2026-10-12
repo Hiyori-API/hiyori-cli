@@ -3,16 +3,14 @@
 namespace Hiyori\Service;
 
 use JMS\Serializer\SerializerBuilder;
-use MongoDB\Client;
-use Symfony\Component\DependencyInjection\Container;
 
 class Serializer
 {
     private \JMS\Serializer\Serializer $serializer;
+
     public function __construct(
         \JMS\Serializer\Serializer $serializer = null
-    )
-    {
+    ) {
         $this->serializer = $serializer ?? SerializerBuilder::create()->build();
     }
 
@@ -23,5 +21,4 @@ class Serializer
     {
         return $this->serializer;
     }
-
 }

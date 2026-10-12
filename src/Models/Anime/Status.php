@@ -31,7 +31,7 @@ enum Status: string
             $status === 'unreleased' => Status::TO_BE_AIRED,
             $status === 'upcoming' => Status::TO_BE_AIRED,
             $status === 'cancelled' => Status::CANCELLED,
-            default => throw new \Exception('STATUS: Unexpected match value '.$status)
+            default => throw new \Exception('STATUS: Unexpected match value ' . $status)
         };
     }
 }

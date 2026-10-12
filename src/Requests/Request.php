@@ -2,7 +2,6 @@
 
 namespace Hiyori\Requests;
 
-use Hiyori\Requests\Entry;
 use Symfony\Component\HttpClient\CachingHttpClient;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\HttpOptions;
@@ -13,16 +12,10 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 class Request
 {
     public const GET = 'GET';
+
     public const POST = 'POST';
-    
-    /**
-     * @param string $method
-     * @param string $url
-     * @param array|null $options
-     * @return ResponseInterface
-     * @phpstan-ignore-next-line
-     */
-    public static function fetch($method = self::GET, string $url, ?array $options = []): ResponseInterface
+
+    public static function fetch(string $url, string $method = self::GET, ?array $options = []): ResponseInterface
     {
         $client = new RetryableHttpClient(HttpClient::create());
 
@@ -33,20 +26,20 @@ class Request
                     $url,
                     (new HttpOptions())
                         ->setJson($options)
-                        ->toArray()
+                        ->toArray(),
                 );
         }
 
         $cachePath = $_ENV['HTTP_CACHE_PATH'] ?? '';
         $debug = (bool) ($_ENV['APP_DEBUG'] ?? false);
-        $ttl = (int) ($_ENV['HTTP_CACHE_TTL'] ?? (60*60*24));
+        $ttl = (int) ($_ENV['HTTP_CACHE_TTL'] ?? (60 * 60 * 24));
 
         return (new CachingHttpClient(
             $client,
-            new Store(__DIR__.'/../..'.$cachePath),
+            new Store(__DIR__ . '/../..' . $cachePath),
             [
                 'debug' => $debug,
-                'default_ttl' => $ttl
+                'default_ttl' => $ttl,
             ],
         ))
             ->request(
@@ -54,7 +47,7 @@ class Request
                 $url,
                 (new HttpOptions())
                     ->setJson($options)
-                    ->toArray()
+                    ->toArray(),
             );
     }
 }

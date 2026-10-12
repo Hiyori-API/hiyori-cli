@@ -11,7 +11,8 @@ final class HealthCheck
     public function __construct(
         private Client $mongoClient,
         private RateLimiter $rateLimiter
-    ) {}
+    ) {
+    }
 
     public function check(): array
     {
@@ -44,7 +45,7 @@ final class HealthCheck
             $db = $this->mongoClient->selectDatabase('admin');
             $result = $db->command(['ping' => 1]);
             $duration = microtime(true) - $start;
-            
+
             $ok = false;
             foreach ($result as $doc) {
                 $okVal = $doc['ok'] ?? 0;
@@ -53,7 +54,7 @@ final class HealthCheck
                     break;
                 }
             }
-            
+
             return [
                 'healthy' => $ok,
                 'latency_ms' => round($duration * 1000, 2),
@@ -71,9 +72,9 @@ final class HealthCheck
     {
         $results = [];
         $allHealthy = true;
-        
+
         $httpClient = HttpClient::create(['timeout' => 5]);
-        
+
         $endpoints = [
             'anilist' => [
                 'method' => 'POST',
@@ -91,14 +92,14 @@ final class HealthCheck
                 'headers' => ['X-MAL-CLIENT-ID' => $_ENV['MAL_CLIENT_ID'] ?? ''],
             ],
         ];
-        
+
         $results = [];
         $allHealthy = true;
-        
+
         foreach ($endpoints as $name => $config) {
             try {
                 $start = microtime(true);
-                
+
                 $options = [];
                 if (!empty($config['headers'])) {
                     $options['headers'] = $config['headers'];
@@ -106,15 +107,17 @@ final class HealthCheck
                 if (!empty($config['body'])) {
                     $options['body'] = $config['body'];
                 }
-                
+
                 $httpClient = \Symfony\Component\HttpClient\HttpClient::create(['timeout' => 5]);
                 $response = $httpClient->request($config['method'], $config['url'], $options);
                 $duration = microtime(true) - $start;
                 $status = $response->getStatusCode();
-                
+
                 $healthy = $status >= 200 && $status < 300;
-                if (!$healthy) $allHealthy = false;
-                
+                if (!$healthy) {
+                    $allHealthy = false;
+                }
+
                 $results[$name] = [
                     'healthy' => $healthy,
                     'latency_ms' => round($duration * 1000, 2),
@@ -134,7 +137,7 @@ final class HealthCheck
                 ];
             }
         }
-        
+
         return [
             'healthy' => $allHealthy,
             'endpoints' => $results,
@@ -145,17 +148,17 @@ final class HealthCheck
     {
         $stats = [];
         $healthy = true;
-        
+
         $keys = ['anilist', 'kitsu', 'myanimelist'];
         foreach ($keys as $key) {
             $stat = $this->rateLimiter->getStats($key);
             $stats[$key] = $stat;
-            
+
             if (($stat['circuit_state'] ?? 'closed') === 'open') {
                 $healthy = false;
             }
         }
-        
+
         return [
             'healthy' => $healthy,
             'limiters' => $stats,
@@ -167,7 +170,7 @@ final class HealthCheck
         $free = disk_free_space('/');
         $total = disk_total_space('/');
         $usedPercent = (($total - $free) / $total) * 100;
-        
+
         return [
             'healthy' => $usedPercent < 90,
             'free_gb' => round($free / 1024 / 1024 / 1024, 2),
@@ -181,10 +184,10 @@ final class HealthCheck
         $usage = memory_get_usage(true);
         $peak = memory_get_peak_usage(true);
         $limit = ini_get('memory_limit');
-        
+
         $limitBytes = $this->parseMemoryLimit($limit);
         $usedPercent = $limitBytes > 0 ? ($usage / $limitBytes) * 100 : 0;
-        
+
         return [
             'healthy' => $usedPercent < 85,
             'current_mb' => round($usage / 1024 / 1024, 2),
@@ -199,7 +202,7 @@ final class HealthCheck
         $limit = trim($limit);
         $last = strtolower($limit[strlen($limit) - 1]);
         $value = (int)$limit;
-        
+
         switch ($last) {
             case 'g': return $value * 1024 * 1024 * 1024;
             case 'm': return $value * 1024 * 1024;

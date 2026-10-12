@@ -14,14 +14,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'references',
     description: 'Return all unique references from combined DB',
     aliases: ['refs'],
-    hidden: false
+    hidden: false,
 )]
 final class ReferencesCommand extends Command
 {
     public function __construct(
         private Hiyori $hiyori
-    )
-    {
+    ) {
         parent::__construct();
     }
 
@@ -59,13 +58,13 @@ final class ReferencesCommand extends Command
 
         $io->section('Unique References from Combined DB');
         foreach ($refs as $shorthand => $ids) {
-            $io->text("<info>$shorthand</info>: " . count($ids) . " unique IDs");
+            $io->text("<info>$shorthand</info>: " . count($ids) . ' unique IDs');
             if ($input->getOption('verbose')) {
                 foreach ($ids as $id) {
                     $io->text("  - $id");
                 }
             } else {
-                $io->text("  (use -v to list all " . count($ids) . " IDs)");
+                $io->text('  (use -v to list all ' . count($ids) . ' IDs)');
             }
         }
 

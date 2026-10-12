@@ -11,12 +11,11 @@ use Hiyori\Models\Common\Base;
 use Hiyori\Models\Common\Identifiers\Identifiers;
 use Hiyori\Models\Common\Identifiers\MyAnimeList;
 
-
 class AniListBase extends Base
 {
     public static function create(array $json): self
     {
-        $self = new self;
+        $self = new self();
 
         $titles = $json['title'] ?? [];
         $synonyms = $json['synonyms'] ?? [];

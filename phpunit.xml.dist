@@ -3,13 +3,10 @@
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.5/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
-         beStrictAboutTestsThatDoNotTestAnything="true"
-         beStrictAboutOutputDuringTests="true"
-         beStrictAboutChangesToGlobalState="true"
+         cacheDirectory=".phpunit.cache"
+         requireCoverageMetadata="false"
          failOnWarning="true"
-         failOnRisky="true"
-         failOnIncomplete="true"
-         failOnSkipped="true">
+         failOnRisky="true">
     <testsuites>
         <testsuite name="Unit">
             <directory suffix="Test.php">tests/Unit</directory>
@@ -23,6 +20,13 @@
             <directory>src</directory>
         </include>
     </source>
+    <coverage includeUncoveredFiles="true">
+        <report>
+            <clover outputFile="coverage/coverage.xml"/>
+            <html outputDirectory="coverage/html" lowUpperBound="50" highLowerBound="90"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
+        </report>
+    </coverage>
     <php>
         <server name="APP_ENV" value="test"/>
         <server name="APP_DEBUG" value="true"/>

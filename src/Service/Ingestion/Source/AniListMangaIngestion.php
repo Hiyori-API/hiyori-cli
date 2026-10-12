@@ -13,7 +13,10 @@ use Hiyori\Service\SourceConfigurationFactory;
 final class AniListMangaIngestion
 {
     public static function process(
-        Database $db, ConsoleFactory $console, SourceConfigurationFactory $sources, RateLimiter $rateLimiter
+        Database $db,
+        ConsoleFactory $console,
+        SourceConfigurationFactory $sources,
+        RateLimiter $rateLimiter
     ): void {
         $meta = AniListEntryListMeta::create();
         $config = $sources->get();
@@ -21,18 +24,18 @@ final class AniListMangaIngestion
 
         $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
-        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? "%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%");
+        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
 
         while ($meta->hasNextPage()) {
             $currentPage = $meta->getCurrentPage();
 
             $list = $rateLimiter->executeWithRetry(
-                fn() => AniListEntryList::create($currentPage),
+                fn () => AniListEntryList::create($currentPage),
                 $sourceKey,
                 3,
                 1000,
-                2.0
+                2.0,
             );
 
             foreach ($list->getList() as $listItem) {

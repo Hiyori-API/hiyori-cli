@@ -7,22 +7,24 @@ use Hiyori\Requests\Request;
 
 class AniListEntryList extends EntryList
 {
-    const ENTRYPOINT = 'https://graphql.anilist.co';
+    public const ENTRYPOINT = 'https://graphql.anilist.co';
+
     public static function create(&$currentPage): self
     {
-        $self = new self;
+        $self = new self();
 
         $response = Request::fetch(
-            Request::POST,
             self::ENTRYPOINT,
+            Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-                'variables' => [
+            'variables' => [
                     'page' => $currentPage,
-                    'type' => 'ANIME',
-                ]
-            ]
-        )->toArray();
+            'type' => 'ANIME',
+            ],
+            ],
+        )
+            ->toArray();
 
         $self->setList($response['data']['Page']['ANIME']);
 

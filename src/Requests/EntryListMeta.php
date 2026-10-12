@@ -36,6 +36,7 @@ abstract class EntryListMeta implements EntryListMetaInterface
     public function setTotalEntries(int $totalEntries): self
     {
         $this->totalEntries = $totalEntries;
+
         return $this;
     }
 
@@ -53,6 +54,7 @@ abstract class EntryListMeta implements EntryListMetaInterface
     public function setCurrentPage(int $currentPage): self
     {
         $this->currentPage = $currentPage;
+
         return $this;
     }
 
@@ -62,6 +64,7 @@ abstract class EntryListMeta implements EntryListMetaInterface
     public function incrementCurrentPage(): self
     {
         $this->currentPage++;
+
         return $this;
     }
 
@@ -79,6 +82,7 @@ abstract class EntryListMeta implements EntryListMetaInterface
     public function setLastPage(int $page): self
     {
         $this->lastPage = $page;
+
         return $this;
     }
 }

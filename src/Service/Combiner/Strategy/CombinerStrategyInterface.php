@@ -2,6 +2,6 @@
 
 namespace Hiyori\Service\Combiner\Strategy;
 
-interface CombinerStrategyInterface {
-
+interface CombinerStrategyInterface
+{
 }
