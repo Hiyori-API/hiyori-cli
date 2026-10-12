@@ -9,6 +9,7 @@ import { fetchMeta, fetchSettings, postSettings, type UiSettings } from '@/lib/a
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
+import { EnvSettings } from './settings-env'
 
 export const WIDGETS: Array<[string, string]> = [
   ['kpi', 'KPI row'],
@@ -222,6 +223,9 @@ export function SettingsPage() {
             <EmptyState icon={X} title="No custom settings yet" description="Preferences you change here persist across page loads and browsers." />
           )}
         </div>
+      </Section>
+      <Section title="Environment" icon={KeyRound}>
+        <EnvSettings />
       </Section>
     </div>
   )

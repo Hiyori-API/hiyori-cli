@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import {
-  downloadExport, fetchBenchmark, fetchFailures, fetchHistogram, fetchSample, type BenchmarkRow, type ValidationEvent,
+  downloadExport, fetchSample, type BenchmarkRow,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
+import { useCachedFetch, useFailures } from '@/lib/fetch-cache'
 import { BenchmarkBars, CompletenessRadar, DensityHistogram, ThresholdScatter } from '../chartcard'
 import { COLORS } from '../charts'
 import { EmptyState } from '../empty'
@@ -22,9 +23,10 @@ const DEMO_SIMS = { title: 0.86, episodes: 1, year: 1, season: 1, type: 1, tags:
 export function QualityPage() {
   const { data } = useStatus()
   const { settings, update } = useSettings()
-  const [bench, setBench] = useState<{ seeded?: BenchmarkRow[]; latest?: unknown } | null>(null)
-  const [hist, setHist] = useState<{ histogram?: Record<string, number>; bins?: number[] } | null>(null)
-  const [failures, setFailures] = useState<ValidationEvent[]>([])
+  const [benchKey, setBenchKey] = useState(0)
+  const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown }>('/api/benchmark', benchKey)
+  const hist = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram', benchKey)
+  const { failures, refresh: refreshFailures } = useFailures()
   const [sample, setSample] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [minConf, setMinConf] = useState(0)
   const [feed, setFeed] = useState({ right: 0, wrong: 0 })
@@ -34,12 +36,6 @@ export function QualityPage() {
   const persistWeights = useDebouncedCallback((w: Record<string, number>) => {
     void update({ prefs: { ...settings.prefs, weights: w } })
   }, 400)
-
-  useEffect(() => {
-    void fetchBenchmark().then(setBench)
-    void fetchHistogram().then(setHist)
-    void fetchFailures().then(r => setFailures(r.failures ?? []))
-  }, [])
 
   const coverage = (data?.coverage ?? {}) as Record<string, Record<string, number | undefined>>
   const cols = Object.keys(coverage).filter(c => (coverage[c]?.total ?? 0) > 0).sort()
@@ -67,7 +63,7 @@ export function QualityPage() {
   })), [coverage, cols])
 
   const thresholdCurve = useMemo(() => {
-    const h = hist?.histogram
+    const h = hist.data?.histogram
     if (!h) return []
     const total = Object.values(h).reduce((a, b) => a + b, 0)
     if (!total) return []
@@ -104,9 +100,8 @@ export function QualityPage() {
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
   const reloadAnalysis = () => {
-    void fetchBenchmark().then(setBench)
-    void fetchHistogram().then(setHist)
-    void fetchFailures().then(r => setFailures(r.failures ?? []))
+    setBenchKey(k => k + 1)
+    void refreshFailures()
   }
 
   return (
@@ -172,11 +167,11 @@ export function QualityPage() {
         <Section title="Strategy benchmark" icon={Scale} badge={
           <Button size="icon-xs" variant="ghost" title="Refresh benchmark + histogram" onClick={reloadAnalysis}><RefreshCw className="h-3 w-3" /></Button>
         }>
-          {!bench?.seeded?.length ? <Skeleton className="h-40 w-full" /> : (
+          {!bench.data?.seeded?.length ? <Skeleton className="h-40 w-full" /> : (
             <>
-              <BenchmarkBars title="Wall time vs baseline" rows={(bench.seeded ?? []).map(b => ({ name: b.strategy ?? '?', wall_s: b.wall_s ?? 0, merges: b.merges, speed: b.speed }))} />
+              <BenchmarkBars title="Wall time vs baseline" rows={(bench.data?.seeded ?? []).map(b => ({ name: b.strategy ?? '?', wall_s: b.wall_s ?? 0, merges: b.merges, speed: b.speed }))} />
               <div className="mt-2 space-y-1 text-xs">
-                {bench.seeded.map(b => (
+                {bench.data.seeded.map(b => (
                   <div key={b.strategy} className="flex justify-between text-muted-foreground">
                     <span>{b.strategy}</span>
                     <span className="tabular-nums">{b.merges?.toLocaleString()} merges · {Math.round((b.wall_s ?? 0) / 60)}m · {b.speed}/s</span>
@@ -195,7 +190,7 @@ export function QualityPage() {
       {/* Q1 + Q4 + histogram */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Section title="Confidence distribution" icon={Sparkles}>
-          {!hist ? <Skeleton className="h-40 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.histogram ?? {}} />}
+          {!hist.data ? <Skeleton className="h-40 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
         </Section>
         <Section title="Merge sampler" icon={ListChecks}>
           <div className="mb-3 flex items-center gap-3">

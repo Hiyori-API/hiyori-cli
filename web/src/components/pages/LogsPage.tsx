@@ -4,26 +4,25 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchFailures, fetchHistory, type Job, type ValidationEvent } from '@/lib/api'
+import { fetchHistory, type Job } from '@/lib/api'
+import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
+import { timeStr } from '@/lib/format'
+import { useFailures } from '@/lib/fetch-cache'
+import { tzDateTime, type Tz } from '@/lib/time'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
 
-function timeStr(ts: string | undefined): string {
-  if (!ts) return '—'
-  const t = new Date(ts)
-  return Number.isNaN(t.getTime()) ? ts : t.toLocaleTimeString()
-}
-
 export function LogsPage() {
   const { data, error } = useStatus()
-  const [failures, setFailures] = useState<ValidationEvent[]>([])
+  const { settings } = useSettings()
+  const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
+  const { failures } = useFailures()
   const [history, setHistory] = useState<Record<string, Job> | null>(null)
   const [srcFilter, setSrcFilter] = useState('all')
   const [slowSort, setSlowSort] = useState<'ms' | 'ts'>('ms')
 
   useEffect(() => {
-    void fetchFailures().then(r => setFailures(r.failures ?? []))
     void fetchHistory().then(r => setHistory(r.states ?? null))
   }, [])
 
@@ -86,7 +85,7 @@ export function LogsPage() {
                         <td className="px-2 py-1 tabular-nums text-amber-500">{s.ms}ms</td>
                         <td className="px-2 py-1"><Badge variant="outline">{s.method ?? 'GET'}</Badge></td>
                         <td className="max-w-[260px] truncate px-2 py-1 text-muted-foreground">{s.url}</td>
-                        <td className="px-2 py-1 text-muted-foreground">{timeStr(s.ts)}</td>
+                        <td className="px-2 py-1 text-muted-foreground">{timeStr(s.ts, tz)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -131,7 +130,7 @@ export function LogsPage() {
               {validation.slice(0, 60).map((v, i) => (
                 <div key={i} className="rounded-lg border px-2 py-1.5 text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground tabular-nums">{timeStr(v.ts)}</span>
+                    <span className="text-muted-foreground tabular-nums">{timeStr(v.ts, tz)}</span>
                     <Badge variant="outline">{v.source}</Badge>
                     <span className="flex-1 truncate">{v.title ?? ''}</span>
                   </div>
@@ -166,7 +165,7 @@ export function LogsPage() {
                       <td className="px-2 py-1 text-right tabular-nums">{job.processed?.toLocaleString() ?? '—'}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{job.saved?.toLocaleString() ?? '—'}/{job.skipped?.toLocaleString() ?? '—'}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{job.per_second?.toFixed(1) ?? '—'}</td>
-                      <td className="px-2 py-1 text-muted-foreground">{job.started_at_ts ? new Date(job.started_at_ts * 1000).toLocaleString() : '—'}</td>
+                      <td className="px-2 py-1 text-muted-foreground">{job.started_at_ts ? tzDateTime(job.started_at_ts * 1000, tz) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

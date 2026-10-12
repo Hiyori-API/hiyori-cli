@@ -124,12 +124,23 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
-/* compact density (Settings → Live dashboard) */
-.density-compact td,
-.density-compact th {
-  padding-top: 0.15rem !important;
-  padding-bottom: 0.15rem !important;
+/* compact density (Settings → Live dashboard).
+   Cells carry Tailwind utilities (px-2 py-2) which compile to `padding-block`
+   longhands in the utilities layer; a plain class rule can lose to them, so we
+   scope with :where() (zero specificity) and force padding-block with
+   !important so the compact spacing visibly wins. */
+:where(.density-compact) :is(td, th) {
+  padding-block: 0.125rem !important;
+  padding-top: 0.125rem !important;
+  padding-bottom: 0.125rem !important;
 }
 .density-compact tr {
   font-size: 0.8125rem;
+  line-height: 1.25;
+}
+.density-compact td,
+.density-compact th {
+  /* belt-and-braces: same longhands, plain selector, no layer conflicts */
+  padding-top: 0.125rem !important;
+  padding-bottom: 0.125rem !important;
 }
