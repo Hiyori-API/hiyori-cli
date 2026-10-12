@@ -23,30 +23,30 @@ Selected items (43) with status. Built = committed.
 - [x] Theme toggle (dark default, persisted)
 - [x] Time-range presets (1m/5m/1h)
 - [x] Table sort/filter/export (jobs sort + CSV export button)
-- [ ] Scheduler view — next
+- [x] Scheduler view (/api/schedule + card)
 - [x] Pipeline DAG view (Ingest→Validate→Combine→Export)
 - [x] Manga support in UI (dataset doughnut + split note)
 - [ ] Job diff view — next
-- [ ] Docs & screenshots — next
+- [ ] Docs (readme section done); screenshots — optional
 
 ## Batch 2 (17 selected)
 - [x] Job controls (pause/resume via control files)
-- [ ] Scheduler UI — next
+- [x] Scheduler UI (sources/interval/next + run-now via retry)
 - [x] Cache stats (env + request counter)
 - [x] Limiter history chart (client-side from health polls)
-- [x] PWA + mobile (manifest + viewport; full install w/ service worker — next)
-- [x] Anomaly alerts (/api/alerts + UI banner; webhook hookpoint)
+- [x] PWA (manifest + service worker + favicon)
+- [x] Anomaly alerts (/api/alerts + UI banner + WEBHOOK_URL delivery)
 - [x] Uptime percentage (health history)
 - [x] Latency p95 (client-side from polls)
 - [x] Confidence histogram
-- [ ] Slow request log — next
+- [x] Slow request log (>=2s telemetry + /api/slow + card)
 - [x] Work queue view (pending = total - processed column)
 - [x] DB size gauges (/api/db)
 - [x] Insert/update counters (saved/skipped/updated in telemetry)
 - [x] Backup panel (/api/backup + run)
 - [x] Trend deltas (client-side)
 - [x] Tab-aware polling (pause when hidden)
-- [ ] Tests + docs — in progress
+- [x] Tests (unit + opt-in API) & docs (readme live-dashboard section)
 
 ## Not selected (roadmap backstop)
 Confidence filters explore, threshold-sensitivity curve, weightage explorer,
