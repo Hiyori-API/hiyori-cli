@@ -48,8 +48,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
-        $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
-        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
+        $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
+        $progressBar->setFormat((string) ($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%'));
         $progressBar->start();
 
         $scores = [];
@@ -275,8 +275,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         // Synonym overlap (either side contains the other's title)
-        $allSyn1 = array_map([self::class, 'normalizeTitle'], array_merge([$title1], $syn1));
-        $allSyn2 = array_map([self::class, 'normalizeTitle'], array_merge([$title2], $syn2));
+        $allSyn1 = array_map([self::class, 'normalizeTitle'], array_merge([$title1], array_values(array_filter($syn1, 'is_string'))));
+        $allSyn2 = array_map([self::class, 'normalizeTitle'], array_merge([$title2], array_values(array_filter($syn2, 'is_string'))));
         $inter = array_intersect($allSyn1, $allSyn2);
         if ($inter !== []) {
             return 0.9;
@@ -330,9 +330,13 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         return $threshold;
     }
 
-    private static function normalizeTitle(string $title): string
+    private static function normalizeTitle(?string $title): string
     {
-        return strtolower(trim(preg_replace('/[^a-z0-9]+/i', '', $title) ?? ''));
+        if ($title === null) {
+            return '';
+        }
+
+        return strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '', $title)));
     }
 
     private static function tokenJaccard(string $a, string $b): float
