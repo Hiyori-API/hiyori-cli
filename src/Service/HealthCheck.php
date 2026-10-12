@@ -72,8 +72,9 @@ final class HealthCheck
     {
         $results = [];
         $allHealthy = true;
+        $allReachable = true;
 
-        $httpClient = HttpClient::create(['timeout' => 5]);
+        $httpClient = HttpClient::create(['timeout' => 10]);
 
         $endpoints = [
             'anilist' => [
@@ -95,6 +96,7 @@ final class HealthCheck
 
         $results = [];
         $allHealthy = true;
+        $allReachable = true;
 
         foreach ($endpoints as $name => $config) {
             try {
@@ -108,38 +110,54 @@ final class HealthCheck
                     $options['body'] = $config['body'];
                 }
 
-                $httpClient = \Symfony\Component\HttpClient\HttpClient::create(['timeout' => 5]);
+                // max_redirects=0: a 3xx (e.g. MAL throttling -> error.json) is a
+                // reachable-but-degraded signal, not an outage; don't chase redirects.
+                $httpClient = \Symfony\Component\HttpClient\HttpClient::create(['timeout' => 10, 'max_redirects' => 0]);
                 $response = $httpClient->request($config['method'], $config['url'], $options);
                 $duration = microtime(true) - $start;
                 $status = $response->getStatusCode();
 
+                // Reachable = the API answered at all. Degraded-but-reachable
+                // (rate limited 429, 404, 5xx) is NOT the same as unreachable.
+                $reachable = true;
                 $healthy = $status >= 200 && $status < 300;
+                $note = null;
                 if (!$healthy) {
                     $allHealthy = false;
+                    $note = $status === 429 ? 'rate_limited' : ($status === 404 ? 'not_found' : 'http_' . $status);
                 }
 
                 $results[$name] = [
                     'healthy' => $healthy,
+                    'reachable' => $reachable,
                     'latency_ms' => round($duration * 1000, 2),
                     'status_code' => $status,
+                    'note' => $note,
                 ];
             } catch (TransportExceptionInterface $e) {
                 $allHealthy = false;
+                $allReachable = false;
                 $results[$name] = [
                     'healthy' => false,
+                    'reachable' => false,
                     'error' => 'Network error: ' . $e->getMessage(),
+                    'note' => 'unreachable',
                 ];
             } catch (\Throwable $e) {
                 $allHealthy = false;
+                $allReachable = false;
                 $results[$name] = [
                     'healthy' => false,
+                    'reachable' => false,
                     'error' => $e->getMessage(),
+                    'note' => 'unreachable',
                 ];
             }
         }
 
         return [
             'healthy' => $allHealthy,
+            'all_reachable' => $allReachable,
             'endpoints' => $results,
         ];
     }
