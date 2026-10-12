@@ -21,7 +21,10 @@ class AniListBase extends Base
         $synonyms = $json['synonyms'] ?? [];
         $titles = new AniListTitle($json['title']['romaji'], array_merge($titles, $synonyms));
         $self->title = $titles->getDefault();
-        $self->synonyms = $titles->getSynonyms();
+        $self->synonyms = array_values(array_filter(
+            $titles->getSynonyms(),
+            static fn ($v) => is_string($v) && $v !== '',
+        ));
 
         $self->type = $json['format'] === null ? null : Type::fromString(Helper::prepareAsIdentifer($json['format']))->value;
         $self->episodes = $json['episodes'];
@@ -47,8 +50,8 @@ class AniListBase extends Base
         $self->referenceIds = (new Identifiers($self->references))->getModel();
 
         foreach ($json['tags'] ?? [] as $tag) {
-            $isGeneralSpoiler = $tag['isGeneralSpoiler'] === true;
-            $isMediaSpoiler = $tag['isMediaSpoiler'] === true;
+            $isGeneralSpoiler = ($tag['isGeneralSpoiler'] ?? false) === true;
+            $isMediaSpoiler = ($tag['isMediaSpoiler'] ?? false) === true;
 
             if ($isGeneralSpoiler || $isMediaSpoiler) {
                 continue;

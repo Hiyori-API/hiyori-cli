@@ -6,6 +6,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
+use Hiyori\Service\Telemetry;
 use Symfony\Component\HttpClient\HttpClient;
 
 final class MyAnimeListMangaIngestion
@@ -46,10 +47,17 @@ final class MyAnimeListMangaIngestion
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
 
+        $processed = 0;
+        $saved = 0;
+        $skipped = 0;
+        $errors = 0;
+        $total = (int) $meta['total'];
+        Telemetry::track($sourceKey, 0, $total, 0, 'running');
+
         $offset = 0;
         $limit = 500;
 
-        while ($offset < $meta['total']) {
+        while ($offset < $total) {
             $entries = self::fetchPage($httpClient, $offset, $limit, $console, $rateLimiter, $sourceKey);
             if (empty($entries)) {
                 break;
@@ -57,8 +65,10 @@ final class MyAnimeListMangaIngestion
 
             foreach ($entries as $entry) {
                 $itemId = $entry['node']['id'];
+                $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
+                    $skipped++;
                     $progressBar->advance();
                     continue;
                 }
@@ -70,8 +80,10 @@ final class MyAnimeListMangaIngestion
                     $detail = self::fetchDetail($httpClient, $itemId, $console, $rateLimiter, $sourceKey);
                     if ($detail) {
                         $db->save($config->getTable(), \Hiyori\Models\Manga\Base\MyAnimeListBase::create($detail));
+                        $saved++;
                     }
                 } catch (\Exception $e) {
+                    $errors++;
                     $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
@@ -79,11 +91,20 @@ final class MyAnimeListMangaIngestion
             }
 
             $offset += $limit;
-            sleep($sources->get()->getDelay());
+            if ($processed % 25 === 0) {
+                Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
+                    'saved' => $saved,
+                    'skipped' => $skipped,
+                ]);
+            }
         }
 
+        Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
+            'saved' => $saved,
+            'skipped' => $skipped,
+        ]);
         $progressBar->finish();
-        $console->io()->info("Ingestion complete for {$config->getName()}");
+        $console->io()->info("Ingestion complete for {$config->getName()} — saved: $saved, skipped: $skipped, errors: $errors");
     }
 
     private static function fetchMeta($httpClient, $console, RateLimiter $rateLimiter, string $sourceKey): ?array
