@@ -9,3 +9,4 @@
 .phpunit.result.cache
 /storage/state/
 /storage/logs/dashboard-serve.log
+storage/logs/*.log
