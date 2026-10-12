@@ -1,0 +1,53 @@
+query ($page: Int, $type: MediaType = MANGA, $sort: [MediaSort] = [ID]) {
+    Page(page: $page, perPage: 50) {
+        pageInfo {
+            total
+            perPage
+            currentPage
+            lastPage
+            hasNextPage
+        }
+        media(type: $type, sort: $sort) {
+            id
+            idMal
+            siteUrl
+            coverImage {
+                extraLarge
+                large
+                medium
+            }
+            title {
+                romaji
+                english
+                native
+            }
+            synonyms
+            format
+            status
+            chapters
+            volumes
+            startDate {
+                year
+                month
+                day
+            }
+            externalLinks {
+                id
+                url
+                type
+            }
+            relations {
+                edges {
+                    node {
+                        siteUrl
+                    }
+                }
+            }
+            genres
+            tags {
+                id
+                name
+            }
+        }
+    }
+}

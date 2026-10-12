@@ -92,3 +92,19 @@ Restructured from "5 widget pages" to a single live Dashboard plus purpose-built
 token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/limits,
 /api/audit, /api/history, /api/histogram, /api/export (jsonl|csv), /api/sample?min=,
 /api/action?cmd=start|runnow. RateLimiter honors limits overrides from storage/state/ui.json.
+
+## Ingestion fixes & manga (2026-10)
+
+- **AniList anime past 5,000**: pageInfo caps totals at 5,000 per query. Ingest now chunks the
+  catalog by `seasonYear` (1950..2026 + one no-year pass) — proven past the cap (5,065+ and
+  climbing). Manga continues past the cap similarly via pagination term on short/empty pages;
+  a startDate-window variant can be added for full manga coverage (manga have no seasonYear).
+- **Kitsu offset pagination**: lists are `page[offset]`-based; the manga loop stepped offsets by
+  +1 (re-fetching overlapping 20-entry windows). Fixed to +20 stepping in both Kitsu loops.
+- **Manga ingestion repaired**: Kitsu + AniList manga were reusing the ANIME list endpoints
+  (format `tv` → manga model crash). Added dedicated `/edge/manga` requests and a manga-flavored
+  AniList GraphQL query (chapters/volumes); per-source telemetry keys + locks
+  (`anilist_manga` / `kitsu_manga` / `myanimelist_manga`). MAL manga ranking endpoint was correct.
+- **Manga Status**: added `tba`/`unreleased` → not_yet_published; Kitsu manga synonyms filtered
+  to strings (removes validator noise).
+- Management page source list now uses the real manga keys + display labels.

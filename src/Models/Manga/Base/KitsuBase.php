@@ -16,10 +16,13 @@ class KitsuBase extends MangaBase
         $attrs = $json['attributes'] ?? $json;
 
         $self->title = $attrs['canonicalTitle'] ?? '';
-        $self->synonyms = array_merge(
-            array_values($attrs['titles'] ?? []),
-            $attrs['abbreviatedTitles'] ?? [],
-        );
+        $self->synonyms = array_values(array_filter(
+            array_merge(
+                array_values($attrs['titles'] ?? []),
+                $attrs['abbreviatedTitles'] ?? [],
+            ),
+            static fn ($v) => is_string($v) && $v !== '',
+        ));
         $self->synonyms = array_unique($self->synonyms, SORT_STRING);
 
         $self->type = Type::fromString(Helper::prepareAsIdentifer($attrs['subtype'] ?? ''))->value;

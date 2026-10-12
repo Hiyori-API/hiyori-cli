@@ -18,7 +18,7 @@ final class MyAnimeListMangaIngestion
     ): void {
         $config = $sources->get();
         $clientId = $_ENV['MAL_CLIENT_ID'] ?? null;
-        $sourceKey = 'myanimelist';
+        $sourceKey = 'myanimelist_manga';
 
         if (!$clientId) {
             $console->io()->error('MAL_CLIENT_ID not set in .env. Register at https://myanimelist.net/apiconfig');

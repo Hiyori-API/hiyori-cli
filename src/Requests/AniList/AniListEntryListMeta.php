@@ -11,7 +11,7 @@ class AniListEntryListMeta extends EntryListMeta
 
     private bool $hasNextPage = false;
 
-    public static function create(&$currentPage = 1): self
+    public static function create(&$currentPage = 1, ?int $seasonYear = null): self
     {
         $self = new self();
 
@@ -20,10 +20,11 @@ class AniListEntryListMeta extends EntryListMeta
             Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-                'variables' => [
+                'variables' => array_filter([
                     'page' => $currentPage,
                     'type' => 'ANIME',
-                ],
+                    'seasonYear' => $seasonYear,
+                ], static fn ($v) => $v !== null),
             ],
         )
             ->toArray();

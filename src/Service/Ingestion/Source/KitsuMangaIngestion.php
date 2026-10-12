@@ -3,8 +3,8 @@
 namespace Hiyori\Service\Ingestion\Source;
 
 use Hiyori\Models\Manga\Base\KitsuBase;
-use Hiyori\Requests\Kitsu\KitsuEntryList;
-use Hiyori\Requests\Kitsu\KitsuEntryListMeta;
+use Hiyori\Requests\Kitsu\KitsuMangaEntryList as KitsuEntryList;
+use Hiyori\Requests\Kitsu\KitsuMangaEntryListMeta as KitsuEntryListMeta;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
@@ -20,7 +20,7 @@ final class KitsuMangaIngestion
     ): void {
         $meta = KitsuEntryListMeta::create()->setCurrentPage(0);
         $config = $sources->get();
-        $sourceKey = 'kitsu';
+        $sourceKey = 'kitsu_manga';
 
         $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
