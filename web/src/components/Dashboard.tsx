@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Activity, Database, GitMerge, LayoutDashboard, Radio, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -111,17 +112,33 @@ export function Dashboard() {
 
 
 function LiveToggle() {
-  const { realtime, setRealtime } = useStatus()
+  const { realtime, setRealtime, sseOpen, sseReconnects } = useStatus()
+  const [online, setOnline] = useState<boolean>(navigator.onLine)
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
   return (
-    <Button
-      size="sm"
-      variant={realtime ? 'default' : 'outline'}
-      title={realtime ? 'Real-time updates on (SSE)' : 'Enable real-time updates (SSE)'}
-      aria-pressed={realtime}
-      onClick={() => setRealtime(!realtime)}
-    >
-      <Radio className={`mr-1.5 h-3.5 w-3.5 ${realtime ? '' : 'text-muted-foreground'}`} />
-      {realtime ? 'Live' : 'Live off'}
-    </Button>
+    <div className="flex items-center gap-2">
+      {!online && <Badge variant="destructive">offline · cached</Badge>}
+      {realtime && !sseOpen && (
+        <span className="text-xs text-amber-400" role="status">
+          reconnecting{sseReconnects > 0 ? ` (${sseReconnects})` : ''}…
+        </span>
+      )}
+      <Button
+        size="sm"
+        variant={realtime ? 'default' : 'outline'}
+        title={realtime ? 'Real-time updates on (SSE)' : 'Enable real-time updates (SSE)'}
+        aria-pressed={realtime}
+        onClick={() => setRealtime(!realtime)}
+      >
+        <Radio className={`mr-1.5 h-3.5 w-3.5 ${realtime ? '' : 'text-muted-foreground'}`} />
+        {realtime ? (sseOpen ? 'Live' : 'Live…') : 'Live off'}
+      </Button>
+    </div>
   )
 }

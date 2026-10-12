@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  ArrowDown, ArrowUp, Bookmark, ChevronLeft, ChevronRight, Copy, Database, Download,
-  GitCompareArrows, Link2, ListFilter, Save, Settings2, Trash2, X,
+  Bookmark, Code2, Copy, Database, Download, GitCompareArrows, Link2, ListFilter,
+  MoreHorizontal, Save, Settings2, Trash2, X,
 } from 'lucide-react'
+import { createColumnHelper, type ColumnDef, type PaginationState, type SortingState, type Updater } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { deleteDocs, fetchExplore, fetchMeta, type ExploreRow } from '@/lib/api'
+import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 import { PageHead } from '../widgets'
 
@@ -62,6 +63,8 @@ function refsOf(doc: ExploreRow): Array<[string, string]> {
   if (!r || typeof r !== 'object') return []
   return Object.entries(r as Record<string, unknown>).filter(([, v]) => v) as Array<[string, string]>
 }
+
+const columnHelper = createColumnHelper<DataTableFeatures, ExploreRow>()
 
 export function ExplorerPage() {
   const [meta, setMeta] = useState<Record<string, { count?: number; fields?: string[] }>>({})
@@ -129,33 +132,8 @@ export function ExplorerPage() {
 
   const total = data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / per))
-  const docs = data?.docs ?? []
+  const docs = useMemo(() => data?.docs ?? [], [data])
   const fields = data?.fields ?? []
-
-  const toggleSel = (id: string) => {
-    setSel(s => {
-      const n = new Set(s)
-      if (n.has(id)) {
-        n.delete(id)
-      } else {
-        n.add(id)
-      }
-      return n
-    })
-  }
-  const allSel = docs.length > 0 && docs.every(d => sel.has(stringId(d)))
-  const toggleAll = () => {
-    const ids = docs.map(stringId)
-    setSel(s => {
-      const n = new Set(s)
-      if (allSel) {
-        ids.forEach(i => n.delete(i))
-      } else {
-        ids.forEach(i => n.add(i))
-      }
-      return n
-    })
-  }
 
   const done = async (ids: string[]) => {
     const r = await deleteDocs(collection, ids)
@@ -261,6 +239,75 @@ export function ExplorerPage() {
     return out
   }, [diffPair])
 
+  // ---- TanStack bridges (server-driven sorting / pagination) ----
+  const sortingState = useMemo<SortingState>(() => (sort ? [{ id: sort, desc: dir === 'desc' }] : []), [sort, dir])
+  const handleSortingChange = useCallback((updater: Updater<SortingState>) => {
+    const next = typeof updater === 'function' ? updater(sortingState) : updater
+    const s = next[0]
+    setSort(s?.id ?? '')
+    setDir(s?.desc ? 'desc' : 'asc')
+  }, [sortingState])
+
+  const paginationState = useMemo<PaginationState>(() => ({ pageIndex: Math.max(0, page - 1), pageSize: per }), [page, per])
+  const handlePaginationChange = useCallback((updater: Updater<PaginationState>) => {
+    const next = typeof updater === 'function' ? updater(paginationState) : updater
+    if (next.pageSize !== per) {
+      setPer(next.pageSize)
+      setPage(1)
+    } else if (next.pageIndex + 1 !== page) {
+      setPage(next.pageIndex + 1)
+    }
+  }, [paginationState, per, page])
+
+  const columns = useMemo<ColumnDef<DataTableFeatures, ExploreRow, unknown>[]>(() => [
+    ...cols.map(c => columnHelper.accessor(c, {
+      id: c,
+      header: c,
+      enableSorting: true,
+      meta: { truncate: c === 'title' },
+      cell: ({ row }) => {
+        const d = row.original
+        if (c === 'title') return titleOf(d) || <span className="text-muted-foreground italic">(no title)</span>
+        return prettyVal(d, c)
+      },
+    })),
+    columnHelper.display({
+      id: 'actions',
+      enableSorting: false,
+      meta: { align: 'right', stickyRight: true },
+      cell: ({ row }) => {
+        const d = row.original
+        const id = stringId(d)
+        const refs = refsOf(d)
+        const inDiff = diffPair.includes(d)
+        const diffFull = diffPair.length >= 2 && !inDiff
+        const toggleDiff = () => setDiffPair(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d])
+        return (
+          <div data-column-actions className="flex items-center justify-end gap-1">
+            <span className="mr-1 hidden text-[10px] text-muted-foreground sm:inline">{refs.slice(0, 3).map(([sh]) => sh).join('·') || 'no refs'}</span>
+            <Button size="icon-xs" variant="ghost" title="Inspect" aria-label={`Inspect row ${id}`} onClick={() => setDetail(d)}><ListFilter className="h-3.5 w-3.5" /></Button>
+            <Button size="icon-xs" variant="ghost" title="Toggle diff" aria-label={`Toggle diff row ${id}`} disabled={diffFull} onClick={toggleDiff}>
+              <GitCompareArrows className={`h-3.5 w-3.5 ${inDiff ? 'text-primary' : ''}`} />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label={`Row actions for ${id}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>} />
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Row {previewVal(id).slice(0, 24)}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setDetail(d)}><ListFilter className="h-3.5 w-3.5" />Inspect</DropdownMenuItem>
+                <DropdownMenuItem disabled={diffFull} onClick={toggleDiff}><GitCompareArrows className={`h-3.5 w-3.5 ${inDiff ? 'text-primary' : ''}`} />{inDiff ? 'Remove from diff' : 'Add to diff'}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { void navigator.clipboard.writeText(id); toast('copied id') }}><Copy className="h-3.5 w-3.5" />Copy ID</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { void navigator.clipboard.writeText(JSON.stringify(d, null, 2)); toast('copied json') }}><Code2 className="h-3.5 w-3.5" />Copy JSON</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={() => setConfirmDel([id])}><Trash2 className="h-3.5 w-3.5" />Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+    }),
+  ], [cols, diffPair])
+
   return (
     <div className="space-y-4">
       <PageHead
@@ -282,134 +329,93 @@ export function ExplorerPage() {
                 <DropdownMenuItem onClick={() => void exportAll('jsonl')} disabled={exporting || !total}>Export all matching (JSONL)</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" variant="outline" onClick={() => setSel(new Set())} disabled={!sel.size}><X className="mr-1.5 h-3.5 w-3.5" />Clear ({sel.size})</Button>
-            <Button size="sm" variant="destructive" onClick={() => setConfirmDel([...sel])} disabled={!sel.size}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Delete ({sel.size})</Button>
           </>
         }
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {Object.keys(meta).filter(c => !c.includes('_manga') || true).map(c => (
-            <button key={c} onClick={() => setCollection(c)} className={`rounded-lg border px-3 py-1.5 text-sm ${collection === c ? 'border-primary/60 bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-muted/40'}`}>
-              {c}
-              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{meta[c]?.count?.toLocaleString() ?? '…'}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="search title / refs / id…" className="h-8 w-52" />
-          <Select value={filter} onValueChange={v => setFilter(v ?? '__all')}>
-            <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Filter" /></SelectTrigger>
-            <SelectContent>
-              {PREBUILTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Settings2 className="mr-1.5 h-3.5 w-3.5" />Columns</Button>} />
-            <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
-              <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {fields.map(f => (
-                <DropdownMenuCheckboxItem key={f} checked={cols.includes(f)} onCheckedChange={v => {
-                  setCols(c => v ? [...new Set([...c, f])] : c.filter(x => x !== f))
-                }}>{f}</DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Bookmark className="mr-1.5 h-3.5 w-3.5" />Saved</Button>} />
-            <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
-              <DropdownMenuLabel>Saved queries</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {saved.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">none saved</div>}
-              {saved.map(s => (
-                <div key={s.name} className="flex items-center gap-1 px-2 py-1">
-                  <button className="flex-1 text-left text-sm hover:text-primary" onClick={() => loadQuery(s)}>{s.name}</button>
-                  <button className="text-muted-foreground hover:text-red-400" onClick={() => { const n = saved.filter(x => x.name !== s.name); setSaved(n); localStorage.setItem('hiyori-saved-queries', JSON.stringify(n)) }}><X className="h-3 w-3" /></button>
-                </div>
-              ))}
-              <DropdownMenuSeparator />
-              <div className="flex items-center gap-1.5 px-2 py-1.5">
-                <Input value={queryName} onChange={e => setQueryName(e.target.value)} placeholder="query name" className="h-7 text-xs" />
-                <Button size="sm" variant="ghost" onClick={saveQuery}><Save className="h-3.5 w-3.5" /></Button>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {Object.keys(meta).filter(c => !c.includes('_manga') || true).map(c => (
+          <button key={c} onClick={() => setCollection(c)} className={`rounded-lg border px-3 py-1.5 text-sm ${collection === c ? 'border-primary/60 bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-muted/40'}`}>
+            {c}
+            <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{meta[c]?.count?.toLocaleString() ?? '…'}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="overflow-hidden rounded-xl border">
-        {loading && docs.length === 0 ? (
-          <div className="space-y-2 p-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-8 w-full" />)}</div>
-        ) : docs.length === 0 ? (
-          <div className="p-4">
-            <EmptyState icon={Database} title="No documents match" description={total === 0 ? 'Nothing in this collection for the current filters.' : 'Narrow your search or clear filters.'} />
-          </div>
-        ) : (
-          <div className="max-h-[62vh] overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-background text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="w-8 px-3 py-2"><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
-                  {cols.map(c => (
-                    <th key={c} className="whitespace-nowrap px-2 py-2">
-                      <button className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => {
-                        if (sort === c) setDir(d => (d === 'asc' ? 'desc' : 'asc'))
-                        else { setSort(c); setDir('asc') }
-                      }}>
-                        {c}
-                        {sort === c && (dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                      </button>
-                    </th>
-                  ))}
-                  <th className="px-3 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docs.map((d, i) => {
-                  const id = stringId(d)
-                  const refs = refsOf(d)
-                  return (
-                    <tr key={id + i} className="border-t hover:bg-muted/30">
-                      <td className="px-3 py-2"><input type="checkbox" checked={sel.has(id)} onChange={() => toggleSel(id)} /></td>
-                      {cols.map(c => (
-                        <td key={c} className="max-w-[220px] truncate px-2 py-2" title={c === 'title' ? titleOf(d) : undefined}>
-                          {c === 'title' ? (titleOf(d) || <span className="text-muted-foreground italic">(no title)</span>) : prettyVal(d, c)}
-                        </td>
-                      ))}
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <span className="mr-1 text-[10px] text-muted-foreground">{refs.slice(0, 3).map(([sh]) => sh).join('·') || 'no refs'}</span>
-                          <Button size="icon-xs" variant="ghost" title="Inspect" aria-label={`Inspect row ${id}`} onClick={() => setDetail(d)}><ListFilter className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon-xs" variant="ghost" title="Add to diff" aria-label="Toggle diff pair" disabled={diffPair.length >= 2 && !diffPair.includes(d)} onClick={() => setDiffPair(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d])}>
-                            <GitCompareArrows className={`h-3.5 w-3.5 ${diffPair.includes(d) ? 'text-primary' : ''}`} />
-                          </Button>
-                          <Button size="icon-xs" variant="ghost" title="Delete" aria-label={`Delete row ${id}`} onClick={() => setConfirmDel([id])}><Trash2 className="h-3.5 w-3.5" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+      <DataTable<ExploreRow>
+        columns={columns}
+        data={docs}
+        getRowId={(d, i) => stringId(d) || `row-${i}`}
+        manualSorting
+        sorting={sortingState}
+        onSortingChange={handleSortingChange}
+        manualPagination
+        pagination={paginationState}
+        onPaginationChange={handlePaginationChange}
+        pageCount={pages}
+        enableSelection
+        selected={sel}
+        onSelectionChange={setSel}
+        selectionActions={count => (
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDel([...sel])} aria-label={`Delete ${count} selected rows`}>
+            <Trash2 className="h-3.5 w-3.5" />Delete ({count})
+          </Button>
         )}
-      </div>
-
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="text-xs text-muted-foreground">{total.toLocaleString()} docs in {collection} · page {page}/{pages}</span>
-        <div className="flex items-center gap-2">
-          <Select value={String(per)} onValueChange={v => { if (v) { setPer(Number(v)); setPage(1) } }}>
-            <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}/pg</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
-        </div>
-      </div>
+        onRowClick={d => setDetail(d)}
+        maxHeight="62vh"
+        loading={loading}
+        ariaLabel="Explorer collection"
+        empty={
+          <EmptyState
+            icon={Database}
+            title="No documents match"
+            description={total === 0 ? 'Nothing in this collection for the current filters.' : 'Narrow your search or clear filters.'}
+          />
+        }
+        footerLeft={`${total.toLocaleString()} docs in ${collection}`}
+        toolbar={
+          <>
+            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="search title / refs / id…" className="h-8 w-52" aria-label="Search" />
+            <Select value={filter} onValueChange={v => setFilter(v ?? '__all')}>
+              <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Filter" /></SelectTrigger>
+              <SelectContent>
+                {PREBUILTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Settings2 className="mr-1.5 h-3.5 w-3.5" />Columns</Button>} />
+              <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
+                <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {fields.map(f => (
+                  <DropdownMenuCheckboxItem key={f} checked={cols.includes(f)} onCheckedChange={v => {
+                    setCols(c => v ? [...new Set([...c, f])] : c.filter(x => x !== f))
+                  }}>{f}</DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Bookmark className="mr-1.5 h-3.5 w-3.5" />Saved</Button>} />
+              <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
+                <DropdownMenuLabel>Saved queries</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {saved.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">none saved</div>}
+                {saved.map(s => (
+                  <div key={s.name} className="flex items-center gap-1 px-2 py-1">
+                    <button className="flex-1 text-left text-sm hover:text-primary" onClick={() => loadQuery(s)}>{s.name}</button>
+                    <button className="text-muted-foreground hover:text-red-400" onClick={() => { const n = saved.filter(x => x.name !== s.name); setSaved(n); localStorage.setItem('hiyori-saved-queries', JSON.stringify(n)) }}><X className="h-3 w-3" /></button>
+                  </div>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="flex items-center gap-1.5 px-2 py-1.5">
+                  <Input value={queryName} onChange={e => setQueryName(e.target.value)} placeholder="query name" className="h-7 text-xs" />
+                  <Button size="sm" variant="ghost" onClick={saveQuery}><Save className="h-3.5 w-3.5" /></Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
       {/* detail drawer */}
       <Dialog open={!!detail} onOpenChange={o => !o && setDetail(null)}>

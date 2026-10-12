@@ -313,3 +313,15 @@ export async function fetchEnv(reveal?: string): Promise<{ env: EnvVar[]; source
 export async function postEnv(patch: { key: string; value: string | null }): Promise<{ updated?: string; error?: string; env?: EnvVar[] }> {
   return jsonPost('/api/env', patch) as Promise<{ updated?: string; error?: string; env?: EnvVar[] }>
 }
+
+// ---- Env manager extras ----
+export async function fetchEnvRaw(reveal?: string): Promise<{ raw?: string }> {
+  const r = await fetch(`/api/env?raw=1${reveal ? `&reveal=${encodeURIComponent(reveal)}` : ''}`)
+  return r.json() as Promise<{ raw?: string }>
+}
+export async function postEnvRaw(raw: string): Promise<{ raw_updated?: boolean; error?: string }> {
+  return jsonPost('/api/env', { raw }) as Promise<{ raw_updated?: boolean; error?: string }>
+}
+export async function postEnvPatterns(patterns: string[]): Promise<{ patterns?: string[] }> {
+  return jsonPost('/api/env', { patterns }) as Promise<{ patterns?: string[] }>
+}

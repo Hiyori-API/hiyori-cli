@@ -127,20 +127,26 @@
 /* compact density (Settings → Live dashboard).
    Cells carry Tailwind utilities (px-2 py-2) which compile to `padding-block`
    longhands in the utilities layer; a plain class rule can lose to them, so we
-   scope with :where() (zero specificity) and force padding-block with
-   !important so the compact spacing visibly wins. */
+   scope with :where() (zero specificity) and force both axes with
+   !important so the compact spacing visibly wins over px-2 py-2 (and over the
+   DataTable's px-2 py-2 th/td classes). */
 :where(.density-compact) :is(td, th) {
   padding-block: 0.125rem !important;
+  padding-inline: 0.5rem !important;
   padding-top: 0.125rem !important;
   padding-bottom: 0.125rem !important;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
 }
 .density-compact tr {
   font-size: 0.8125rem;
   line-height: 1.25;
 }
-.density-compact td,
-.density-compact th {
-  /* belt-and-braces: same longhands, plain selector, no layer conflicts */
+.density-compact :is(td, th) {
+  /* belt-and-braces: same longhands, plain selector, no layer conflicts;
+     also makes sticky (right-pinned) header/cell backgrounds sit flush. */
   padding-top: 0.125rem !important;
   padding-bottom: 0.125rem !important;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
 }
