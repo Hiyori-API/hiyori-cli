@@ -41,62 +41,81 @@ final class AniListMangaIngestion
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
 
-        $page = 1;
-        while (true) {
-            $list = $rateLimiter->executeWithRetry(
-                fn () => AniListEntryList::create($page),
-                $sourceKey,
-                3,
-                1000,
-                2.0,
-            );
-            $items = $list->getList();
-
-            if ($items === []) {
-                break;
-            }
-
-            foreach ($items as $listItem) {
-                $itemId = (int) $listItem[$config->getJsonId()];
-                $processed++;
-
-                if ($db->exists($config->getTable(), $config->getShorthand(), (string) $itemId)) {
-                    $skipped++;
-                    $progressBar->advance();
-                    continue;
-                }
-
-                $rateLimiter->waitForToken($sourceKey, 1, 60);
-                sleep($sources->get()->getDelay());
-
-                $listItemData = null;
-                try {
-                    $listItemData = AniListBase::create($listItem);
-                } catch (\Exception $e) {
-                    $errors++;
-                    $console->io()->error("[$itemId] " . $e->getMessage());
-                }
-
-                if ($listItemData !== null) {
-                    $db->save($config->getTable(), $listItemData);
-                    $saved++;
-                }
-                $progressBar->advance();
-            }
-
-            if (count($items) < self::PER_PAGE) {
-                break;
-            }
-
-            $page++;
-            if ($processed % 25 === 0) {
-                Telemetry::track($sourceKey, $processed, $processed, $errors, 'running', 'initial', [
-                    'saved' => $saved,
-                    'skipped' => $skipped,
-                ], $telemetry->stateDir());
-            }
+        // Manga have no seasonYear, so chunk by startDate year windows; AniList
+        // pageInfo caps at 5000 per query, so each year window stays well under.
+        $yearNow = (int) date('Y');
+        $windows = [[0, 1950]];
+        for ($y = 1950; $y <= $yearNow; $y++) {
+            $windows[] = [$y, $y + 1];
         }
-        $progressBar->finish();
+        $windows[] = [null, null]; // catch-all for entries outside/without dates
+
+        foreach ($windows as [$gt, $lt]) {
+            $page = 1;
+            $progressBar = $console->io()->createProgressBar(self::PER_PAGE * 100);
+            $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
+            $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
+            $progressBar->start();
+            $progressBar->setMessage(($gt === null ? 'n/a' : "$gt-$lt"), 'window');
+
+            while (true) {
+                $list = $rateLimiter->executeWithRetry(
+                    fn () => AniListEntryList::create($page, $gt, $lt),
+                    $sourceKey,
+                    3,
+                    1000,
+                    2.0,
+                );
+                $items = $list->getList();
+
+                if ($items === []) {
+                    break;
+                }
+
+                foreach ($items as $listItem) {
+                    $itemId = (int) $listItem[$config->getJsonId()];
+                    $processed++;
+
+                    if ($db->exists($config->getTable(), $config->getShorthand(), (string) $itemId)) {
+                        $skipped++;
+                        $progressBar->advance();
+                        continue;
+                    }
+
+                    $rateLimiter->waitForToken($sourceKey, 1, 60);
+                    sleep($sources->get()->getDelay());
+
+                    $listItemData = null;
+                    try {
+                        $listItemData = AniListBase::create($listItem);
+                    } catch (\Exception $e) {
+                        $errors++;
+                        $console->io()->error("[$itemId] " . $e->getMessage());
+                    }
+
+                    if ($listItemData !== null) {
+                        $db->save($config->getTable(), $listItemData);
+                        $saved++;
+                    }
+                    $progressBar->advance();
+                }
+
+                if (count($items) < self::PER_PAGE) {
+                    break;
+                }
+
+                $page++;
+                if ($processed % 25 === 0) {
+                    Telemetry::track($sourceKey, $processed, $processed, $errors, 'running', 'initial', [
+                        'saved' => $saved,
+                        'skipped' => $skipped,
+                        'window' => $gt === null ? 'n/a' : "$gt-$lt",
+                    ], $telemetry->stateDir());
+                }
+            }
+            $progressBar->finish();
+            $console->io()->info('Window ' . ($gt === null ? 'n/a' : "$gt-$lt") . ": saved $saved so far");
+        }
 
         Telemetry::track($sourceKey, $processed, $processed, $errors, 'done', 'initial', [
             'saved' => $saved,
