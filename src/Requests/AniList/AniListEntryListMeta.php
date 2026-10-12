@@ -20,10 +20,10 @@ class AniListEntryListMeta extends EntryListMeta
             Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-            'variables' => [
+                'variables' => [
                     'page' => $currentPage,
-            'type' => 'ANIME',
-            ],
+                    'type' => 'ANIME',
+                ],
             ],
         )
             ->toArray();
@@ -35,18 +35,11 @@ class AniListEntryListMeta extends EntryListMeta
         return $self;
     }
 
-    /**
-     * @return bool
-     */
     public function hasNextPage(): bool
     {
         return $this->hasNextPage;
     }
 
-    /**
-     * @param bool $hasNextPage
-     * @return AniListEntryListMeta
-     */
     public function setHasNextPage(bool $hasNextPage): AniListEntryListMeta
     {
         $this->hasNextPage = $hasNextPage;

@@ -7,32 +7,34 @@ query ($page: Int, $type: MediaType = ANIME, $sort: [MediaSort] = [ID]) {
             lastPage
             hasNextPage
         }
-        ANIME: media(type: $type, sort: $sort) {
+        media(type: $type, sort: $sort) {
             id
             idMal
             siteUrl
-      			coverImage {
-              large
+            coverImage {
+                extraLarge
+                large
+                medium
             }
             title {
                 romaji
                 english
                 native
             }
-      			synonyms
+            synonyms
             format
             status
             episodes
             externalLinks {
                 id
-                site
                 url
+                type
             }
-      			streamingEpisodes {
-              url
-              site
+            streamingEpisodes {
+                title
+                url
+                site
             }
-            episodes
             startDate {
                 year
                 month
@@ -45,15 +47,11 @@ query ($page: Int, $type: MediaType = ANIME, $sort: [MediaSort] = [ID]) {
             }
             seasonYear
             season
-            format
             source
-      			genres
-      			tags {
-            	category
-              name
-              isGeneralSpoiler
-              isMediaSpoiler
-              isAdult
+            genres
+            tags {
+                id
+                name
             }
         }
     }

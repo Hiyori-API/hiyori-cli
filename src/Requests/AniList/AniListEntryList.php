@@ -18,15 +18,15 @@ class AniListEntryList extends EntryList
             Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/EntryListRequest.graphql'),
-            'variables' => [
+                'variables' => [
                     'page' => $currentPage,
-            'type' => 'ANIME',
-            ],
+                    'type' => 'ANIME',
+                ],
             ],
         )
             ->toArray();
 
-        $self->setList($response['data']['Page']['ANIME']);
+        $self->setList($response['data']['Page']['media'] ?? []);
 
         return $self;
     }
