@@ -1,9 +1,2 @@
-=== metadata_fuzzy benchmark start Mon Oct 12 15:10:19 PKT 2026 ===
+=== metadata_fuzzy benchmark start Mon Oct 12 15:14:44 PKT 2026 ===
 >>> run 1: defaults (threshold 70)
-{"strategy":"metadata_fuzzy_defaults","total":0,"has_mal":0,"has_k":0,"high_conf_3sources":0,"only_base_1source":0,"duplicate_keys":0}
->>> run 2: tuned (threshold 60, title/tags weighted)
-{"strategy":"metadata_fuzzy_tuned","total":0,"has_mal":0,"has_k":0,"high_conf_3sources":0,"only_base_1source":0,"duplicate_keys":0}
->>> restoring clean snapshot
-2026-10-12T15:10:23.042+0500	3924 document(s) restored successfully. 0 document(s) failed to restore.
-restored: 3924
-=== end Mon Oct 12 15:10:23 PKT 2026 ===
