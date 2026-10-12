@@ -37,7 +37,6 @@ class IngestionTest extends TestCase
         }
     }
 
-
     private function requireNetwork(): void
     {
         if (getenv('HIHYORI_NETWORK_TESTS') !== '1') {
