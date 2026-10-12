@@ -23,9 +23,19 @@ $container = new \Symfony\Component\DependencyInjection\ContainerBuilder();
 $container->setParameter('rate_limit.max_requests', (int)($_ENV['RATE_LIMIT_MAX'] ?? 100));
 $container->setParameter('rate_limit.time_window', (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60));
 
+// Register Serializer as a service using a static method
+class SerializerFactory {
+    public static function create(): \JMS\Serializer\Serializer {
+        return \JMS\Serializer\SerializerBuilder::create()->build();
+    }
+}
+
+$container->register(\JMS\Serializer\Serializer::class)
+    ->setFactory([SerializerFactory::class, 'create'])
+    ->setPublic(true);
+
 $container->autowire(\Hiyori\Service\Logging::class);
 $container->autowire(\Hiyori\Service\Database::class);
-$container->autowire(\Hiyori\Service\Serializer::class);
 $container->autowire(\Hiyori\Service\ConsoleFactory::class)
     ->setFactory([\Hiyori\Service\ConsoleFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\SourceConfigurationFactory::class)
@@ -41,7 +51,6 @@ $container->autowire(\Hiyori\Service\MetricsCollector::class);
 $container->autowire(\Hiyori\Service\HealthCheck::class)
     ->setArguments([
         '$mongoClient' => new \MongoDB\Client($_ENV['MONGODB_URL']),
-        '$metrics' => new \Hiyori\Service\MetricsCollector(),
         '$rateLimiter' => new \Hiyori\Service\RateLimiter(
             (int)($_ENV['RATE_LIMIT_MAX'] ?? 100),
             (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60)
