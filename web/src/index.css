@@ -124,3 +124,12 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
+/* compact density (Settings → Live dashboard) */
+.density-compact td,
+.density-compact th {
+  padding-top: 0.15rem !important;
+  padding-bottom: 0.15rem !important;
+}
+.density-compact tr {
+  font-size: 0.8125rem;
+}
