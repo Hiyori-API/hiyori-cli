@@ -32,7 +32,9 @@ final class CombinerCommand extends Command
     {
         $this
             ->addArgument('base', InputArgument::REQUIRED, 'Source dataset to use as a base')
-            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to RelationalMapping');
+            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to RelationalMapping')
+            ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
+            ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -43,11 +45,24 @@ final class CombinerCommand extends Command
             return Command::SUCCESS;
         }
 
-        // @todo validation
         $base = $input->getArgument('base');
-        $strategy = $input->getOption('strategy') ??  RelationalMappingStrategy::class;
+        $strategy = $input->getOption('strategy') ?? RelationalMappingStrategy::class;
 
-        $this->hiyori->combine($base, $strategy);
+        $config = [];
+        if ($input->getOption('threshold') !== null) {
+            $config['threshold'] = (float) $input->getOption('threshold');
+        }
+        if ($input->getOption('weights') !== null) {
+            $decoded = json_decode((string) $input->getOption('weights'), true);
+            if (!is_array($decoded)) {
+                $output->writeln('<error>--weights must be valid JSON, e.g. {"title":25,"tags":20}</error>');
+
+                return Command::FAILURE;
+            }
+            $config['weights'] = $decoded;
+        }
+
+        $this->hiyori->combine($base, $strategy, $config);
 
         $this->release();
 

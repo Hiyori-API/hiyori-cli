@@ -1,0 +1,12 @@
+=== Strategy Benchmark Start: Mon Oct 12 14:39:21 PKT 2026 ===
+>>> relational_fuzzy (start Mon Oct 12 14:39:21 PKT 2026)
+
+{"strategy":"relational_fuzzy","total":16487,"has_al":16487,"has_mal":15953,"has_k":15432,"high_conf_3sources":14898,"only_base_1source":0,"duplicate_keys":21,"avg_reference_sources":3.725298720203797}
+>>> metadata_fuzzy (start Mon Oct 12 14:53:16 PKT 2026)
+
+{"strategy":"metadata_fuzzy","total":17043,"has_al":17043,"has_mal":15632,"has_k":0,"high_conf_3sources":0,"only_base_1source":1411,"duplicate_keys":0,"avg_reference_sources":2.4211113066948307}
+>>> restoring clean snapshot
+2026-10-12T15:00:31.660+0500	no indexes to restore for collection `hiyori.organized`
+2026-10-12T15:00:31.660+0500	3924 document(s) restored successfully. 0 document(s) failed to restore.
+restored organized count: 3924
+=== Benchmark End: Mon Oct 12 15:00:32 PKT 2026 ===

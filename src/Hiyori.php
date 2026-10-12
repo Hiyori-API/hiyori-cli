@@ -44,13 +44,17 @@ class Hiyori
         $this->ingestion->start();
     }
 
-    public function combine(string $baseSource, string $strategy)
+    public function combine(string $baseSource, string $strategy, array $config = [])
     {
         $this->sources
             ->setCurrent($baseSource);
 
         $this->strategy
             ->setStrategy($strategy);
+
+        if ($config !== []) {
+            $this->strategy->setConfig($config);
+        }
 
         $this->combiner->start();
     }
