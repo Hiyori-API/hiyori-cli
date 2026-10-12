@@ -154,6 +154,64 @@ function controls(string $source): array
     return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
 }
 
+
+function coverage(MongoClient $client): array
+{
+    $db = $client->selectDatabase('hiyori');
+    $out = [];
+    $shorthands = ['al', 'mal', 'k', 'adb', 'ann', 'b', 'cr', 'fm', 'nf', 'sb', 't', 'ttv', 'tvt', 'tx', 'wpen', 'wpja', 'yt', 'ap'];
+    foreach ($db->listCollections() as $col) {
+        $name = $col->getName();
+        $coll = $db->selectCollection($name);
+        $total = $coll->countDocuments();
+        $row = ['total' => $total];
+        foreach ($shorthands as $sh) {
+            $row[$sh] = $coll->countDocuments(['reference_ids.' . $sh => ['$exists' => true]]);
+        }
+        // missingness: docs missing the 3 main refs
+        $row['missing_al'] = $coll->countDocuments(['reference_ids.al' => ['$exists' => false]]);
+        $row['missing_mal'] = $coll->countDocuments(['reference_ids.mal' => ['$exists' => false]]);
+        $row['missing_k'] = $coll->countDocuments(['reference_ids.k' => ['$exists' => false]]);
+        $out[$name] = $row;
+    }
+
+    return $out;
+}
+
+function benchmarkData(Telemetry $telemetry): array
+{
+    // Seed from combine telemetry history + hard-coded measured runs so the
+    // comparison chart has data even before a fresh benchmark.
+    $combine = $telemetry->read('combine-latest');
+    $seed = [
+        ['strategy' => 'relational_mapping', 'wall_s' => 457, 'merges' => 14638, 'organized' => 8417, 'speed' => 32.0],
+        ['strategy' => 'relational_fuzzy', 'wall_s' => 880, 'merges' => 25124, 'organized' => 16492, 'speed' => 28.5],
+        ['strategy' => 'metadata_fuzzy', 'wall_s' => 749, 'merges' => 18291, 'organized' => 14933, 'speed' => 24.4],
+    ];
+
+    return ['seeded' => $seed, 'latest' => $combine];
+}
+
+function alerts(HealthCheck $health): array
+{
+    $out = [];
+    $h = $health->check();
+    $rl = $h['checks']['rate_limiter']['limiters'] ?? [];
+    foreach ($rl as $src => $s) {
+        if (($s['circuit_state'] ?? 'closed') === 'open') {
+            $out[] = ['level' => 'critical', 'type' => 'circuit_open', 'source' => $src, 'msg' => "Circuit breaker open for $src"];
+        }
+        if ((int) ($s['tokens_available'] ?? 999) < 5) {
+            $out[] = ['level' => 'warn', 'type' => 'low_tokens', 'source' => $src, 'msg' => "Rate limit nearly exhausted for $src"];
+        }
+    }
+    if (!($h['checks']['external_apis']['healthy'] ?? true)) {
+        $out[] = ['level' => 'critical', 'type' => 'api_down', 'source' => '*', 'msg' => 'One or more external APIs unreachable'];
+    }
+
+    return $out;
+}
+
 if ($path === '/api/counts') {
     sendJson(['counts' => collectionCounts($client), 'timestamp' => date('c')]);
 }
@@ -190,8 +248,14 @@ if ($path === '/api/backup') {
 if ($path === '/api/action') {
     $job = (string) ($_GET['job'] ?? '');
     $cmd2 = (string) ($_GET['cmd'] ?? '');
-    if ($job === '' || !in_array($cmd2, ['pause', 'resume'], true)) {
-        sendJson(['error' => 'job + cmd (pause|resume) required'], 400);
+    if ($job === '' || !in_array($cmd2, ['pause', 'resume', 'retry'], true)) {
+        sendJson(['error' => 'job + cmd (pause|resume|retry) required'], 400);
+    }
+    if ($cmd2 === 'retry') {
+        $src = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
+        $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__, 2)), escapeshellarg($src));
+        @exec($exe);
+        sendJson(['job' => $job, 'cmd' => 'retry', 'scheduled' => true]);
     }
     $state = uniqid() === '' ? '' : (string) file_put_contents(
         dirname(__DIR__, 2) . '/storage/state/control-' . $job . '.json',
@@ -199,6 +263,28 @@ if ($path === '/api/action') {
     );
 
     sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($job)]);
+}
+
+if ($path === '/api/coverage') {
+    sendJson(['coverage' => coverage($client), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/benchmark') {
+    sendJson(benchmarkData($telemetry));
+}
+
+if ($path === '/api/alerts') {
+    sendJson(['alerts' => alerts($health), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/sample') {
+    $collection = (string) ($_GET['collection'] ?? 'organized');
+    $doc = $client->selectDatabase('hiyori')->selectCollection($collection)->aggregate([['$sample' => ['size' => 1]]])->toArray()[0] ?? null;
+    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null]);
+}
+
+if ($path === '/api/jobsV2') {
+    sendJson(['jobs' => $telemetry->allState(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/status') {
@@ -217,6 +303,8 @@ if ($path === '/api/status') {
         'controls' => $controlsMap,
         'backup' => backupInfo(),
         'cache' => $telemetry->read('cache'),
+        'coverage' => coverage($client),
+        'alerts' => alerts($health),
         'health' => $health->check(),
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),

@@ -57,6 +57,26 @@ export interface CombineStats {
   completed_at?: string
 }
 
+
+export interface CoverageRow {
+  total?: number
+  [shorthand: string]: number | undefined
+}
+export interface AlertItem {
+  level?: string
+  type?: string
+  source?: string
+  msg?: string
+}
+export interface BenchmarkRow {
+  strategy?: string
+  wall_s?: number
+  merges?: number
+  organized?: number
+  speed?: number
+}
+
+export interface StatusPayload { /* extended below */ }
 export interface StatusPayload {
   timestamp: string
   counts: Record<string, number>
@@ -68,6 +88,8 @@ export interface StatusPayload {
   backup?: BackupInfo
   controls?: Record<string, { paused?: boolean }>
   cache?: { requests?: number; enabled?: boolean; host?: string }
+  coverage?: Record<string, CoverageRow>
+  alerts?: AlertItem[]
 }
 
 export async function fetchStatus(): Promise<StatusPayload> {
@@ -83,7 +105,7 @@ export interface ActionResponse {
   error?: string
 }
 
-export async function postAction(job: string, cmd: 'pause' | 'resume'): Promise<ActionResponse> {
+export async function postAction(job: string, cmd: 'pause' | 'resume' | 'retry'): Promise<ActionResponse> {
   const r = await fetch(`/api/action?job=${encodeURIComponent(job)}&cmd=${cmd}`)
   return r.json() as Promise<ActionResponse>
 }
@@ -91,4 +113,19 @@ export async function postAction(job: string, cmd: 'pause' | 'resume'): Promise<
 export async function runBackup(): Promise<{ started?: boolean; archive?: string }> {
   const r = await fetch('/api/backup?run=1')
   return r.json() as Promise<{ started?: boolean; archive?: string }>
+}
+
+export async function fetchBenchmark(): Promise<{ seeded?: BenchmarkRow[]; latest?: unknown }> {
+  const r = await fetch('/api/benchmark')
+  if (!r.ok) throw new Error(`benchmark ${r.status}`)
+  return r.json()
+}
+
+export async function fetchSample(collection: string): Promise<{ sample?: Record<string, unknown> | null }> {
+  const r = await fetch(`/api/sample?collection=${encodeURIComponent(collection)}`)
+  return r.json() as Promise<{ sample?: Record<string, unknown> | null }>
+}
+
+export async function runAction(job: string, cmd: 'pause' | 'resume' | 'retry'): Promise<ActionResponse> {
+  return postAction(job, cmd)
 }
