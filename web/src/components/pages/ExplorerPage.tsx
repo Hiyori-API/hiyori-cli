@@ -6,7 +6,7 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,6 +23,28 @@ const PREBUILTS: Array<[string, string]> = [
   ['no_refs', 'No refs at all'],
   ['empty_title', 'Empty title'],
 ]
+
+/** Hard cap for "export all matching" so huge collections can't OOM the browser. */
+const EXPORT_CAP = 5000
+
+function buildCsv(rows: ExploreRow[], headings: string[]): string {
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const lines = [headings.map(esc).join(',')]
+  rows.forEach(d => lines.push(headings.map(h => esc(fieldOf(d, h))).join(',')))
+  return lines.join('\n')
+}
+function buildJsonl(rows: ExploreRow[]): string {
+  return rows.map(d => JSON.stringify(d)).join('\n')
+}
+function downloadText(text: string, mime: string, filename: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 interface SavedQuery { name: string; collection: string; q: string; filter: string }
 
@@ -54,6 +76,7 @@ export function ExplorerPage() {
   const [cols, setCols] = useState<string[]>([])
   const [data, setData] = useState<{ total?: number; docs?: ExploreRow[]; fields?: string[] } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [detail, setDetail] = useState<ExploreRow | null>(null)
   const [confirmDel, setConfirmDel] = useState<string[] | null>(null)
@@ -185,14 +208,45 @@ export function ExplorerPage() {
 
   const exportCSV = () => {
     const headings = cols.length ? cols : fields
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const lines = [headings.map(esc).join(',')]
-    docs.forEach(d => lines.push(headings.map(h => esc(fieldOf(d, h))).join(',')))
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `hiyori-${collection}-p${page}.csv`
-    a.click()
+    downloadText(buildCsv(docs, headings), 'text/csv;charset=utf-8', `hiyori-${collection}-p${page}.csv`)
+    toast.success(`exported ${docs.length} rows`)
+  }
+
+  // Fetch up to EXPORT_CAP rows matching the current filters/sort, paging by 100.
+  const exportAll = async (format: 'csv' | 'jsonl') => {
+    if (exporting) return
+    setExporting(true)
+    const per = 100
+    const rows: ExploreRow[] = []
+    const pageFields: string[] = []
+    let total = 0
+    let capped = false
+    try {
+      for (let p = 1; ; p++) {
+        const res = await fetchExplore({ collection, page: p, per, q: qDebounced, filter: exploreFilter, sort, dir })
+        total = res.total ?? total
+        if (res.fields?.length && pageFields.length === 0) pageFields.push(...res.fields)
+        const pageDocs = res.docs ?? []
+        rows.push(...pageDocs)
+        if (rows.length >= EXPORT_CAP) { capped = true; break }
+        if (rows.length >= total || pageDocs.length === 0) break
+      }
+    } catch {
+      toast.error('export failed')
+      setExporting(false)
+      return
+    }
+    setExporting(false)
+    if (rows.length === 0) { toast('nothing to export'); return }
+    const filename = `hiyori-${collection}-all.${format}`
+    if (format === 'csv') {
+      const headings = cols.length ? cols : (pageFields.length ? pageFields : fields)
+      downloadText(buildCsv(rows, headings), 'text/csv;charset=utf-8', filename)
+    } else {
+      downloadText(buildJsonl(rows), 'application/x-ndjson', filename)
+    }
+    if (capped) toast.warning(`export capped at ${EXPORT_CAP} rows — narrow the filters for the full set`)
+    else toast.success(`exported ${rows.length} rows`)
   }
 
   const diffRows = useMemo(() => {
@@ -218,7 +272,16 @@ export function ExplorerPage() {
               <Input value={resolver} onChange={e => setResolver(e.target.value)} placeholder="paste URL or src/id…" className="h-8 w-56" />
               <Button size="sm" variant="outline" onClick={resolveRef}><Link2 className="mr-1.5 h-3.5 w-3.5" />Resolve</Button>
             </div>
-            <Button size="sm" variant="outline" onClick={exportCSV} disabled={!docs.length}><Download className="mr-1.5 h-3.5 w-3.5" />CSV</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" variant="outline" disabled={!docs.length && !total}><Download className="mr-1.5 h-3.5 w-3.5" />Export</Button>} />
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Export</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={exportCSV} disabled={!docs.length}>Export page (CSV)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportAll('csv')} disabled={exporting || !total}>Export all matching (CSV)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportAll('jsonl')} disabled={exporting || !total}>Export all matching (JSONL)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" variant="outline" onClick={() => setSel(new Set())} disabled={!sel.size}><X className="mr-1.5 h-3.5 w-3.5" />Clear ({sel.size})</Button>
             <Button size="sm" variant="destructive" onClick={() => setConfirmDel([...sel])} disabled={!sel.size}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Delete ({sel.size})</Button>
           </>

@@ -12,3 +12,5 @@
 storage/logs/*.log
 
 storage/logs/daily-*
+
+.env.bak

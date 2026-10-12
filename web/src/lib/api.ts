@@ -294,3 +294,22 @@ export function openStatusStream(onEvent: (e: StreamEvent) => void, onError?: (e
   if (onError) es.onerror = onError
   return es
 }
+
+// ---- Environment variable manager ----
+export interface EnvVar {
+  key: string
+  present?: boolean
+  sensitive?: boolean
+  masked?: string
+  value?: string | null
+}
+
+export async function fetchEnv(reveal?: string): Promise<{ env: EnvVar[]; source?: string }> {
+  const qs = reveal ? `?reveal=${encodeURIComponent(reveal)}` : ''
+  const r = await fetch(`/api/env${qs}`)
+  return r.json() as Promise<{ env: EnvVar[]; source?: string }>
+}
+
+export async function postEnv(patch: { key: string; value: string | null }): Promise<{ updated?: string; error?: string; env?: EnvVar[] }> {
+  return jsonPost('/api/env', patch) as Promise<{ updated?: string; error?: string; env?: EnvVar[] }>
+}

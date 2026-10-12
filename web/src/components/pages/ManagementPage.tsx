@@ -11,11 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import {
-  fetchAudit, fetchBackups, fetchFailures, fetchLimits, postAction, postLimits, restoreBackup,
-  runBackup, type AuditItem, type BackupItem, type ValidationEvent,
+  fetchAudit, fetchBackups, fetchLimits, postAction, postLimits, restoreBackup,
+  runBackup, type AuditItem, type BackupItem,
 } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
+import { ago, mb } from '@/lib/format'
+import { useFailures } from '@/lib/fetch-cache'
+import { tzStr, type Tz } from '@/lib/time'
 import { EmptyState } from '../empty'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { PageHead, Section } from '../widgets'
@@ -26,24 +29,12 @@ const SOURCE_LABEL: Record<string, string> = {
   anilist_manga: 'AniList Manga', kitsu_manga: 'Kitsu Manga', myanimelist_manga: 'MAL Manga',
 }
 
-function ago(ts?: number): string {
-  if (!ts) return '—'
-  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts))
-  if (s < 60) return `${s}s`
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  return `${Math.floor(s / 86400)}d`
-}
-function mb(n?: number): string {
-  if (!n) return '—'
-  return (n / 1048576).toFixed(1) + ' MB'
-}
-
 export function ManagementPage() {
   const { data } = useStatus()
   const { settings, update } = useSettings()
   const [backups, setBackups] = useState<BackupItem[]>([])
-  const [failures, setFailures] = useState<ValidationEvent[]>([])
+  const { failures, refresh: refreshFailures } = useFailures()
+  const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
   const [audit, setAudit] = useState<AuditItem[]>([])
   const [limits, setLimits] = useState<{ max?: number; window?: number }>({})
   const [sources, setSources] = useState('anilist,myanimelist,kitsu')
@@ -57,14 +48,14 @@ export function ManagementPage() {
 
   const loadAll = useCallback(() => {
     void fetchBackups().then(r => setBackups(r.backups ?? []))
-    void fetchFailures().then(r => setFailures(r.failures ?? []))
+    void refreshFailures()
     void fetchAudit().then(r => setAudit(r.audit ?? []))
     void fetchLimits().then(r => {
       setLimits(r.limits ?? {})
       setMax(r.limits?.max ?? 100)
       setWin(r.limits?.window ?? 60)
     }).finally(() => setLoading(false))
-  }, [])
+  }, [refreshFailures])
 
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -252,7 +243,7 @@ export function ManagementPage() {
           <div className="max-h-64 space-y-1 overflow-auto text-xs">
             {audit.slice(0, 60).map((a, i) => (
               <div key={i} className="flex items-center gap-2 rounded-md border px-2 py-1">
-                <span className="text-muted-foreground tabular-nums">{a.ts ? new Date(a.ts).toLocaleTimeString() : ''}</span>
+                <span className="text-muted-foreground tabular-nums">{a.ts ? tzStr(a.ts, tz) : ''}</span>
                 <Badge variant="outline">{a.action}</Badge>
                 <span className="truncate text-muted-foreground">{JSON.stringify(a.detail ?? {})}</span>
                 <span className="ml-auto text-muted-foreground">{a.ip}</span>

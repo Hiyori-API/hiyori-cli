@@ -1,4 +1,5 @@
 /** Shared formatting helpers (single source of truth across pages). */
+import { tzStr, type Tz } from './time'
 
 export function fmt(n?: number | null): string {
   if (n === undefined || n === null || Number.isNaN(n)) return '—'
@@ -28,8 +29,7 @@ export function mb(n?: number | null): string {
   return (n / 1048576).toFixed(1) + ' MB'
 }
 
-export function timeStr(ts?: string): string {
-  if (!ts) return '—'
-  const t = new Date(ts)
-  return Number.isNaN(t.getTime()) ? ts : t.toLocaleTimeString()
+export function timeStr(ts?: string, tz: Tz = 'local'): string {
+  // Delegate to the tz-aware formatter so pages honoring prefs.tz stay in sync.
+  return tzStr(ts, tz)
 }

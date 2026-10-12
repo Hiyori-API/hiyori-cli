@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, Archive, CircleDot, Database, Gauge, Hash, Layers,
+  Activity, Archive, CircleDot, Database, Gauge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer, X,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,25 +20,6 @@ import { alignSeries, CompositionStream, PipelineFunnel, SeriesChartCard } from 
 import { EmptyState } from '../empty'
 
 const MAX = 120
-
-function fmt(n: number | undefined | null): string {
-  if (n === undefined || n === null || Number.isNaN(n)) return '—'
-  return n.toLocaleString()
-}
-function ago(ts?: number): string {
-  if (!ts) return '—'
-  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts))
-  if (s < 60) return `${s}s`
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  return `${Math.floor(s / 86400)}d`
-}
-function fmtSec(n: number | undefined | null): string {
-  if (n === undefined || n === null || !Number.isFinite(n)) return '—'
-  if (n < 90) return `${Math.round(n)}s`
-  if (n < 5400) return `${Math.round(n / 60)}m`
-  return `${Math.round(n / 3600)}h`
-}
 
 const WIDGET_IDS = ['kpi', 'fleet', 'rates', 'counts', 'dataset', 'health', 'pipeline', 'alerts']
 
@@ -153,15 +135,23 @@ export function DashboardPage() {
         }
       />
 
+      {error && !data && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+        >
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          <span>Backend offline — reconnecting…</span>
+        </div>
+      )}
+
       {!dataReady && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full" />)}
         </div>
       )}
 
-      {error && !data && (
-        <EmptyState icon={Activity} title="Backend unreachable" description="Start the dashboard server (php hiyori dashboard:serve) to see live telemetry." action={() => window.location.reload()} actionLabel="Retry" />
-      )}
 
       {data && (
         <>
