@@ -26,7 +26,7 @@ export interface HealthCheck {
   timestamp?: string
   checks?: {
     mongodb?: { healthy?: boolean; latency_ms?: number; details?: string; error?: string }
-    external_apis?: { healthy?: boolean; endpoints?: Record<string, { healthy?: boolean; latency_ms?: number; status_code?: number; error?: string }> }
+    external_apis?: { healthy?: boolean; all_reachable?: boolean; endpoints?: Record<string, { healthy?: boolean; reachable?: boolean; latency_ms?: number; status_code?: number; note?: string; error?: string }> }
     rate_limiter?: { healthy?: boolean; limiters?: Record<string, { tokens_available?: number; max_tokens?: number; circuit_state?: string; failures?: number }> }
     disk_space?: { healthy?: boolean; used_percent?: number; free_gb?: number; total_gb?: number }
     memory?: { healthy?: boolean; used_percent?: number; current_mb?: number; peak_mb?: number; limit?: string }

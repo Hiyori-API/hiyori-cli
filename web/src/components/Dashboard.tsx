@@ -12,6 +12,7 @@ import { ManagementPage } from './pages/ManagementPage'
 import { QualityPage } from './pages/QualityPage'
 import { LogsPage } from './pages/LogsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { AlertToasts } from './alert-toast'
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
 
@@ -96,6 +97,7 @@ export function Dashboard() {
           </main>
         </SidebarInset>
       </div>
+      <AlertToasts />
     </SidebarProvider>
   )
 }

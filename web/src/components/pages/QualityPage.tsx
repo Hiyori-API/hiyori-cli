@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, GitMerge, ListChecks, Scale, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
+import { Download, GitMerge, ListChecks, RefreshCw, Scale, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -97,6 +97,11 @@ export function QualityPage() {
 
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
+  const reloadAnalysis = () => {
+    void fetchBenchmark().then(setBench)
+    void fetchHistogram().then(setHist)
+    void fetchFailures().then(r => setFailures(r.failures ?? []))
+  }
 
   return (
     <div className="space-y-4">
@@ -158,7 +163,9 @@ export function QualityPage() {
 
       {/* Q3: benchmark + thresholds */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Strategy benchmark" icon={Scale}>
+        <Section title="Strategy benchmark" icon={Scale} badge={
+          <Button size="icon-xs" variant="ghost" title="Refresh benchmark + histogram" onClick={reloadAnalysis}><RefreshCw className="h-3 w-3" /></Button>
+        }>
           {!bench?.seeded?.length ? <Skeleton className="h-40 w-full" /> : (
             <>
               <BenchmarkBars title="Wall time vs baseline" rows={(bench.seeded ?? []).map(b => ({ name: b.strategy ?? '?', wall_s: b.wall_s ?? 0, merges: b.merges, speed: b.speed }))} />

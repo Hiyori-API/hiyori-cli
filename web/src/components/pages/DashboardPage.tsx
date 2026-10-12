@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, AlertTriangle, Archive, CircleDot, Database, Gauge, Hash, Layers,
+  Activity, Archive, CircleDot, Database, Gauge, Hash, Layers,
   Play, Pause, RotateCcw, Timer, X,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
@@ -13,6 +13,8 @@ import { useSmartPolling, useSettings } from '@/lib/hooks'
 import { COLORS } from '../charts'
 import { postAction, type Job } from '@/lib/api'
 import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
+import { pushAlerts } from '@/lib/alerts'
+import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, PipelineFunnel, SeriesChartCard } from '../chartcard'
 import { EmptyState } from '../empty'
 
@@ -49,7 +51,6 @@ export function DashboardPage() {
   const [focus, setFocus] = useState<string | null>(null)
   const [win, setWin] = useState(100)
   const startedAt = useRef(Date.now())
-  const [dismissed, setDismissed] = useState<string | null>(null)
 
   const [rateSeries, setRateSeries] = useState<Record<string, number[]>>({})
   const [countSeries, setCountSeries] = useState<Record<string, number[]>>({})
@@ -110,7 +111,6 @@ export function DashboardPage() {
   ]
   const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})
   const extApis = Object.entries(health?.external_apis?.endpoints ?? {})
-  const alerts = (data?.alerts ?? []).filter(a => a.msg !== dismissed)
 
   const funnel = useMemo(() => {
     const ingest = totalDocs
@@ -140,6 +140,13 @@ export function DashboardPage() {
 
   const dataReady = !!data || !!error
 
+  useEffect(() => {
+    if (!data) return
+    if (visible('alerts')) {
+      pushAlerts(data.alerts ?? [])
+    }
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-4">
       <PageHead
@@ -166,18 +173,6 @@ export function DashboardPage() {
 
       {data && (
         <>
-          {alerts.length > 0 && visible('alerts') && (
-            <div className="space-y-2">
-              {alerts.map((a, i) => (
-                <div key={i} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${a.level === 'critical' ? 'border-red-500/50 bg-red-500/10 text-red-500' : 'border-amber-500/50 bg-amber-500/10 text-amber-500'}`}>
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="flex-1">{a.msg}</span>
-                  <Button size="sm" variant="ghost" onClick={() => setDismissed(a.msg ?? null)}>dismiss</Button>
-                </div>
-              ))}
-            </div>
-          )}
-
           {visible('kpi') && (
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiCard label="Total docs" value={fmt(totalDocs)} icon={Database} sub={`${fmt(activeJobs.length)} active sources`} color={COLORS[0]} id="kpi-docs" />
@@ -196,6 +191,7 @@ export function DashboardPage() {
                   {jobKeys.map(k => {
                     const job = jobs[k] as Job
                     const src = String(job.source ?? k)
+                    const srcStatus = sourceStatus(data?.health, src)
                     const pct = job.total ? Math.min(100, ((job.processed ?? 0) / job.total) * 100) : 0
                     const pending = Math.max(0, (job.total ?? 0) - (job.processed ?? 0))
                     const isFocus = focus === src
@@ -203,8 +199,10 @@ export function DashboardPage() {
                       <div key={k} className={`rounded-lg border p-3 ${isFocus ? 'border-primary/60 bg-primary/5' : ''}`}>
                         <div className="flex flex-wrap items-center gap-3">
                           <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setFocus(isFocus ? null : src)} title="Drill down">
+                            {srcStatus.level !== 'none' && <SourceStatusBlip status={srcStatus} />}
                             <CircleDot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                             <span className="font-medium">{src}</span>
+                            <SourceStatusLabel status={srcStatus} />
                             <Badge variant={job.phase === 'done' ? 'secondary' : 'outline'}>{job.phase ?? 'idle'}</Badge>
                             <span className="text-xs text-muted-foreground">{job.mode ?? ''}</span>
                           </button>
