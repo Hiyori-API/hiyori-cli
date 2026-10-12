@@ -314,3 +314,58 @@ We're only using metadata to create a relation score if there's no direct refere
 
 > [!IMPORTANT]
 > Hiyori is not affiliated with any sources. You are responsible for the usage of this tool. Please be respectful of the terms and conditions set by these sources.
+
+---
+
+## Live Dashboard
+
+A live ops dashboard (React + shadcn/ui frontend, PHP backend) that monitors ingestion, validation, and combine in real time.
+
+```console
+# Serve the dashboard (UI + API + Prometheus metrics on one port)
+php hiyori dashboard:serve --port 8080
+
+# Optional access token
+php hiyori dashboard:serve --port 8080 --token mysecret
+```
+
+Open <http://localhost:8080>. The SPA is served from `web/dist` (committed, no build step needed);
+run `cd web && npm run build` after frontend changes.
+
+### Endpoints
+
+| Path | Purpose |
+|------|---------|
+| `/` | Dashboard SPA |
+| `/api/status` | Aggregated snapshot (counts, jobs, db, controls, cache, health, validation, coverage, alerts, slow, schedule) |
+| `/api/counts` | Per-collection counts |
+| `/api/db` | DB size/index/docs stats |
+| `/api/jobs` | Ingestion telemetry (per source: processed/saved/skipped/errors/speed/ETA) |
+| `/api/health` | External API latency + Mongo + disk/mem |
+| `/api/validate` | Recent validation violations |
+| `/api/coverage` | Reference-shorthand coverage matrix per collection |
+| `/api/benchmark` | Seeded 3-strategy comparison + latest combine |
+| `/api/alerts` | Anomaly evaluation (circuit open, low tokens, API down); posts to `WEBHOOK_URL` when set |
+| `/api/sample` | Random doc for the merge sampler |
+| `/api/slow` | Request latency extremes (>2s) |
+| `/api/schedule` | Scheduled-run info |
+| `/api/action?job=&cmd=pause\|resume\|retry` | Control jobs |
+| `/api/backup?run=1` | Trigger async mongodump |
+| `/api/events` | SSE stream of status snapshots |
+| `/metrics` | Prometheus text |
+
+### Telemetry & control files
+
+- `storage/state/ingest-<source>.json` — live ingestion status (written by the ingest loops)
+- `storage/state/control-<source>.json` — `{"paused": true}` pauses that source (polls every second)
+- `storage/state/validation-log.jsonl` — validation violation feed
+- `storage/state/slow-requests.jsonl` — requests slower than 2s
+
+### Webhook alerts
+
+Set `WEBHOOK_URL` (and optionally `SCHEDULE_SOURCES`, `SCHEDULE_INTERVAL`) in `.env`; alerts are
+posted once per identity per hour.
+
+### PWA
+
+The dashboard is installable (manifest + service worker) and falls back to cached data when offline.

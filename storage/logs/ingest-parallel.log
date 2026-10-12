@@ -10108,3 +10108,1061 @@ Ingestion: AniList
  1163/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
  2904/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
 4412/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2905/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4413/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4414/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2906/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4415/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2907/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+ 1164/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4416/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4417/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2908/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4418/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2909/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4419/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4420/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1165/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2910/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4421/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2911/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4422/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4423/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2912/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4424/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1166/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2913/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4425/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4426/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2914/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4427/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2915/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4428/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1167/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4429/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2916/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4430/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2917/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4431/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2918/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4432/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4433/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1168/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2919/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4434/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2920/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4435/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4436/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2921/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4437/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1169/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2922/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4438/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4439/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2923/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4440/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2924/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4441/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1170/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4442/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2925/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4443/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2926/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4444/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4445/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2927/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+ 1171/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4446/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2928/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4447/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4448/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2929/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4449/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  88% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2930/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4450/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1172/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2931/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4451/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2932/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4452/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4453/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2933/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4454/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2934/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+ 1173/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4455/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4456/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2935/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4457/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2936/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4458/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1174/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4459/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2937/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4460/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2938/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4461/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4462/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2939/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1175/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4463/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2940/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4464/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2941/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4465/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4466/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2942/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+ 1176/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4467/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2943/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4468/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4469/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2944/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4470/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1177/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2945/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4471/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4472/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2946/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4473/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2947/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4474/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4475/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1178/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2948/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4476/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2949/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4477/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4478/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2950/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4479/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2951/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+ 1179/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4480/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4481/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2952/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4482/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2953/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4483/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] kitsu entry validation issues: synonyms=synonyms must be an array of strings
+
+ 1180/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2954/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4484/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4485/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2955/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4486/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2956/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4487/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4488/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2957/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs, 1 min MEM:16.0 MiB
+4489/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1181/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2958/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4490/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4491/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2959/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4492/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2960/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4493/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1182/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4494/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2961/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4495/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2962/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4496/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4497/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2963/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1183/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4498/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2964/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4499/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  89% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4500/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2965/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 2966/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4501/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1184/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4502/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2967/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4503/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2968/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4504/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] kitsu entry validation issues: synonyms=synonyms must be an array of strings
+
+ 1185/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4505/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2969/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4506/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2970/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4507/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4508/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2971/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1186/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4509/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2972/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4510/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4511/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2973/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4512/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2974/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1187/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4513/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4514/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2975/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4515/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2976/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4516/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1188/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4517/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2977/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4518/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2978/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4519/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4520/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2979/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1189/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4521/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2980/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4522/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4523/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2981/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4524/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1190/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2982/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4525/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2983/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4526/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4527/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2984/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4528/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1191/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2985/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4529/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4530/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2986/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4531/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4532/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2987/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1192/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4533/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2988/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4534/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2989/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4535/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4536/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1193/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2990/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4537/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2991/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4538/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4539/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2992/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4540/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1194/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 2993/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4541/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4542/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2994/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+4543/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2995/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB
+ 1195/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4544/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4545/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2996/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4546/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2997/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4547/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1196/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4548/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2998/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4549/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  90% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 2999/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  11% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4550/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3000/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1197/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4551/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4552/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4553/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3001/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4554/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1198/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3002/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4555/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4556/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3003/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4557/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3004/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4558/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1199/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4559/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3005/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4560/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3006/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4561/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4562/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3007/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1200/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4563/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3008/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4564/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4565/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3009/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4566/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3010/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4567/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1201/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3011/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4568/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4569/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3012/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4570/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3013/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4571/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1202/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4572/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3014/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4573/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3015/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4574/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4575/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1203/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3016/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4576/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3017/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4577/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4578/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3018/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1204/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4579/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3019/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4580/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4581/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3020/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4582/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1205/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3021/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4583/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4584/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3022/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4585/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3023/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4586/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1206/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4587/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3024/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4588/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3025/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4589/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4590/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3026/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1207/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4591/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3027/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4592/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4593/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3028/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1208/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4594/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3029/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4595/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3030/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4596/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4597/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3031/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1209/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4598/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3032/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4599/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  91% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4600/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3033/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1210/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3034/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4601/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4602/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3035/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4603/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4604/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3036/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+ 1211/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4605/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3037/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4606/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3038/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4607/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1212/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4608/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3039/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4609/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3040/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4610/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4611/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3041/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4612/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1213/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3042/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4613/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4614/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3043/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:10 hrs, 59 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4615/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3044/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4616/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1214/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4617/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3045/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:10 hrs, 59 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4618/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3046/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs MEM:16.0 MiB
+4619/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1215/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4620/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3047/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:10 hrs, 59 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4621/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4622/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4623/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1216/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4624/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4625/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4626/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4627/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1217/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4628/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4629/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4630/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4631/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1218/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4632/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4633/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4634/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1219/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4635/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4636/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4637/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4638/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1220/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4639/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4640/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4641/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4642/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1221/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4643/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4644/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4645/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4646/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4647/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1222/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4648/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4649/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  92% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4650/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1223/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4651/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3048/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4652/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3049/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4653/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1224/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4654/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3050/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4655/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3051/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4656/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4657/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3052/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+ 1225/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4658/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3053/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4659/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings; references=references must be a non-empty array of valid URLs
+
+4660/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3054/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4661/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1226/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3055/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4662/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4663/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3056/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4664/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3057/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4665/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1227/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4666/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3058/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4667/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3059/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: references=references must be a non-empty array of valid URLs
+
+4668/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4669/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3060/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+ 1228/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4670/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3061/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4671/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3062/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB
+4672/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1229/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4673/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3063/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4674/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3064/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4675/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4676/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3065/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1230/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4677/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3066/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 4 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4678/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4679/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3067/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4680/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1231/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3068/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4681/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4682/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3069/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4683/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3070/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4684/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1232/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4685/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3071/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4686/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3072/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4687/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1233/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4688/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3073/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4689/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3074/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4690/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4691/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3075/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1234/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4692/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3076/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4693/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4694/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3077/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4695/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1235/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3078/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4696/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4697/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3079/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4698/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3080/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1236/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4699/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  93% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4700/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3081/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 3082/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4701/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1237/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4702/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3083/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4703/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3084/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4704/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4705/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3085/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1238/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4706/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4707/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3086/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4708/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3087/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4709/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1239/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4710/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3088/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4711/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3089/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4712/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4713/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3090/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1240/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4714/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3091/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4715/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4716/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3092/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4717/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4718/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3093/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1241/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4719/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3094/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4720/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4721/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3095/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4722/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1242/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3096/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4723/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4724/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3097/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4725/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3098/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1243/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4726/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4727/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3099/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4728/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3100/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4729/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1244/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4730/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3101/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4731/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3102/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4732/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4733/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3103/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1245/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4734/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3104/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4735/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4736/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3105/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4737/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1246/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3106/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4738/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 27 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4739/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3107/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4740/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4741/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3108/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1247/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4742/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3109/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4743/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4744/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3110/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4745/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1248/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4746/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3111/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4747/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3112/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4748/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1249/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4749/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  94% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3113/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4750/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3114/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4751/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3115/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1250/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4752/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3116/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4753/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4754/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3117/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4755/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3118/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4756/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1251/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4757/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3119/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4758/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3120/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4759/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 1252/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3121/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4760/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 27 mins MEM:16.0 MiB
+4761/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3122/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4762/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3123/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4763/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1253/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4764/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3124/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4765/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3125/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4766/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4767/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1254/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3126/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4768/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3127/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4769/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4770/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3128/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4771/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1255/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3129/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4772/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4773/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3130/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4774/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3131/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1256/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4775/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4776/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3132/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4777/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3133/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4778/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1257/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4779/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3134/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4780/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3135/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4781/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4782/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1258/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3136/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4783/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3137/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4784/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4785/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3138/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1259/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4786/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3139/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4787/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4788/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3140/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4789/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3141/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1260/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4790/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4791/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3142/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4792/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3143/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4793/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1261/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3144/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4794/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4795/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3145/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4796/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3146/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4797/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 1262/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4798/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3147/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4799/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  95% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4800/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3148/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 3149/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+ 1263/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4801/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4802/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3150/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4803/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3151/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4804/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1264/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4805/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3152/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4806/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 27 mins MEM:16.0 MiB
+ 3153/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4807/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3154/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4808/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1265/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4809/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3155/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4810/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3156/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4811/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4812/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3157/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1266/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4813/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3158/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4814/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4815/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3159/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4816/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1267/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3160/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4817/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4818/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3161/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB
+4819/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3162/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1268/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4820/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4821/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3163/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 3 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4822/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3164/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4823/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1269/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4824/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3165/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4825/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3166/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB
+4826/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4827/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3167/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1270/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4828/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3168/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4829/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4830/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3169/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4831/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1271/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3170/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4832/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4833/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3171/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4834/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3172/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB
+4835/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1272/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+ 3173/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4836/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+4837/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3174/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4838/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3175/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] kitsu entry validation issues: references=references must be a non-empty array of valid URLs
+
+ 1273/22500 [▓░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5% | ETA:1 day  MEM:18.0 MiB
+4839/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4840/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
+ 3176/25000 [▓▓▓░░░░░░░░░░░░░░░░░░░░░░░]  12% | ETA:11 hrs, 2 mins MEM:16.0 MiB[validator] anilist entry validation issues: synonyms=synonyms must be an array of strings
+
+4841/5000 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░]  96% | ETA:1 hr, 26 mins MEM:16.0 MiB
