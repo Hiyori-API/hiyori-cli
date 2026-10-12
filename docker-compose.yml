@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: hiyori-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: hiyori
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ping:1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hiyori-network
+
+  hiyori:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hiyori-cli
+    restart: unless-stopped
+    environment:
+      - APP_ENV=prod
+      - APP_DEBUG=false
+      - APP_VERSION=1.0.0
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MAL_CLIENT_ID=${MAL_CLIENT_ID}
+      - MAL_CLIENT_SECRET=${MAL_CLIENT_SECRET}
+      - RATE_LIMIT_MAX=100
+      - RATE_LIMIT_WINDOW=60
+      - HTTP_CACHE=true
+      - HTTP_CACHE_PATH=/storage/cache
+      - HTTP_CACHE_TTL=3600
+      - PROGRESSBAR_FORMAT="%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%"
+      - PROGRESSBAR_REDRAW_FREQ=1
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - hiyori-network
+
+  # Optional: Prometheus for metrics scraping
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: hiyori-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - hiyori
+    networks:
+      - hiyori-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: hiyori-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - hiyori-network
+    profiles:
+      - monitoring
+
+volumes:
+  mongodb_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  hiyori-network:
+    driver: bridge

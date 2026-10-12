@@ -15,10 +15,7 @@ class SourceConfiguration
     private ?int $resumePage = null;
 
     /**
-     * @param string $name
-     * @param string $table
-     * @param string $shorthand
-     * @param string $jsonId
+     * @param array{name: string, table: string, shorthand: string, json_id: string, ingestion_service: string} $config
      */
     public function __construct(array $config)
     {

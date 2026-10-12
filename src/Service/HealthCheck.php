@@ -4,13 +4,12 @@ namespace Hiyori\Service;
 
 use MongoDB\Client;
 use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 final class HealthCheck
 {
     public function __construct(
         private Client $mongoClient,
-        private MetricsCollector $metrics,
         private RateLimiter $rateLimiter
     ) {}
 
@@ -121,7 +120,7 @@ final class HealthCheck
                     'latency_ms' => round($duration * 1000, 2),
                     'status_code' => $status,
                 ];
-            } catch (\Symfony\Component\HttpClient\Exception\TransportExceptionInterface $e) {
+            } catch (TransportExceptionInterface $e) {
                 $allHealthy = false;
                 $results[$name] = [
                     'healthy' => false,

@@ -32,8 +32,6 @@ $container->autowire(\Hiyori\Service\SourceConfigurationFactory::class)
     ->setFactory([\Hiyori\Service\SourceConfigurationFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\StrategyConfigurationFactory::class)
     ->setFactory([\Hiyori\Service\StrategyConfigurationFactory::class, 'create']);
-$container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);
-$container->autowire(\Hiyori\Service\Combiner\Combiner::class);
 $container->autowire(\Hiyori\Service\RateLimiter::class)
     ->setArguments([
         '%rate_limit.max_requests%',
@@ -49,6 +47,8 @@ $container->autowire(\Hiyori\Service\HealthCheck::class)
             (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60)
         ),
     ]);
+$container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);
+$container->autowire(\Hiyori\Service\Combiner\Combiner::class);
 $container->autowire(\Hiyori\Hiyori::class)
     ->setPublic(true);
 

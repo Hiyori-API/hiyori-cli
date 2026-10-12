@@ -8,6 +8,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
+use MongoDB\Collection;
 
 final class MetadataFuzzyStrategy extends CombinerStrategy
 {
@@ -32,8 +33,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $threshold = (float) ($strategy->getConfig('threshold') ?? 70.0);
 
         $tableName = $source->get()->getTable();
-        $total = $db->getClient()->hiyori->{$tableName}->countDocuments();
-        $cursor = $db->getClient()->hiyori->{$tableName}->find();
+        /** @var Collection $baseCollection */
+        $baseCollection = $db->getCollection($tableName);
+        $total = $baseCollection->countDocuments();
+        $cursor = $baseCollection->find();
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
@@ -86,7 +89,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         array $weights,
         float $threshold
     ): ?array {
-        $collection = $db->getClient()->hiyori->{$targetTable};
+        /** @var Collection $collection */
+        $collection = $db->getCollection($targetTable);
         
         // First, try to narrow candidates by exact fields (type, status, year)
         $filter = [];
@@ -182,6 +186,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $intersection = count(array_intersect_key($set1, $set2));
         $union = count(array_merge($set1, $set2));
 
+        /** @var int $union */
         return $union > 0 ? $intersection / $union : 0.0;
     }
 }

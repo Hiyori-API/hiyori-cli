@@ -4,7 +4,7 @@ namespace Hiyori\Commands;
 
 use Hiyori\Helper;
 use Hiyori\Hiyori;
-use MongoDB\Client;
+use MongoDB\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -50,7 +50,6 @@ final class ExportCommand extends Command
         $pretty = $input->getOption('pretty');
 
         $db = $this->hiyori->getDatabase();
-        $client = $db->getClient();
 
         $validSources = ['myanimelist', 'anilist', 'kitsu', 'organized'];
         if (!in_array($source, $validSources)) {
@@ -59,7 +58,8 @@ final class ExportCommand extends Command
             return Command::FAILURE;
         }
 
-        $collection = $client->hiyori->{$source};
+        /** @var Collection $collection */
+        $collection = $db->getCollection($source);
 
         // Build projection
         $projection = ['_id' => 0];

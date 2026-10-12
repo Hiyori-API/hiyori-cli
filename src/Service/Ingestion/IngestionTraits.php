@@ -5,7 +5,8 @@ namespace Hiyori\Service\Ingestion;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
-use MongoDB\Client;
+use JMS\Serializer\Serializer;
+use MongoDB\Collection;
 
 trait IngestionTraits
 {
@@ -23,7 +24,7 @@ trait IngestionTraits
                 $lastException = $e;
                 if ($attempt < $maxRetries) {
                     $delay = $baseDelayMs * (2 ** ($attempt - 1));
-                    $this->console->warning(
+                    $this->console->io()->info(
                         "Attempt $attempt/$maxRetries failed: {$e->getMessage()}. Retrying in {$delay}ms..."
                     );
                     usleep($delay * 1000);
@@ -50,12 +51,13 @@ trait IngestionTraits
         $idValue = $data['reference_ids'][$shorthand] ?? null;
 
         if ($updateExisting && $idValue !== null) {
-            return $db->getClient()->hiyori->{$table}
-                ->replaceOne(
-                    ['reference_ids.' . $shorthand => $idValue],
-                    $data,
-                    ['upsert' => true]
-                );
+            /** @var Collection $collection */
+            $collection = $db->getCollection($table);
+            return $collection->replaceOne(
+                ['reference_ids.' . $shorthand => $idValue],
+                $data,
+                ['upsert' => true]
+            );
         }
 
         return $db->save($table, $entry);
@@ -106,7 +108,7 @@ trait IngestionTraits
 
     private function serializeEntry(Database $db, \Hiyori\Models\Common\Base $entry): array
     {
-        return $db->getSerializer()->getSerializer()
-            ->toArray($entry, (new \JMS\Serializer\SerializationContext())->setSerializeNull(true));
+        $serializer = $db->getSerializer();
+        return $serializer->toArray($entry, (new \JMS\Serializer\SerializationContext())->setSerializeNull(true));
     }
 }

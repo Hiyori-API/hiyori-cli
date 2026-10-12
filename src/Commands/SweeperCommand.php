@@ -4,7 +4,7 @@ namespace Hiyori\Commands;
 
 use Hiyori\Helper;
 use Hiyori\Hiyori;
-use MongoDB\Client;
+use MongoDB\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -65,7 +65,8 @@ final class SweeperCommand extends Command
         $totalRemoved = 0;
 
         foreach ($sources as $src) {
-            $collection = $client->hiyori->{$src};
+            /** @var Collection $collection */
+            $collection = $client->selectDatabase('hiyori')->selectCollection($src);
 
             if ($orphans) {
                 $removed = $this->removeOrphans($collection, $dryRun, $io);
@@ -91,7 +92,7 @@ final class SweeperCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function removeOrphans($collection, bool $dryRun, SymfonyStyle $io): int
+    private function removeOrphans(Collection $collection, bool $dryRun, SymfonyStyle $io): int
     {
         $filter = [
             '$or' => [
@@ -114,7 +115,7 @@ final class SweeperCommand extends Command
         return $count;
     }
 
-    private function removeDuplicates($collection, bool $dryRun, SymfonyStyle $io): int
+    private function removeDuplicates(Collection $collection, bool $dryRun, SymfonyStyle $io): int
     {
         $pipeline = [
             [
@@ -144,7 +145,7 @@ final class SweeperCommand extends Command
         return $duplicates;
     }
 
-    private function removeIncomplete($collection, bool $dryRun, SymfonyStyle $io): int
+    private function removeIncomplete(Collection $collection, bool $dryRun, SymfonyStyle $io): int
     {
         $filter = [
             '$or' => [

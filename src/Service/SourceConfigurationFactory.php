@@ -9,6 +9,7 @@ final class SourceConfigurationFactory
 {
     private array $sources;
     private string $current;
+
     public static function create(): self
     {
         $self = new self();
@@ -24,7 +25,7 @@ final class SourceConfigurationFactory
 
     public function get(?string $sourceName = null): SourceConfiguration
     {
-        if (!is_null($this->current)) {
+        if ($this->current !== '') {
             return $this->sources[$this->current];
         }
 
@@ -41,7 +42,7 @@ final class SourceConfigurationFactory
     }
 
     /**
-     * @return array
+     * @return array<string, SourceConfiguration>
      */
     public function getSources(): array
     {

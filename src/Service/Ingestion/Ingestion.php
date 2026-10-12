@@ -4,6 +4,7 @@ namespace Hiyori\Service\Ingestion;
 
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
 
 class Ingestion
@@ -12,6 +13,7 @@ class Ingestion
         private Database $db,
         private ConsoleFactory $console,
         private SourceConfigurationFactory $sources,
+        private RateLimiter $rateLimiter,
     )
     {
     }
@@ -21,6 +23,6 @@ class Ingestion
         $this->console->io()
             ->section("Ingestion: ".$this->sources->get()->getName());
 
-        call_user_func($this->sources->get()->getIngestionService()."::process", $this->db, $this->console, $this->sources);
+        call_user_func($this->sources->get()->getIngestionService()."::process", $this->db, $this->console, $this->sources, $this->rateLimiter);
     }
 }

@@ -11,17 +11,17 @@ use Hiyori\Requests\Kitsu\KitsuEntryMappings;
 use Hiyori\Requests\Kitsu\KitsuEntryStreamingLinks;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
 
 final class KitsuIngestion
 {
     public static function process(
-        Database $db, ConsoleFactory $console, SourceConfigurationFactory $sources
-    ): void
-    {
-        $meta = KitsuEntryListMeta::create()
-            ->setCurrentPage(0);
+        Database $db, ConsoleFactory $console, SourceConfigurationFactory $sources, RateLimiter $rateLimiter
+    ): void {
+        $meta = KitsuEntryListMeta::create()->setCurrentPage(0);
         $config = $sources->get();
+        $sourceKey = 'kitsu';
 
         $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
@@ -30,27 +30,46 @@ final class KitsuIngestion
 
         while ($meta->getCurrentPage() <= $meta->getTotalEntries()) {
             $currentPage = $meta->getCurrentPage();
-            $list = KitsuEntryList::create($currentPage);
+
+            $list = $rateLimiter->executeWithRetry(
+                fn() => KitsuEntryList::create($currentPage),
+                $sourceKey,
+                3,
+                1000,
+                2.0
+            );
 
             foreach ($list->getList() as $listItem) {
+                $itemId = $listItem[$config->getJsonId()];
 
-                if ($db->exists(
-                    $config->getTable(),
-                    $config->getShorthand(),
-                    $listItem[$config->getJsonId()],
-                )) {
+                if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
                     $progressBar->advance();
                     continue;
                 }
 
+                $rateLimiter->waitForToken($sourceKey, 1, 60);
+
                 sleep($sources->get()->getDelay());
 
+                $listItemData = null;
                 try {
-                    $mappings = KitsuEntryMappings::create($listItem[$config->getJsonId()]);
-                    $streamingLinks = KitsuEntryStreamingLinks::create($listItem[$config->getJsonId()]);
+                    $mappings = $rateLimiter->executeWithRetry(
+                        fn() => KitsuEntryMappings::create($itemId),
+                        $sourceKey, 3, 1000, 2.0
+                    );
+                    $streamingLinks = $rateLimiter->executeWithRetry(
+                        fn() => KitsuEntryStreamingLinks::create($itemId),
+                        $sourceKey, 3, 1000, 2.0
+                    );
                     sleep($sources->get()->getDelay());
-                    $genres = KitsuEntryGenres::create($listItem[$config->getJsonId()]);
-                    $categories = KitsuEntryCategories::create($listItem[$config->getJsonId()]);
+                    $genres = $rateLimiter->executeWithRetry(
+                        fn() => KitsuEntryGenres::create($itemId),
+                        $sourceKey, 3, 1000, 2.0
+                    );
+                    $categories = $rateLimiter->executeWithRetry(
+                        fn() => KitsuEntryCategories::create($itemId),
+                        $sourceKey, 3, 1000, 2.0
+                    );
 
                     $listItemData = array_merge($listItem,
                         ['streaming' => $streamingLinks->getData()],
@@ -60,18 +79,16 @@ final class KitsuIngestion
                     );
 
                 } catch (\Exception $e) {
-                    $console->io()->error("[".$listItem[$config->getJsonId()."] ".$e->getMessage()]);
+                    $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
-                $db->save(
-                    $config->getTable(),
-                    KitsuBase::create($listItemData)
-                );
+                if ($listItemData !== null) {
+                    $db->save($config->getTable(), KitsuBase::create($listItemData));
+                }
                 $progressBar->advance();
             }
 
-            $meta->setCurrentPage($meta->getCurrentPage()+20);
-            sleep($sources->get()->getDelay());
+            $meta->setCurrentPage($meta->getCurrentPage() + 20);
         }
 
         $progressBar->finish();

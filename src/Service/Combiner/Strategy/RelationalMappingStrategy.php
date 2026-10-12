@@ -8,6 +8,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
+use MongoDB\Collection;
 
 final class RelationalMappingStrategy extends CombinerStrategy
 {
@@ -15,11 +16,12 @@ final class RelationalMappingStrategy extends CombinerStrategy
 
     public static function process(
         Database $db, ConsoleFactory $console, StrategyConfigurationFactory $strategy, SourceConfigurationFactory $source
-    ): void
-    {
+    ): void {
         $tableName = $source->get()->getTable();
-        $total = $db->getClient()->hiyori->{$tableName}->countDocuments();
-        $cursor = $db->getClient()->hiyori->{$tableName}->find();
+        /** @var Collection $baseCollection */
+        $baseCollection = $db->getCollection($tableName);
+        $total = $baseCollection->countDocuments();
+        $cursor = $baseCollection->find();
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
@@ -29,27 +31,29 @@ final class RelationalMappingStrategy extends CombinerStrategy
 
         $totalMerged = 0;
         foreach ($cursor as $id => $entry) {
+            $entryArray = Helper::convertMongoResultToArray($entry);
             foreach ($availableSources as $currentSource) {
                 // skip if it's the same source as base source
                 if ($currentSource->getTable() === $tableName) {
                     continue;
                 }
 
+                $sourceShorthand = $source->get()->getShorthand();
                 if ($db->exists(
                     $currentSource->getTable(),
                     $currentSource->getShorthand(),
-                    $entry->reference_ids->{$source->get()->getShorthand()}
+                    $entryArray['reference_ids'][$sourceShorthand] ?? ''
                 )) {
                     $matchEntry = $db->get(
                         $currentSource->getTable(),
                         $currentSource->getShorthand(),
-                        $entry->reference_ids->{$source->get()->getShorthand()},
+                        $entryArray['reference_ids'][$sourceShorthand] ?? '',
                         true
                     );
 
                     $db->mergeIntoOrganized(
                         AnimeBase::merge(
-                            Helper::convertMongoResultToArray($entry),
+                            $entryArray,
                             $matchEntry
                         ),
                         $source->get()->getShorthand(),

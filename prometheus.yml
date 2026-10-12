@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'hiyori'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['hiyori:9090']
+    # Note: hiyori CLI doesn't have an HTTP server for metrics
+    # This would need a small HTTP server wrapper or push gateway
+
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb:27017']
