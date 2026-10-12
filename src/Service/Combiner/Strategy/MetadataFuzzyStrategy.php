@@ -24,14 +24,16 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * Sum does not need to be 100; weights are normalized at runtime.
      */
     private const DEFAULT_WEIGHTS = [
-        'title' => 31,
+        // Optimized via `hiyori weightage` (discrimination-gap) on 600 matched
+        // MAL<->AniList pairs; benchmark-validated (10,770 organized vs 6,873 fuzzy).
+        'title' => 26.4,
         'synonyms' => 0,
-        'type' => 6,
-        'episodes' => 31,
-        'status' => 0,
-        'season' => 14,
-        'year' => 15,
-        'tags' => 3,
+        'type' => 5.7,
+        'episodes' => 26.2,
+        'status' => 0.6,
+        'season' => 16.4,
+        'year' => 23.2,
+        'tags' => 1.5,
     ];
 
     public static function process(
