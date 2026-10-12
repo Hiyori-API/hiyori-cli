@@ -108,3 +108,16 @@ token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/lim
 - **Manga Status**: added `tba`/`unreleased` → not_yet_published; Kitsu manga synonyms filtered
   to strings (removes validator noise).
 - Management page source list now uses the real manga keys + display labels.
+
+## Alerting fixes (2026-10)
+
+- "External APIs unreachable" banner was firing on transient blips: `healthy` was
+  `status in 2xx` so a 429 (rate limit) counted as "unreachable", and Symfony followed
+  MAL's throttling redirect (307 -> api.myanimelist.net/error.json) into a hanging page
+  that timed out.
+- HealthCheck now distinguishes `reachable` (the API answered) from `healthy` (2xx):
+  - 429/3xx/5xx = reachable + degraded, never "unreachable"
+  - transport error / timeout = unreachable
+  - probes: timeout 10s, max_redirects 0 (don't chase error.json)
+- alerts() debounces: the critical banner needs 2+ consecutive unreachable polls within
+  120s; a sustained degraded state (3+ polls of 429/307) produces a soft WARN instead.

@@ -206,6 +206,29 @@ function benchmarkData(Telemetry $telemetry): array
     return ['seeded' => $seed, 'latest' => $combine];
 }
 
+function outageDebounce(Telemetry $telemetry, bool $unreachable): bool
+{
+    // Only raise the "unreachable" alert after a couple of consecutive failed
+    // probes and only while the outage is recent — a single rate-limit blip
+    // (429) or one poll timeout must not flash the banner.
+    $state = $telemetry->read('api-outage');
+    $count = (int) ($state['count'] ?? 0);
+    if ($unreachable) {
+        $count++;
+        $telemetry->update('api-outage', ['count' => $count, 'last_failed' => time()]);
+    } else {
+        $prev = (int) ($state['degraded_count'] ?? 0);
+        $deg = $prev >= 3 ? 0 : $prev;
+        $telemetry->update('api-outage', [
+            'count' => 0,
+            'last_failed' => null,
+            'degraded_count' => max(0, $count === 0 ? $deg : $deg),
+        ]);
+    }
+
+    return $count >= 2 && (time() - (int) ($state['last_failed'] ?? 0)) < 120;
+}
+
 function alerts(HealthCheck $health, Telemetry $telemetry): array
 {
     $out = [];
@@ -219,8 +242,33 @@ function alerts(HealthCheck $health, Telemetry $telemetry): array
             $out[] = ['level' => 'warn', 'type' => 'low_tokens', 'source' => $src, 'msg' => "Rate limit nearly exhausted for $src"];
         }
     }
-    if (!($h['checks']['external_apis']['healthy'] ?? true)) {
+
+    // "Unreachable" now means the probe got no HTTP response at all (transport
+    // error / 5s timeout). 429 rate-limits are reachable and ignored here.
+    $apis = $h['checks']['external_apis'] ?? [];
+    $reachable = $apis['all_reachable'] ?? ($apis['healthy'] ?? true);
+    if (!$reachable && outageDebounce($telemetry, true)) {
         $out[] = ['level' => 'critical', 'type' => 'api_down', 'source' => '*', 'msg' => 'One or more external APIs unreachable'];
+    } elseif ($reachable) {
+        outageDebounce($telemetry, false);
+    }
+
+    // Degraded (429 etc.) feedback — soft warning, only when sustained.
+    if (($apis['healthy'] ?? true) === false && ($apis['all_reachable'] ?? true)) {
+        $hits = [];
+        foreach ($apis['endpoints'] ?? [] as $name => $ep) {
+            if (($ep['healthy'] ?? true) === false) {
+                $hits[] = $name . ($ep['note'] === 'rate_limited' ? ' (429)' : '');
+            }
+        }
+        if ($hits !== []) {
+            $st = $telemetry->read('api-outage');
+            $dec = (int) ($st['degraded_count'] ?? 0) + 1;
+            $telemetry->update('api-outage', array_merge($st, ['degraded_count' => $dec]));
+            if ($dec >= 3) {
+                $out[] = ['level' => 'warn', 'type' => 'api_degraded', 'source' => '*', 'msg' => 'External APIs degraded: ' . implode(', ', $hits)];
+            }
+        }
     }
 
     // Webhook delivery (throttled: once per alert identity per hour)
