@@ -37,8 +37,17 @@ class IngestionTest extends TestCase
         }
     }
 
+
+    private function requireNetwork(): void
+    {
+        if (getenv('HIHYORI_NETWORK_TESTS') !== '1') {
+            $this->markTestSkipped('set HIHYORI_NETWORK_TESTS=1 to run live API fetch tests');
+        }
+    }
+
     public function testAniListEntryListFetch(): void
     {
+        $this->requireNetwork();
         $page = 1;
         $list = \Hiyori\Requests\AniList\AniListEntryList::create($page);
         $entries = $list->getList();
@@ -50,6 +59,7 @@ class IngestionTest extends TestCase
 
     public function testAniListEntryListMetaFetch(): void
     {
+        $this->requireNetwork();
         $meta = \Hiyori\Requests\AniList\AniListEntryListMeta::create();
         $this->assertGreaterThan(0, $meta->getTotalEntries());
         $this->assertGreaterThan(0, $meta->getLastPage());
@@ -57,6 +67,7 @@ class IngestionTest extends TestCase
 
     public function testKitsuEntryListFetch(): void
     {
+        $this->requireNetwork();
         $page = 0;
         $list = \Hiyori\Requests\Kitsu\KitsuEntryList::create($page);
         $entries = $list->getList();
@@ -68,12 +79,14 @@ class IngestionTest extends TestCase
 
     public function testKitsuEntryListMetaFetch(): void
     {
+        $this->requireNetwork();
         $meta = \Hiyori\Requests\Kitsu\KitsuEntryListMeta::create();
         $this->assertGreaterThan(0, $meta->getTotalEntries());
     }
 
     public function testKitsuAdditionalFetches(): void
     {
+        $this->requireNetwork();
         $page = 0;
         $list = \Hiyori\Requests\Kitsu\KitsuEntryList::create($page);
         $firstId = $list->getList()[0]['id'];
