@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { StatusPayload } from './api'
 import { openStatusStream } from './api'
 import { pushAlerts } from './alerts'
@@ -11,9 +11,12 @@ interface StatusCtx {
   refreshMs: number
   realtime: boolean
   setRealtime: (v: boolean) => void
+  sseOpen: boolean
+  sseReconnects: number
+  batterySaver: boolean
 }
 
-const Ctx = createContext<StatusCtx>({ data: null, error: null, intervalMs: 3000, refreshMs: 3000, realtime: false, setRealtime: () => {} })
+const Ctx = createContext<StatusCtx>({ data: null, error: null, intervalMs: 3000, refreshMs: 3000, realtime: false, setRealtime: () => {}, sseOpen: false, sseReconnects: 0, batterySaver: false })
 
 /**
  * Single source of truth for /api/status.
@@ -26,10 +29,37 @@ export function StatusProvider({ children }: { children: ReactNode }) {
   const { settings, update } = useSettings()
   const realtime = settings.prefs?.realtime === true
   const refreshMs = settings.prefs?.refresh ?? 3000
-  const { data, error, intervalMs, setData } = useSmartPolling(realtime ? 15000 : refreshMs, true)
+
+  // Battery saver: slow the poll when on battery < 20% and not charging.
+  const [batterySaver, setBatterySaver] = useState(false)
+  useEffect(() => {
+    const nav = navigator as Navigator & { getBattery?: () => Promise<{ charging: boolean; level: number; addEventListener: (t: string, cb: () => void) => void; removeEventListener: (t: string, cb: () => void) => void }> }
+    if (!nav.getBattery) return
+    let battery: (ReturnType<NonNullable<typeof nav.getBattery>>) extends Promise<infer B> ? B : never | undefined
+    void nav.getBattery().then((b) => {
+      battery = b
+      const upd = () => setBatterySaver(!b.charging && b.level < 0.2)
+      upd()
+      b.addEventListener('levelchange', upd)
+      b.addEventListener('chargingchange', upd)
+    })
+    return () => {
+      if (battery) {
+        battery.removeEventListener('levelchange', () => setBatterySaver(false))
+      }
+    }
+  }, [])
+
+  const [sseOpen, setSseOpen] = useState(false)
+  const [sseReconnects, setSseReconnects] = useState(0)
+
+  const pollInterval = batterySaver ? 30000 : refreshMs
+  const { data, error, intervalMs, setData } = useSmartPolling(realtime ? 15000 : pollInterval, true)
 
   useEffect(() => {
     if (!realtime) return
+    setSseOpen(false)
+    setSseReconnects(0)
     const es = openStatusStream(
       (ev) =>
         setData(prev =>
@@ -42,8 +72,12 @@ export function StatusProvider({ children }: { children: ReactNode }) {
               }
             : prev,
         ),
-      () => undefined, // EventSource reconnects automatically
+      () => {
+        setSseOpen(false)
+        setSseReconnects(n => n + 1)
+      },
     )
+    es.addEventListener('open', () => setSseOpen(true))
     return () => es.close()
   }, [realtime, setData])
 
@@ -54,7 +88,7 @@ export function StatusProvider({ children }: { children: ReactNode }) {
   const setRealtime = (v: boolean) => void update({ prefs: { ...settings.prefs, realtime: v } })
 
   return (
-    <Ctx.Provider value={{ data, error, intervalMs, refreshMs, realtime, setRealtime }}>
+    <Ctx.Provider value={{ data, error, intervalMs, refreshMs, realtime, setRealtime, sseOpen, sseReconnects, batterySaver }}>
       {children}
     </Ctx.Provider>
   )

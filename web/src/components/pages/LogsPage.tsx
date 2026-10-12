@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart4, Clock, DatabaseZap, History, ListChecks, RefreshCw } from 'lucide-react'
+import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchHistory, type Job } from '@/lib/api'
+import { fetchHistory, type Job, type SlowEntry } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { timeStr } from '@/lib/format'
 import { useFailures } from '@/lib/fetch-cache'
 import { tzDateTime, type Tz } from '@/lib/time'
+import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
 
@@ -20,13 +22,12 @@ export function LogsPage() {
   const { failures } = useFailures()
   const [history, setHistory] = useState<Record<string, Job> | null>(null)
   const [srcFilter, setSrcFilter] = useState('all')
-  const [slowSort, setSlowSort] = useState<'ms' | 'ts'>('ms')
 
   useEffect(() => {
     void fetchHistory().then(r => setHistory(r.states ?? null))
   }, [])
 
-  const slow = (data?.slow ?? []).slice().sort((a, b) => (slowSort === 'ms' ? (b.ms ?? 0) - (a.ms ?? 0) : String(b.ts).localeCompare(String(a.ts))))
+  const slow = useMemo(() => data?.slow ?? [], [data])
   const validation = useMemo(() => {
     const list = failures.slice().sort((a, b) => String(b.ts).localeCompare(String(a.ts)))
     return srcFilter === 'all' ? list : list.filter(f => f.source === srcFilter)
@@ -45,12 +46,11 @@ export function LogsPage() {
     return Object.entries(buckets)
   }, [data])
 
-  const runs = useMemo(() => {
+  const runRows = useMemo(() => {
     if (!history) return []
     return Object.entries(history)
       .filter(([k]) => k.startsWith('ingest-'))
-      .map(([k, j]) => ({ key: k, job: j }))
-      .sort((a, b) => (b.job.started_at_ts ?? 0) - (a.job.started_at_ts ?? 0))
+      .map(([k, job]) => ({ key: k, job }))
   }, [history])
 
   const cache = data?.cache
@@ -67,30 +67,7 @@ export function LogsPage() {
         <Section title="Slow requests" icon={Clock} badge={<Badge variant="outline">{slow.length}</Badge>}>
           {error && !data ? <EmptyState icon={Clock} title="Backend offline" description="Start the dashboard server." /> :
             slow.length === 0 ? <EmptyState icon={Clock} title="No slow requests" description="Requests over 2 seconds appear here." /> : (
-              <div className="max-h-72 overflow-auto">
-                <table className="w-full text-xs">
-                  <thead className="text-left text-muted-foreground">
-                    <tr>
-                      <th className="px-2 py-1.5">
-                        <button onClick={() => setSlowSort(s => (s === 'ms' ? 'ts' : 'ms'))}>ms {slowSort === 'ms' ? '↓' : ''}</button>
-                      </th>
-                      <th className="px-2 py-1.5">method</th>
-                      <th className="px-2 py-1.5">url</th>
-                      <th className="px-2 py-1.5">time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {slow.slice(0, 40).map((s, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-2 py-1 tabular-nums text-amber-500">{s.ms}ms</td>
-                        <td className="px-2 py-1"><Badge variant="outline">{s.method ?? 'GET'}</Badge></td>
-                        <td className="max-w-[260px] truncate px-2 py-1 text-muted-foreground">{s.url}</td>
-                        <td className="px-2 py-1 text-muted-foreground">{timeStr(s.ts, tz)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <SlowTable slow={slow} tz={tz} />
             )}
         </Section>
 
@@ -142,35 +119,10 @@ export function LogsPage() {
         </Section>
 
         <Section title="Ingestion run history" icon={History}>
-          {!history ? <Skeleton className="h-32 w-full" /> : runs.length === 0 ? (
+          {!history ? <Skeleton className="h-32 w-full" /> : runRows.length === 0 ? (
             <EmptyState icon={History} title="No runs yet" description="Started/finished ingestion runs will be listed here." />
           ) : (
-            <div className="max-h-72 overflow-auto">
-              <table className="w-full text-xs">
-                <thead className="text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-1.5">Source</th>
-                    <th className="px-2 py-1.5">Phase</th>
-                    <th className="px-2 py-1.5 text-right">Processed</th>
-                    <th className="px-2 py-1.5 text-right">Saved/Skip</th>
-                    <th className="px-2 py-1.5 text-right">Rate</th>
-                    <th className="px-2 py-1.5">Started</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.slice(0, 30).map(({ key, job }) => (
-                    <tr key={key} className="border-t">
-                      <td className="px-2 py-1">{job.source ?? key}</td>
-                      <td className="px-2 py-1"><Badge variant={job.phase === 'done' ? 'secondary' : 'outline'}>{job.phase ?? 'idle'}</Badge></td>
-                      <td className="px-2 py-1 text-right tabular-nums">{job.processed?.toLocaleString() ?? '—'}</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{job.saved?.toLocaleString() ?? '—'}/{job.skipped?.toLocaleString() ?? '—'}</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{job.per_second?.toFixed(1) ?? '—'}</td>
-                      <td className="px-2 py-1 text-muted-foreground">{job.started_at_ts ? tzDateTime(job.started_at_ts * 1000, tz) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <RunHistoryTable rows={runRows} tz={tz} />
           )}
         </Section>
       </div>
@@ -188,5 +140,118 @@ export function LogsPage() {
         )}
       </Section>
     </div>
+  )
+}
+
+interface RunRow { key: string; job: Job }
+
+const runHelper = createColumnHelper<DataTableFeatures, RunRow>()
+
+function RunHistoryTable({ rows, tz }: { rows: RunRow[]; tz: Tz }) {
+  const columns = useMemo<ColumnDef<DataTableFeatures, RunRow, any>[]>(() => [
+    runHelper.accessor('key', {
+      id: 'source',
+      header: 'Source',
+      cell: ({ row }) => row.original.job.source ?? row.original.key,
+    }),
+    runHelper.accessor('key', {
+      id: 'phase',
+      header: 'Phase',
+      cell: ({ row }) => <Badge variant={row.original.job.phase === 'done' ? 'secondary' : 'outline'}>{row.original.job.phase ?? 'idle'}</Badge>,
+    }),
+    runHelper.accessor(r => r.job.processed ?? 0, {
+      id: 'processed',
+      header: 'Processed',
+      sortFn: 'basic',
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="tabular-nums">{row.original.job.processed?.toLocaleString() ?? '—'}</span>,
+    }),
+    runHelper.accessor(r => r.job.saved ?? 0, {
+      id: 'saved',
+      header: 'Saved/Skip',
+      sortFn: 'basic',
+      meta: { align: 'right' },
+      cell: ({ row }) => (
+        <span className="tabular-nums">
+          {row.original.job.saved?.toLocaleString() ?? '—'}/{row.original.job.skipped?.toLocaleString() ?? '—'}
+        </span>
+      ),
+    }),
+    runHelper.accessor(r => r.job.per_second ?? 0, {
+      id: 'rate',
+      header: 'Rate',
+      sortFn: 'basic',
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="tabular-nums">{row.original.job.per_second?.toFixed(1) ?? '—'}</span>,
+    }),
+    runHelper.accessor(r => r.job.started_at_ts ?? 0, {
+      id: 'started_at',
+      header: 'Started',
+      sortFn: 'basic',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.job.started_at_ts ? tzDateTime(row.original.job.started_at_ts * 1000, tz) : '—'}
+        </span>
+      ),
+    }),
+  ], [tz])
+
+  return (
+    <DataTable<RunRow>
+      columns={columns}
+      data={rows}
+      getRowId={r => r.key}
+      initialSorting={[{ id: 'started_at', desc: true }]}
+      initialPageSize={25}
+      pageSizeOptions={[10, 25, 50]}
+      maxHeight="18rem"
+      ariaLabel="Ingestion run history"
+      footerLeft={`${rows.length} runs`}
+    />
+  )
+}
+
+const slowHelper = createColumnHelper<DataTableFeatures, SlowEntry>()
+
+function SlowTable({ slow, tz }: { slow: SlowEntry[]; tz: Tz }) {
+  const columns = useMemo<ColumnDef<DataTableFeatures, SlowEntry, any>[]>(() => [
+    slowHelper.accessor('ms', {
+      id: 'ms',
+      header: 'ms',
+      sortFn: 'basic',
+      sortDescFirst: true,
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="tabular-nums text-amber-500">{row.original.ms}ms</span>,
+    }),
+    slowHelper.accessor('method', {
+      id: 'method',
+      header: 'method',
+      cell: ({ row }) => <Badge variant="outline">{row.original.method ?? 'GET'}</Badge>,
+    }),
+    slowHelper.accessor('url', {
+      id: 'url',
+      header: 'url',
+      meta: { truncate: true },
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.url}</span>,
+    }),
+    slowHelper.accessor('ts', {
+      id: 'ts',
+      header: 'time',
+      cell: ({ row }) => <span className="text-muted-foreground">{timeStr(row.original.ts, tz)}</span>,
+    }),
+  ], [tz])
+
+  return (
+    <DataTable<SlowEntry>
+      columns={columns}
+      data={slow}
+      getRowId={(s, i) => `${s.url ?? ''}-${s.ms ?? 0}-${s.ts ?? ''}-${i}`}
+      initialSorting={[{ id: 'ms', desc: true }]}
+      initialPageSize={10}
+      pageSizeOptions={[10, 25, 50, 100]}
+      maxHeight="18rem"
+      ariaLabel="Slow requests"
+      footerLeft={`${slow.length} entries`}
+    />
   )
 }

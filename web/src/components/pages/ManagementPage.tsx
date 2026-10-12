@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Play, Pause,
-  RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal, Trash2,
+  RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
 } from 'lucide-react'
+import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import { useStatus } from '@/lib/status-context'
 import { ago, mb } from '@/lib/format'
 import { useFailures } from '@/lib/fetch-cache'
 import { tzStr, type Tz } from '@/lib/time'
+import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { PageHead, Section } from '../widgets'
@@ -151,19 +153,11 @@ export function ManagementPage() {
         {/* M4 + M5: Backups */}
         <Section title="Backups" icon={Archive}>
           <div className="space-y-2">
-            <div className="flex max-h-56 flex-col gap-1.5 overflow-auto">
-              {backups.length === 0 ? (
-                <EmptyState icon={Archive} title="No backups yet" description="Run one to protect the dataset." action={doBackup} actionLabel="Backup now" />
-              ) : backups.map(b => (
-                <div key={b.file} className="flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs">
-                  <span className="flex-1 truncate text-muted-foreground">{b.file}</span>
-                  <span className="tabular-nums">{mb(b.size)}</span>
-                  <span className="text-muted-foreground">{ago(b.mtime)}</span>
-                  <a href={`/storage/backups/${b.file}`} download={b.file} className="text-muted-foreground hover:text-foreground" title="Download"><Download className="h-3.5 w-3.5" /></a>
-                  <Button size="icon-xs" variant="ghost" title="Restore" onClick={() => setRestorePick(b.file ?? null)}><Trash2 className="h-3.5 w-3.5 rotate-90" /></Button>
-                </div>
-              ))}
-            </div>
+            {backups.length === 0 ? (
+              <EmptyState icon={Archive} title="No backups yet" description="Run one to protect the dataset." action={doBackup} actionLabel="Backup now" />
+            ) : (
+              <BackupsTable backups={backups} onRestore={setRestorePick} />
+            )}
             <Button size="sm" variant="outline" className="w-full" onClick={doBackup}><Archive className="mr-1.5 h-3.5 w-3.5" />Backup now</Button>
           </div>
         </Section>
@@ -240,16 +234,7 @@ export function ManagementPage() {
         {loading ? <Skeleton className="h-24 w-full" /> : audit.length === 0 ? (
           <EmptyState icon={Terminal} title="No actions logged" description="Management actions will be recorded here." />
         ) : (
-          <div className="max-h-64 space-y-1 overflow-auto text-xs">
-            {audit.slice(0, 60).map((a, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-md border px-2 py-1">
-                <span className="text-muted-foreground tabular-nums">{a.ts ? tzStr(a.ts, tz) : ''}</span>
-                <Badge variant="outline">{a.action}</Badge>
-                <span className="truncate text-muted-foreground">{JSON.stringify(a.detail ?? {})}</span>
-                <span className="ml-auto text-muted-foreground">{a.ip}</span>
-              </div>
-            ))}
-          </div>
+          <AuditTable audit={audit} tz={tz} />
         )}
       </Section>
 
@@ -285,5 +270,100 @@ export function ManagementPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+const backupHelper = createColumnHelper<DataTableFeatures, BackupItem>()
+
+function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore: (file: string | null) => void }) {
+  const columns = useMemo<ColumnDef<DataTableFeatures, BackupItem, any>[]>(() => [
+    backupHelper.accessor('file', {
+      id: 'file',
+      header: 'Archive',
+      meta: { truncate: true },
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.file}</span>,
+    }),
+    backupHelper.accessor(r => r.size ?? 0, {
+      id: 'size',
+      header: 'Size',
+      sortFn: 'basic',
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="tabular-nums">{mb(row.original.size)}</span>,
+    }),
+    backupHelper.accessor(r => r.mtime ?? 0, {
+      id: 'mtime',
+      header: 'Modified',
+      sortFn: 'basic',
+      cell: ({ row }) => <span className="text-muted-foreground">{ago(row.original.mtime)}</span>,
+    }),
+    backupHelper.display({
+      id: 'actions',
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row }) => {
+        const file = row.original.file
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <a href={`/storage/backups/${file}`} download={file} className="text-muted-foreground hover:text-foreground" title="Download"><Download className="h-3.5 w-3.5" /></a>
+            <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw className="h-3.5 w-3.5" /></Button>
+          </div>
+        )
+      },
+    }),
+  ], [onRestore])
+
+  return (
+    <DataTable<BackupItem>
+      columns={columns}
+      data={backups}
+      getRowId={(b, i) => b.file ?? `backup-${i}`}
+      initialPageSize={10}
+      pageSizeOptions={[5, 10, 25]}
+      maxHeight="16rem"
+      ariaLabel="Backups"
+      footerLeft={`${backups.length} backups`}
+    />
+  )
+}
+
+const auditHelper = createColumnHelper<DataTableFeatures, AuditItem>()
+
+function AuditTable({ audit, tz }: { audit: AuditItem[]; tz: Tz }) {
+  const columns = useMemo<ColumnDef<DataTableFeatures, AuditItem, any>[]>(() => [
+    auditHelper.accessor('ts', {
+      id: 'ts',
+      header: 'When',
+      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{row.original.ts ? tzStr(row.original.ts, tz) : ''}</span>,
+    }),
+    auditHelper.accessor('action', {
+      id: 'action',
+      header: 'Action',
+      cell: ({ row }) => <Badge variant="outline">{row.original.action ?? ''}</Badge>,
+    }),
+    auditHelper.accessor('detail', {
+      id: 'detail',
+      header: 'Detail',
+      meta: { truncate: true },
+      cell: ({ row }) => <span className="text-muted-foreground">{JSON.stringify(row.original.detail ?? {})}</span>,
+    }),
+    auditHelper.accessor('ip', {
+      id: 'ip',
+      header: 'IP',
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.ip}</span>,
+    }),
+  ], [tz])
+
+  return (
+    <DataTable<AuditItem>
+      columns={columns}
+      data={audit}
+      getRowId={(a, i) => `${a.ts ?? ''}-${a.action ?? ''}-${i}`}
+      initialPageSize={15}
+      pageSizeOptions={[10, 15, 25, 50]}
+      maxHeight="16rem"
+      ariaLabel="Audit log"
+      footerLeft={`${audit.length} actions`}
+    />
   )
 }

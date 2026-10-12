@@ -40,7 +40,7 @@ export function SettingsPage() {
   const persistRefresh = useDebouncedCallback((v: number) => setPre('refresh', v), 400)
   const widgets = prefs.widgets
   const dark = prefs.theme !== 'light'
-  const density = prefs.density ?? 'comfortable'
+  const density = prefs.density ?? 'compact'
   const accent = prefs.accent ?? '#4fb3ff'
   const tz = prefs.tz ?? 'local'
   const hidden = prefs.hiddenCollections ?? []
@@ -137,7 +137,7 @@ export function SettingsPage() {
                 <div className="text-sm">Density</div>
                 <div className="text-xs text-muted-foreground">table & row spacing</div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setPref({ density: density === 'comfortable' ? 'compact' : 'comfortable' })}>{density}</Button>
+              <Button size="sm" variant="outline" onClick={() => setPref({ density: density === 'compact' ? 'comfortable' : 'compact' })}>{density}</Button>
             </div>
             <div>
               <div className="mb-2 text-sm">Accent</div>

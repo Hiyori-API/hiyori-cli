@@ -647,7 +647,7 @@ if ($path === '/api/settings') {
             $token = bin2hex(random_bytes(24));
             updateDotEnv('DASHBOARD_TOKEN', $token);
             auditAppend('settings.token_rotate');
-            sendJson(['settings' => uiSettings(), 'token' => $token, 'note' => 'new token active on next request' ]);
+            sendJson(['settings' => uiSettings(), 'token' => $token, 'note' => 'new token active on next request']);
         }
         if (array_key_exists('webhook', $body)) {
             updateDotEnv('WEBHOOK_URL', (string) $body['webhook']);
@@ -694,145 +694,8 @@ if ($path === '/api/settings') {
     ]);
 }
 
-if ($path === '/api/backups') {
-    sendJson(['backups' => backupsList(), 'timestamp' => date('c')]);
-}
 
-if ($path === '/api/restore') {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        sendJson(['error' => 'POST required'], 405);
-    }
-    $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
-    $file = basename((string) ($body['file'] ?? ''));
-    if (!preg_match('/^hiyori-\d{8}-\d{6}\.gz$/', $file)) {
-        sendJson(['error' => 'bad archive name'], 400);
-    }
-    $archive = dirname(__DIR__) . '/storage/backups/' . $file;
-    if (!is_file($archive)) {
-        sendJson(['error' => 'archive not found'], 404);
-    }
-    $cmd = sprintf(
-        'mongorestore --uri=%s --gzip --archive=%s --drop >/dev/null 2>&1 &',
-        escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'),
-        escapeshellarg($archive)
-    );
-    @exec($cmd);
-    auditAppend('restore', ['file' => $file]);
-    sendJson(['started' => true, 'file' => $file]);
-}
-
-if ($path === '/api/failures') {
-    sendJson(['failures' => $telemetry->tail('validation-log', 100), 'timestamp' => date('c')]);
-}
-
-if ($path === '/api/limits') {
-    $saved = uiSettings()['limits'] ?? [];
-    $cur = [
-        'max' => (int) ($saved['max'] ?? $_ENV['RATE_LIMIT_MAX'] ?? 100),
-        'window' => (int) ($saved['window'] ?? $_ENV['RATE_LIMIT_WINDOW'] ?? 60),
-    ];
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
-        $cur = [
-            'max' => max(1, (int) ($body['max'] ?? $cur['max'])),
-            'window' => max(1, (int) ($body['window'] ?? $cur['window'])),
-        ];
-        saveUiSettings(array_merge(uiSettings(), ['limits' => $cur]));
-        auditAppend('limits.update', $cur);
-    }
-    sendJson(['limits' => $cur, 'applied' => 'next ingest start']);
-}
-
-if ($path === '/api/audit') {
-    sendJson(['audit' => tailLines(dirname(__DIR__) . '/storage/state/audit.jsonl', 100), 'timestamp' => date('c')]);
-}
-
-if ($path === '/api/history') {
-    sendJson([
-        'states' => $telemetry->allState(),
-        'runs' => $telemetry->tail('run-history', 100),
-        'timestamp' => date('c'),
-    ]);
-}
-
-if ($path === '/api/histogram') {
-    sendJson(['histogram' => histogram($client), 'bins' => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90], 'timestamp' => date('c')]);
-}
-
-
-function updateDotEnv(string $key, ?string $value): bool
-{
-    $envFile = dirname(__DIR__) . '/.env';
-    if (!is_file($envFile)) {
-        return false;
-    }
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES) ?: [];
-    $found = false;
-    foreach ($lines as $i => $line) {
-        if (preg_match('/^\s*' . preg_quote($key, '/') . '=/', $line)) {
-            $lines[$i] = $key . '=' . ($value ?? '');
-            $found = true;
-            break;
-        }
-    }
-    if (!$found) {
-        $lines[] = $key . '=' . ($value ?? '');
-    }
-    @copy($envFile, $envFile . '.bak');
-    file_put_contents($envFile, implode("\n", $lines) . "\n");
-
-    return true;
-}
-
-if ($path === '/api/explore/delete') {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        sendJson(['error' => 'POST required'], 405);
-    }
-    $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
-    $collection = (string) ($body['collection'] ?? '');
-    $ids = array_values(array_filter(array_map('strval', (array) ($body['ids'] ?? []))));
-    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection) || $ids === []) {
-        sendJson(['error' => 'collection + ids required'], 400);
-    }
-    $result = $client->selectDatabase('hiyori')->selectCollection($collection)
-        ->deleteMany(['_id' => ['$in' => array_map('strval', $ids)]]);
-    auditAppend('explore.delete', ['collection' => $collection, 'ids' => count($ids)]);
-    sendJson(['deleted' => $result->getDeletedCount()]);
-}
-
-if ($path === '/api/export') {
-    $collection = (string) ($_GET['collection'] ?? 'organized');
-    $format = (string) ($_GET['format'] ?? 'jsonl');
-    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection) || !in_array($format, ['jsonl', 'csv'], true)) {
-        sendJson(['error' => 'collection + format (jsonl|csv) required'], 400);
-    }
-    $coll = $client->selectDatabase('hiyori')->selectCollection($collection);
-    header('Content-Type: ' . ($format === 'csv' ? 'text/csv' : 'application/x-ndjson'));
-    header('Content-Disposition: attachment; filename="' . $collection . '.' . ($format === 'csv' ? 'csv' : 'jsonl') . '"');
-    if ($format === 'csv') {
-        $head = false;
-        foreach ($coll->find() as $doc) {
-            $row = json_decode(json_encode($doc), true);
-            $flat = [];
-            foreach ($row as $k => $v) {
-                $flat[$k] = is_scalar($v) ? $v : json_encode($v, JSON_UNESCAPED_UNICODE);
-            }
-            if (!$head) {
-                echo implode(',', array_map(static fn ($k) => '"' . $k . '"', array_keys($flat))) . "\n";
-                $head = true;
-            }
-            echo implode(',', array_map(static fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', array_values($flat))) . "\n";
-        }
-    } else {
-        foreach ($coll->find() as $doc) {
-            echo json_encode(json_decode(json_encode($doc), true), JSON_UNESCAPED_UNICODE) . "\n";
-        }
-    }
-    exit;
-}
-
-
-// ===== Environment variable manager =====
+// ===== Environment helpers (.env read/write + sensitivity) =====
 function envFile(): string
 {
     return dirname(__DIR__) . '/.env';
@@ -851,8 +714,7 @@ function listEnvVars(): array
             continue;
         }
         [$key, $value] = explode('=', $line, 2);
-        $key = trim($key);
-        $out[$key] = $value;
+        $out[trim($key)] = $value;
     }
 
     return $out;
@@ -860,7 +722,18 @@ function listEnvVars(): array
 
 function isSensitiveKey(string $key): bool
 {
-    return (bool) preg_match('/(TOKEN|SECRET|PASSWORD|CLIENT_SECRET)/i', $key);
+    if ((bool) preg_match('/(TOKEN|SECRET|PASSWORD|CLIENT_SECRET)/i', $key)) {
+        return true;
+    }
+    $ui = uiSettings();
+    foreach ((array) ($ui['env_sensitive_patterns'] ?? []) as $pattern) {
+        $pattern = (string) $pattern;
+        if ($pattern !== '' && @preg_match($pattern, $key)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function maskSecret(string $value): string
@@ -891,9 +764,54 @@ function removeEnvVar(string $key): void
     file_put_contents($file, implode("\n", array_values($lines)) . "\n");
 }
 
-if ($path === '/api/env') {
+function envRaw(): string
+{
+    $file = envFile();
+
+    return is_file($file) ? (string) file_get_contents($file) : '';
+}
+
+function writeEnvRaw(string $raw): void
+{
+    $file = envFile();
+    $dir = dirname($file);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+    @copy($file, $file . '.bak');
+    file_put_contents($file, rtrim($raw) . "\n");
+}
+
+function updateDotEnv(string $key, ?string $value): bool
+{
+    $envFile = envFile();
+    if (!is_file($envFile)) {
+        return false;
+    }
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES) ?: [];
+    $found = false;
+    foreach ($lines as $i => $line) {
+        if (preg_match('/^\s*' . preg_quote($key, '/') . '=/', $line)) {
+            $lines[$i] = $key . '=' . ($value ?? '');
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        $lines[] = $key . '=' . ($value ?? '');
+    }
+    @copy($envFile, $envFile . '.bak');
+    file_put_contents($envFile, implode("\n", $lines) . "\n");
+
+    return true;
+}
+
+if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     $vars = listEnvVars();
     $reveal = (string) ($_GET['reveal'] ?? '');
+    if (($_GET['raw'] ?? '') === '1') {
+        sendJson(['raw' => envRaw(), 'source' => '.env']);
+    }
     $rows = [];
     foreach ($vars as $key => $value) {
         $sensitive = isSensitiveKey($key);
@@ -905,34 +823,53 @@ if ($path === '/api/env') {
             'value' => ($key === $reveal && $reveal !== '') ? (string) $value : null,
         ];
     }
+    sendJson(['env' => $rows, 'source' => '.env', 'timestamp' => date('c')]);
+}
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
-        $key = trim((string) ($body['key'] ?? ''));
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
-            sendJson(['error' => 'invalid env key'], 400);
-        }
-        if (array_key_exists('value', $body) && $body['value'] === null) {
-            removeEnvVar($key);
-            auditAppend('env.remove', ['key' => $key]);
-        } else {
-            $value = (string) ($body['value'] ?? '');
-            if (str_contains($value, "\n") || str_contains($value, "\r")) {
-                sendJson(['error' => 'value must be a single line'], 400);
-            }
-            updateDotEnv($key, $value);
-            auditAppend('env.update', ['key' => $key]);
-        }
+if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+
+    if (isset($body['raw'])) {
+        writeEnvRaw((string) $body['raw']);
+        auditAppend('env.bulk', ['chars' => strlen((string) $body['raw'])]);
         $vars = listEnvVars();
-        sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($vars) {
-            $sensitive = isSensitiveKey($k);
-            $value = $vars[$k] ?? '';
-
-            return ['key' => $k, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
-        }, array_keys($vars))]);
+        $out = [];
+        foreach ($vars as $key => $value) {
+            $sensitive = isSensitiveKey($key);
+            $out[] = ['key' => $key, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
+        }
+        sendJson(['raw_updated' => true, 'env' => $out]);
     }
 
-    sendJson(['env' => $rows, 'source' => '.env', 'timestamp' => date('c')]);
+    if (isset($body['patterns'])) {
+        $patterns = array_values(array_filter(array_map('strval', (array) $body['patterns'])));
+        saveUiSettings(array_merge(uiSettings(), ['env_sensitive_patterns' => $patterns]));
+        auditAppend('env.patterns', ['count' => count($patterns)]);
+        sendJson(['patterns' => $patterns]);
+    }
+
+    $key = trim((string) ($body['key'] ?? ''));
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+        sendJson(['error' => 'invalid env key'], 400);
+    }
+    if (array_key_exists('value', $body) && $body['value'] === null) {
+        removeEnvVar($key);
+        auditAppend('env.remove', ['key' => $key]);
+    } else {
+        $value = (string) ($body['value'] ?? '');
+        if (str_contains($value, "\n") || str_contains($value, "\r")) {
+            sendJson(['error' => 'value must be a single line'], 400);
+        }
+        updateDotEnv($key, $value);
+        auditAppend('env.update', ['key' => $key]);
+    }
+    $vars = listEnvVars();
+    sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($vars) {
+        $sensitive = isSensitiveKey($k);
+        $value = $vars[$k] ?? '';
+
+        return ['key' => $k, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
+    }, array_keys($vars))]);
 }
 
 
