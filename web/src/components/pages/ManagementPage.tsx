@@ -16,6 +16,7 @@ import {
 } from '@/lib/api'
 import { useSettings, useSmartPolling } from '@/lib/hooks'
 import { EmptyState } from '../empty'
+import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { PageHead, Section } from '../widgets'
 
 export const SOURCES = ['anilist', 'myanimelist', 'kitsu', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga']
@@ -120,7 +121,9 @@ export function ManagementPage() {
                 const paused = data?.controls?.[`ingest-${src}`]?.paused
                 return (
                   <div key={src} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                    <SourceStatusBlip status={sourceStatus(data?.health, src)} size="sm" />
                     <span className="flex-1 text-sm">{SOURCE_LABEL[src] ?? src}<span className="ml-1 text-[10px] text-muted-foreground">{src}</span></span>
+                    <SourceStatusLabel status={sourceStatus(data?.health, src)} />
                     <Badge variant={phase === 'done' ? 'secondary' : phase === 'running' ? 'outline' : 'ghost'}>{paused ? 'paused' : phase}</Badge>
                     <Button size="icon-sm" variant="ghost" title="Start" onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" /></Button>
                     <Button size="icon-sm" variant="ghost" title="Pause" onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" /></Button>
