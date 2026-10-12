@@ -22,6 +22,7 @@ final class RateLimiter
         private int $timeWindow = 60,
         private float $circuitBreakerThreshold = 0.5,
         private int $circuitBreakerTimeout = 60,
+        private int $circuitBreakerMinFailures = 10,
         ?LoggerInterface $logger = null
     ) {
         $this->logger = $logger ?? new \Monolog\Logger('ratelimiter');
@@ -100,13 +101,20 @@ final class RateLimiter
         $cb = &$this->circuitBreakers[$key];
         $cb['failures']++;
 
+        // Require a minimum number of failures before the breaker can trip so a
+        // single transient failure (e.g. 1/2 = 50% of a small sample) doesn't
+        // lock the source out for the full timeout.
+        if ($cb['failures'] < $this->circuitBreakerMinFailures || $cb['state'] !== 'closed') {
+            return;
+        }
+
         $totalRequests = $cb['failures'] + max(1, $this->maxRequests - ($this->buckets[$key]['tokens'] ?? $this->maxRequests));
         $failureRate = $cb['failures'] / $totalRequests;
 
-        if ($failureRate >= $this->circuitBreakerThreshold && $cb['state'] === 'closed') {
+        if ($failureRate >= $this->circuitBreakerThreshold) {
             $cb['state'] = 'open';
             $cb['openedAt'] = time();
-            $this->logger->error("Circuit breaker OPENED for {$key} (failure rate: " . round($failureRate * 100, 1) . '%)');
+            $this->logger->error("Circuit breaker OPENED for {$key} (failures: " . $cb['failures'] . ', rate: ' . round($failureRate * 100, 1) . '%)');
         }
     }
 
