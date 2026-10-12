@@ -14,11 +14,19 @@ class Request
 {
     public const GET = 'GET';
     public const POST = 'POST';
+    
+    /**
+     * @param string $method
+     * @param string $url
+     * @param array|null $options
+     * @return ResponseInterface
+     * @phpstan-ignore-next-line
+     */
     public static function fetch($method = self::GET, string $url, ?array $options = []): ResponseInterface
     {
         $client = new RetryableHttpClient(HttpClient::create());
 
-        if (!boolval($_ENV['HTTP_CACHE'])) {
+        if (!boolval($_ENV['HTTP_CACHE'] ?? false)) {
             return $client
                 ->request(
                     $method,
@@ -29,12 +37,16 @@ class Request
                 );
         }
 
+        $cachePath = $_ENV['HTTP_CACHE_PATH'] ?? '';
+        $debug = (bool) ($_ENV['APP_DEBUG'] ?? false);
+        $ttl = (int) ($_ENV['HTTP_CACHE_TTL'] ?? (60*60*24));
+
         return (new CachingHttpClient(
             $client,
-            new Store(__DIR__.'/../..'.$_ENV['HTTP_CACHE_PATH']),
+            new Store(__DIR__.'/../..'.$cachePath),
             [
-                'debug' => (bool) $_ENV['APP_DEBUG'] ?? false,
-                'default_ttl' => (int) $_ENV['HTTP_CACHE_TTL'] ?? (60*60*24)
+                'debug' => $debug,
+                'default_ttl' => $ttl
             ],
         ))
             ->request(

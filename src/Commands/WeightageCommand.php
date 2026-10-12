@@ -4,7 +4,7 @@ namespace Hiyori\Commands;
 
 use Hiyori\Helper;
 use Hiyori\Hiyori;
-use MongoDB\Client;
+use MongoDB\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -48,8 +48,10 @@ final class WeightageCommand extends Command
         $db = $this->hiyori->getDatabase();
         $client = $db->getClient();
 
-        $coll1 = $client->hiyori->{$source1};
-        $coll2 = $client->hiyori->{$source2};
+        /** @var Collection $coll1 */
+        $coll1 = $client->selectDatabase('hiyori')->selectCollection($source1);
+        /** @var Collection $coll2 */
+        $coll2 = $client->selectDatabase('hiyori')->selectCollection($source2);
 
         $total1 = $coll1->countDocuments();
         $total2 = $coll2->countDocuments();
@@ -124,7 +126,8 @@ final class WeightageCommand extends Command
         // Calculate match rates and suggested weights
         $results = [];
         foreach ($fields as $field) {
-            if (!isset($stats[$field]) || $stats[$field]['total'] === 0) {
+            $total = $stats[$field]['total'] ?? 0;
+            if ($total === 0) {
                 $results[$field] = [
                     'match_rate' => 0.0,
                     'weight' => 0.0,
@@ -133,13 +136,13 @@ final class WeightageCommand extends Command
                 continue;
             }
 
-            $rate = $stats[$field]['matches'] / $stats[$field]['total'];
+            $rate = $stats[$field]['matches'] / $total;
             $weight = $rate > 0 ? round($rate * 100, 2) : 0.0;
 
             $results[$field] = [
                 'match_rate' => round($rate * 100, 2),
                 'weight' => $weight,
-                'sample_size' => $stats[$field]['total'],
+                'sample_size' => $total,
                 'matches' => $stats[$field]['matches'],
             ];
         }
@@ -200,6 +203,7 @@ final class WeightageCommand extends Command
             $set2 = array_flip((array)$v2);
             $intersection = count(array_intersect_key($set1, $set2));
             $union = count(array_merge($set1, $set2));
+            /** @var int $union */
             return $union > 0 && ($intersection / $union) > 0.5;
         }
 

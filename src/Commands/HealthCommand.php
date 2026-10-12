@@ -40,26 +40,29 @@ final class HealthCommand extends Command
         $interval = (int) $input->getOption('interval');
 
         $healthCheck = $this->hiyori->getHealthCheck();
-        $metrics = $this->hiyori->getMetrics();
 
         if ($watch) {
             $io->section('Health Watch Mode (Ctrl+C to stop)');
             $io->text("Interval: {$interval}s");
-            
-            while (true) {
+
+            /** @var bool $shouldContinue */
+            $shouldContinue = true;
+            while ($shouldContinue) {
                 $result = $healthCheck->check();
                 $this->displayResult($io, $result, $asJson);
-                
+
                 if (!$asJson) {
                     $io->text(str_repeat('-', 60));
                 }
-                
+
                 sleep($interval);
             }
+            // Watch mode runs indefinitely until Ctrl+C
+            return Command::SUCCESS;
         } else {
             $result = $healthCheck->check();
             $this->displayResult($io, $result, $asJson);
-            
+
             return $result['status'] === 'healthy' ? Command::SUCCESS : Command::FAILURE;
         }
     }
@@ -73,7 +76,7 @@ final class HealthCommand extends Command
 
         $status = $result['status'];
         $timestamp = $result['timestamp'];
-        
+
         $style = $status === 'healthy' ? 'info' : 'error';
         $io->section("Health Check - {$timestamp}");
         $io->writeln("<{$style}>Status: {$status}</{$style}>");
@@ -81,9 +84,9 @@ final class HealthCommand extends Command
         foreach ($result['checks'] as $name => $check) {
             $checkStyle = ($check['healthy'] ?? false) ? 'info' : 'error';
             $checkStatus = ($check['healthy'] ?? false) ? '✓' : '✗';
-            
+
             $io->writeln("  <{$checkStyle}>{$checkStatus} {$name}</{$checkStyle}>");
-            
+
             if (isset($check['latency_ms'])) {
                 $io->writeln("    Latency: {$check['latency_ms']}ms");
             }

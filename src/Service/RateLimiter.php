@@ -3,11 +3,11 @@
 namespace Hiyori\Service;
 
 use Psr\Log\LoggerInterface;
-use Symfony\Component\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Component\HttpClient\Exception\ClientExceptionInterface;
-use Symfony\Component\HttpClient\Exception\ServerExceptionInterface;
-use Symfony\Component\HttpClient\Exception\RedirectionExceptionInterface;
-use Symfony\Component\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
 
 final class RateLimiter
 {
@@ -67,6 +67,7 @@ final class RateLimiter
             if ($this->acquire($key, $tokens)) {
                 return true;
             }
+            
             usleep(100000);
         }
         

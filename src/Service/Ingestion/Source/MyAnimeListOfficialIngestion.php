@@ -5,6 +5,7 @@ namespace Hiyori\Service\Ingestion\Source;
 use Hiyori\Models\Anime\Base\MyAnimeListBase;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\RetryableHttpClient;
@@ -12,14 +13,15 @@ use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
 
 final class MyAnimeListOfficialIngestion
 {
-    private const BASE_URL = 'https://api.myanimelist.net/v2/'; // trailing slash required
+    private const BASE_URL = 'https://api.myanimelist.net/v2/';
     private const FIELDS = 'id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics';
 
     public static function process(
-        Database $db, ConsoleFactory $console, SourceConfigurationFactory $sources
+        Database $db, ConsoleFactory $console, SourceConfigurationFactory $sources, RateLimiter $rateLimiter
     ): void {
         $config = $sources->get();
         $clientId = $_ENV['MAL_CLIENT_ID'] ?? null;
+        $sourceKey = 'myanimelist';
         
         if (!$clientId) {
             $console->io()->error('MAL_CLIENT_ID not set in .env. Register at https://myanimelist.net/apiconfig');
@@ -37,7 +39,7 @@ final class MyAnimeListOfficialIngestion
         $httpClient = new RetryableHttpClient($httpClient, new GenericRetryStrategy(), 3);
 
         // Get total count from ranking
-        $meta = self::fetchMeta($httpClient, $console);
+        $meta = self::fetchMeta($httpClient, $console, $rateLimiter, $sourceKey);
         if (!$meta) return;
 
         $progressBar = $console->io()->createProgressBar($meta['total']);
@@ -46,10 +48,10 @@ final class MyAnimeListOfficialIngestion
         $progressBar->start();
 
         $offset = 0;
-        $limit = 500; // Max limit for ranking endpoint
+        $limit = 500;
         
         while ($offset < $meta['total']) {
-            $entries = self::fetchPage($httpClient, $offset, $limit, $console);
+            $entries = self::fetchPage($httpClient, $offset, $limit, $console, $rateLimiter, $sourceKey);
             if (empty($entries)) break;
 
             foreach ($entries as $entry) {
@@ -60,10 +62,11 @@ final class MyAnimeListOfficialIngestion
                     continue;
                 }
 
+                $rateLimiter->waitForToken($sourceKey, 1, 60);
                 sleep($sources->get()->getDelay());
 
                 try {
-                    $detail = self::fetchDetail($httpClient, $itemId, $console);
+                    $detail = self::fetchDetail($httpClient, $itemId, $console, $rateLimiter, $sourceKey);
                     if ($detail) {
                         $db->save($config->getTable(), MyAnimeListBase::create($detail));
                     }
@@ -82,30 +85,41 @@ final class MyAnimeListOfficialIngestion
         $console->io()->info("Ingestion complete for {$config->getName()}");
     }
 
-    private static function fetchMeta($httpClient, $console): ?array
+    private static function fetchMeta($httpClient, $console, RateLimiter $rateLimiter, string $sourceKey): ?array
     {
         try {
-            $response = $httpClient->request('GET', 'anime/ranking', [
-                'query' => ['ranking_type' => 'all', 'limit' => 1],
-            ]);
-            $data = $response->toArray();
-            return ['total' => 25000]; // Approximate total anime on MAL
+            $response = $rateLimiter->executeWithRetry(
+                fn() => $httpClient->request('GET', 'anime/ranking', [
+                    'query' => ['ranking_type' => 'all', 'limit' => 1],
+                ]),
+                'myanimelist',
+                3,
+                1000,
+                2.0
+            );
+            return ['total' => 25000];
         } catch (\Exception $e) {
             $console->io()->error("Failed to fetch meta: " . $e->getMessage());
             return null;
         }
     }
 
-    private static function fetchPage($httpClient, int $offset, int $limit, $console): array
+    private static function fetchPage($httpClient, int $offset, int $limit, $console, RateLimiter $rateLimiter, string $sourceKey): array
     {
         try {
-            $response = $httpClient->request('GET', 'anime/ranking', [
-                'query' => [
-                    'ranking_type' => 'all',
-                    'offset' => $offset,
-                    'limit' => min($limit, 500),
-                ],
-            ]);
+            $response = $rateLimiter->executeWithRetry(
+                fn() => $httpClient->request('GET', 'anime/ranking', [
+                    'query' => [
+                        'ranking_type' => 'all',
+                        'offset' => $offset,
+                        'limit' => min($limit, 500),
+                    ],
+                ]),
+                'myanimelist',
+                3,
+                1000,
+                2.0
+            );
             return $response->toArray()['data'] ?? [];
         } catch (\Exception $e) {
             $console->io()->error("Failed to fetch page at offset $offset: " . $e->getMessage());
@@ -113,12 +127,18 @@ final class MyAnimeListOfficialIngestion
         }
     }
 
-    private static function fetchDetail($httpClient, int $id, $console): ?array
+    private static function fetchDetail($httpClient, int $id, $console, RateLimiter $rateLimiter, string $sourceKey): ?array
     {
         try {
-            $response = $httpClient->request('GET', "anime/$id", [
-                'query' => ['fields' => self::FIELDS],
-            ]);
+            $response = $rateLimiter->executeWithRetry(
+                fn() => $httpClient->request('GET', "anime/$id", [
+                    'query' => ['fields' => self::FIELDS],
+                ]),
+                'myanimelist',
+                3,
+                1000,
+                2.0
+            );
             return $response->toArray();
         } catch (\Exception $e) {
             $console->io()->error("Failed to fetch detail for $id: " . $e->getMessage());

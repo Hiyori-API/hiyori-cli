@@ -6,8 +6,11 @@ use Hiyori\Helper;
 use Hiyori\Models\Anime\Base\KitsuBase;
 use Hiyori\Models\Common\Base as AnimeBaseModel;
 use JMS\Serializer\SerializationContext;
+use JMS\Serializer\Serializer;
 use MongoDB\Client;
+use MongoDB\Collection;
 use MongoDB\InsertOneResult;
+use MongoDB\UpdateResult;
 
 class Database
 {
@@ -32,9 +35,26 @@ class Database
         return $this->client;
     }
 
+    /**
+     * @return Serializer
+     */
+    public function getSerializer(): Serializer
+    {
+        return $this->serializer;
+    }
+
+    /**
+     * Get a collection by name
+     */
+    public function getCollection(string $name): Collection
+    {
+        /** @phpstan-ignore-next-line */
+        return $this->client->hiyori->{$name};
+    }
+
     public function exists(string $source, string $sourceId, string $id): bool
     {
-        $response = $this->client->hiyori->{$source}
+        $response = $this->getCollection($source)
             ->findOne(['reference_ids.'.$sourceId => $id]);
 
         return !($response === null);
@@ -43,43 +63,43 @@ class Database
     public function get(string $source, string $sourceId, string $id, ?bool $toArray = false): array|null|object
     {
         if ($toArray) {
-            return $this->client->hiyori->{$source}
+            return $this->getCollection($source)
                 ->findOne(
                     ['reference_ids.'.$sourceId => $id],
                     ['typeMap' => ['root' => 'array', 'document' => 'array']]
                 );
         }
 
-        return $this->client->hiyori->{$source}
+        return $this->getCollection($source)
             ->findOne(['reference_ids.'.$sourceId => $id]);
     }
 
     public function save(string $source, AnimeBaseModel $entry): InsertOneResult
     {
-        $entry = $this->serializer->getSerializer()
+        $entry = $this->serializer
             ->toArray(
                 $entry,
                 (new SerializationContext())
                     ->setSerializeNull(true)
             );
 
-        return $this->client->hiyori->{$source}
+        return $this->getCollection($source)
             ->insertOne($entry);
     }
 
     public function mergeIntoOrganized(
         AnimeBaseModel $entry,
         ?string $identifier = null,
-        ?string $identifierValue = null): \MongoDB\UpdateResult
+        ?string $identifierValue = null): UpdateResult
     {
-        $entry = $this->serializer->getSerializer()
+        $entry = $this->serializer
             ->toArray(
                 $entry,
                 (new SerializationContext())
                     ->setSerializeNull(true)
             );
 
-        return $this->client->hiyori->organized
+        return $this->getCollection('organized')
             ->replaceOne(
                 [
                     'reference_ids.'.$identifier => $identifierValue
@@ -101,7 +121,7 @@ class Database
      */
     public function getUniqueReferences(): array
     {
-        $cursor = $this->client->hiyori->organized
+        $cursor = $this->getCollection('organized')
             ->find([], ['projection' => ['reference_ids' => 1, '_id' => 0]]);
 
         $uniqueRefs = [];
@@ -115,11 +135,10 @@ class Database
                 if (!isset($uniqueRefs[$shorthand])) {
                     $uniqueRefs[$shorthand] = [];
                 }
-                $uniqueRefs[$shorthand][$id] = true; // Use ID as key for uniqueness
+                $uniqueRefs[$shorthand][$id] = true;
             }
         }
 
-        // Convert from ID-keyed arrays to simple arrays
         foreach ($uniqueRefs as $shorthand => $ids) {
             $uniqueRefs[$shorthand] = array_keys($ids);
         }

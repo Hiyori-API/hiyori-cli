@@ -8,6 +8,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
+use MongoDB\Collection;
 
 final class RelationalFuzzyStrategy extends CombinerStrategy
 {
@@ -15,11 +16,12 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
 
     public static function process(
         Database $db, ConsoleFactory $console, StrategyConfigurationFactory $strategy, SourceConfigurationFactory $source
-    ): void
-    {
+    ): void {
         $tableName = $source->get()->getTable();
-        $total = $db->getClient()->hiyori->{$tableName}->countDocuments();
-        $cursor = $db->getClient()->hiyori->{$tableName}->find();
+        /** @var Collection $baseCollection */
+        $baseCollection = $db->getCollection($tableName);
+        $total = $baseCollection->countDocuments();
+        $cursor = $baseCollection->find();
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
@@ -35,7 +37,8 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                     continue;
                 }
 
-                foreach ($entry->reference_ids as $identifier => $identifierValue) {
+                $entryArray = Helper::convertMongoResultToArray($entry);
+                foreach ($entryArray['reference_ids'] ?? [] as $identifier => $identifierValue) {
                     if ($db->exists(
                         $currentSource->getTable(),
                         $identifier,
@@ -50,7 +53,7 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                         );
 
                         $matched = false;
-                        foreach ($matchEntry['reference_ids'] as $matchIdentifier => $matchIdentifierValue) {
+                        foreach ($matchEntry['reference_ids'] ?? [] as $matchIdentifier => $matchIdentifierValue) {
                             // identifier exists on matched dataset entry
                             if ($matchIdentifier == $identifier && $identifierValue == $matchIdentifierValue) {
                                 $matched = true;
@@ -61,7 +64,7 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                         if ($matched) {
                             $db->mergeIntoOrganized(
                                 AnimeBase::merge(
-                                    Helper::convertMongoResultToArray($entry),
+                                    $entryArray,
                                     $matchEntry
                                 ),
                                 $source->get()->getShorthand(),
