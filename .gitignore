@@ -10,3 +10,5 @@
 /storage/state/
 /storage/logs/dashboard-serve.log
 storage/logs/*.log
+
+storage/logs/daily-*
