@@ -87,16 +87,16 @@ final class MyAnimeListMangaIngestion
                     $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
+                if ($processed % 25 === 0) {
+                    Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
+                        'saved' => $saved,
+                        'skipped' => $skipped,
+                    ]);
+                }
                 $progressBar->advance();
             }
 
             $offset += $limit;
-            if ($processed % 25 === 0) {
-                Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
-                    'saved' => $saved,
-                    'skipped' => $skipped,
-                ]);
-            }
         }
 
         Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
