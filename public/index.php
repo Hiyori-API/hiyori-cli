@@ -53,15 +53,29 @@ if ($token !== '' && ($_GET['token'] ?? '') !== $token && ($_SERVER['HTTP_X_DASH
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-if ($path === '/' || $path === '/index.html') {
-    $html = __DIR__ . '/dashboard.html';
+if ($path === '/' || $path === '/index.html' || $path === '/spa') {
+    $spaIndex = dirname(__DIR__) . '/web/dist/index.html';
+    $html = is_file($spaIndex) ? $spaIndex : __DIR__ . '/dashboard.html';
     if (!file_exists($html)) {
-        sendJson(['error' => 'dashboard.html missing'], 500);
+        sendJson(['error' => 'dashboard html missing'], 500);
     }
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
     echo file_get_contents($html);
     exit;
+}
+
+// React build assets
+if (str_starts_with($path, '/assets/') || str_starts_with($path, '/vite.svg')) {
+    $file = dirname(__DIR__) . '/web/dist' . str_replace(['..', '//'], '', $path);
+    if (is_file($file)) {
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        $mime = ['js' => 'application/javascript', 'css' => 'text/css', 'svg' => 'image/svg+xml', 'woff2' => 'font/woff2'][$ext] ?? 'application/octet-stream';
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=3600');
+        echo file_get_contents($file);
+        exit;
+    }
 }
 
 // Static assets (vendored libs) — safe allowlist of extensions.
