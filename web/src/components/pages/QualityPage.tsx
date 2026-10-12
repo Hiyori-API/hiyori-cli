@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
 import { Download, GitMerge, ListChecks, RefreshCw, Scale, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import {
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { useCachedFetch, useFailures } from '@/lib/fetch-cache'
+import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { BenchmarkBars, CompletenessRadar, DensityHistogram, ThresholdScatter } from '../chartcard'
 import { COLORS } from '../charts'
 import { EmptyState } from '../empty'
@@ -19,6 +21,84 @@ const FULL_COLS = ['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'cr', 'nf', 'sb', 't
 const DEFAULT_WEIGHTS = { title: 31, episodes: 31, year: 15, season: 14, type: 6, tags: 3, status: 0 }
 // demo per-field similarity for the weight explorer (fixed sample pair)
 const DEMO_SIMS = { title: 0.86, episodes: 1, year: 1, season: 1, type: 1, tags: 0.5, status: 1 }
+
+/** Missing critical refs per collection, kept as hidden sortable columns. */
+const MISSING_KEYS = ['missing_al', 'missing_mal', 'missing_k'] as const
+
+interface CoverageMatrixRow {
+  name: string
+  total: number
+  counts: Record<string, number | undefined>
+}
+
+/** Enriched, sortable coverage matrix built on the shared DataTable. */
+function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<string, number | undefined>> }) {
+  const rows = useMemo<CoverageMatrixRow[]>(
+    () =>
+      Object.keys(coverage)
+        .filter(c => (coverage[c]?.total ?? 0) > 0 && !c.includes('organized'))
+        .sort()
+        .map(name => ({ name, total: coverage[name]?.total ?? 0, counts: coverage[name] ?? {} })),
+    [coverage],
+  )
+
+  const columns = useMemo<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>[]>(() => [
+    {
+      id: 'name',
+      header: 'Collection',
+      accessorFn: r => r.name,
+      sortingFn: 'basic',
+      meta: { align: 'left' } as const,
+      cell: info => (
+        <>
+          {info.row.original.name}{' '}
+          <span className="text-muted-foreground">({(info.row.original.total ?? 0).toLocaleString()})</span>
+        </>
+      ),
+    },
+    ...FULL_COLS.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(sh => ({
+      id: sh,
+      header: sh,
+      accessorFn: r => r.counts[sh] ?? 0,
+      sortingFn: 'basic',
+      meta: { align: 'center' } as const,
+      cell: info => {
+        const { total } = info.row.original
+        const v = info.row.original.counts[sh] ?? 0
+        const pct = v / (total || 1)
+        return (
+          <span
+            title={String(v)}
+            className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground'}`}
+          >
+            {pct > 0 ? (pct * 100).toFixed(0) : '·'}
+          </span>
+        )
+      },
+    })),
+    ...MISSING_KEYS.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(k => ({
+      id: k,
+      header: k,
+      accessorFn: r => r.counts[k] ?? 0,
+      sortingFn: 'basic',
+      meta: { className: 'hidden' } as const,
+    })),
+  ], [])
+
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      getRowId={r => r.name}
+      initialSorting={[{ id: 'name', desc: false }]}
+      initialPageSize={8}
+      sortDescFirst
+      maxHeight="22rem"
+      ariaLabel="Reference coverage matrix"
+      footerLeft={`${rows.length} collections · % of docs carrying each shorthand`}
+    />
+  )
+}
 
 export function QualityPage() {
   const { data } = useStatus()
@@ -121,30 +201,7 @@ export function QualityPage() {
       <Section title="Reference coverage" icon={GitMerge} badge={<Badge variant="outline">{cols.length} collections</Badge>}>
         {cols.length === 0 ? <EmptyState icon={GitMerge} title="No coverage data" description="Ingest sources to populate reference coverage." /> : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="px-1 py-1 text-left">Collection</th>
-                    {FULL_COLS.map(s => <th key={s} className="px-1 py-1 text-center">{s}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cols.map(c => (
-                    <tr key={c} className="border-t">
-                      <td className="px-1 py-1">{c} <span className="text-muted-foreground">({(coverage[c]?.total ?? 0).toLocaleString()})</span></td>
-                      {FULL_COLS.map(s => {
-                        const v = coverage[c]?.[s] ?? 0
-                        const pct = v / (coverage[c]?.total ?? 1)
-                        return <td key={s} className="px-1 py-1 text-center tabular-nums" title={String(v)}>
-                          <span className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground'}`}>{pct > 0 ? (pct * 100).toFixed(0) : '·'}</span>
-                        </td>
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <CoverageMatrixTable coverage={coverage} />
             <div>
               <CompletenessRadar title="Completeness profile" data={radarData} series={radarSeries} emptyMsg="no coverage to plot" />
               <div className="mt-2 space-y-1 text-xs">
