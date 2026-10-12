@@ -69,7 +69,7 @@ if ($path === '/' || $path === '/index.html' || $path === '/spa') {
 if (in_array($path, ['/sw.js', '/favicon.svg', '/manifest.webmanifest'], true)) {
     $file = dirname(__DIR__) . '/web/public' . $path;
     if (!is_file($file)) {
-        $file = dirname(__DIR__, 2) . '/public' . $path;
+        $file = dirname(__DIR__) . '/public' . $path;
     }
     if (is_file($file)) {
         header('Content-Type: ' . (str_ends_with($path, '.js') ? 'application/javascript' : (str_ends_with($path, '.svg') ? 'image/svg+xml' : 'application/manifest+json')));
@@ -147,7 +147,7 @@ function dbStats(MongoClient $client): array
 
 function backupInfo(): array
 {
-    $dir = dirname(__DIR__, 2) . '/storage/backups';
+    $dir = dirname(__DIR__) . '/storage/backups';
     $files = glob($dir . '/hiyori-*.gz') ?: [];
     $last = null;
     foreach ($files as $f) {
@@ -162,7 +162,7 @@ function backupInfo(): array
 
 function controls(string $source): array
 {
-    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $dir = dirname(__DIR__) . '/storage/state';
     $file = $dir . '/control-' . $source . '.json';
 
     return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
@@ -336,7 +336,7 @@ if ($path === '/api/db') {
 
 if ($path === '/api/backup') {
     if (($_GET['run'] ?? '') === '1') {
-        $out = dirname(__DIR__, 2) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
+        $out = dirname(__DIR__) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
         if (!is_dir(dirname($out))) {
             mkdir(dirname($out), 0777, true);
         }
@@ -355,7 +355,7 @@ if ($path === '/api/action') {
     }
     if (in_array($cmd2, ['retry', 'start'], true)) {
         $src = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
-        $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__, 2)), escapeshellarg($src));
+        $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__)), escapeshellarg($src));
         @exec($exe);
         auditAppend('job.' . $cmd2, ['job' => $job]);
         sendJson(['job' => $job, 'cmd' => $cmd2, 'scheduled' => true]);
@@ -365,7 +365,7 @@ if ($path === '/api/action') {
         foreach (explode(',', (string) $srcs) as $src) {
             $src = trim($src);
             if ($src !== '') {
-                $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__, 2)), escapeshellarg($src));
+                $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__)), escapeshellarg($src));
                 @exec($exe);
             }
         }
@@ -373,7 +373,7 @@ if ($path === '/api/action') {
         sendJson(['job' => $job, 'cmd' => 'runnow', 'scheduled' => true]);
     }
     $state = uniqid() === '' ? '' : (string) file_put_contents(
-        dirname(__DIR__, 2) . '/storage/state/control-' . $job . '.json',
+        dirname(__DIR__) . '/storage/state/control-' . $job . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
     auditAppend('job.' . $cmd2, ['job' => $job]);
@@ -466,14 +466,14 @@ if ($path === '/api/events') {
 // ===== Dashboard v2 endpoints =====
 function uiSettings(): array
 {
-    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $dir = dirname(__DIR__) . '/storage/state';
     $file = $dir . '/ui.json';
     return is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
 }
 
 function saveUiSettings(array $s): void
 {
-    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $dir = dirname(__DIR__) . '/storage/state';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }
@@ -482,7 +482,7 @@ function saveUiSettings(array $s): void
 
 function auditAppend(string $action, array $detail = []): void
 {
-    $dir = dirname(__DIR__, 2) . '/storage/state';
+    $dir = dirname(__DIR__) . '/storage/state';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }
@@ -514,7 +514,7 @@ function tailLines(string $file, int $n): array
 
 function backupsList(): array
 {
-    $dir = dirname(__DIR__, 2) . '/storage/backups';
+    $dir = dirname(__DIR__) . '/storage/backups';
     $files = glob($dir . '/hiyori-*.gz') ?: [];
     usort($files, static fn ($a, $b) => filemtime($b) - filemtime($a));
 
@@ -673,7 +673,7 @@ if ($path === '/api/settings') {
             sendJson(['test' => $ok !== false ? 'sent' : 'failed']);
         }
         if (isset($body['reset']) && $body['reset']) {
-            @unlink(dirname(__DIR__, 2) . '/storage/state/ui.json');
+            @unlink(dirname(__DIR__) . '/storage/state/ui.json');
             auditAppend('settings.reset');
             sendJson(['settings' => [], 'reset' => true]);
         }
@@ -707,7 +707,7 @@ if ($path === '/api/restore') {
     if (!preg_match('/^hiyori-\d{8}-\d{6}\.gz$/', $file)) {
         sendJson(['error' => 'bad archive name'], 400);
     }
-    $archive = dirname(__DIR__, 2) . '/storage/backups/' . $file;
+    $archive = dirname(__DIR__) . '/storage/backups/' . $file;
     if (!is_file($archive)) {
         sendJson(['error' => 'archive not found'], 404);
     }
@@ -744,7 +744,7 @@ if ($path === '/api/limits') {
 }
 
 if ($path === '/api/audit') {
-    sendJson(['audit' => tailLines(dirname(__DIR__, 2) . '/storage/state/audit.jsonl', 100), 'timestamp' => date('c')]);
+    sendJson(['audit' => tailLines(dirname(__DIR__) . '/storage/state/audit.jsonl', 100), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/history') {
@@ -762,7 +762,7 @@ if ($path === '/api/histogram') {
 
 function updateDotEnv(string $key, ?string $value): bool
 {
-    $envFile = dirname(__DIR__, 2) . '/.env';
+    $envFile = dirname(__DIR__) . '/.env';
     if (!is_file($envFile)) {
         return false;
     }
@@ -829,6 +829,124 @@ if ($path === '/api/export') {
         }
     }
     exit;
+}
+
+
+// ===== Environment variable manager =====
+function envFile(): string
+{
+    return dirname(__DIR__) . '/.env';
+}
+
+function listEnvVars(): array
+{
+    $file = envFile();
+    if (!is_file($file)) {
+        return [];
+    }
+    $out = [];
+    foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $out[$key] = $value;
+    }
+
+    return $out;
+}
+
+function isSensitiveKey(string $key): bool
+{
+    return (bool) preg_match('/(TOKEN|SECRET|PASSWORD|CLIENT_SECRET)/i', $key);
+}
+
+function maskSecret(string $value): string
+{
+    if ($value === '') {
+        return '';
+    }
+    $head = array_slice(str_split($value), 0, 4);
+
+    return implode('', $head) . '••••' . (strlen($value) > 8 ? '(' . strlen($value) . ' chars)' : '');
+}
+
+function removeEnvVar(string $key): void
+{
+    $file = envFile();
+    if (!is_file($file)) {
+        return;
+    }
+    $lines = array_filter(file($file, FILE_IGNORE_NEW_LINES) ?: [], static function ($l) use ($key) {
+        $t = ltrim($l);
+        if ($t === '' || str_starts_with($t, '#')) {
+            return true; // keep blank + comment lines
+        }
+
+        return !str_starts_with($t, $key . '=');
+    });
+    @copy($file, $file . '.bak');
+    file_put_contents($file, implode("\n", array_values($lines)) . "\n");
+}
+
+if ($path === '/api/env') {
+    $vars = listEnvVars();
+    $reveal = (string) ($_GET['reveal'] ?? '');
+    $rows = [];
+    foreach ($vars as $key => $value) {
+        $sensitive = isSensitiveKey($key);
+        $rows[] = [
+            'key' => $key,
+            'present' => $value !== '',
+            'sensitive' => $sensitive,
+            'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value),
+            'value' => ($key === $reveal && $reveal !== '') ? (string) $value : null,
+        ];
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $key = trim((string) ($body['key'] ?? ''));
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+            sendJson(['error' => 'invalid env key'], 400);
+        }
+        if (array_key_exists('value', $body) && $body['value'] === null) {
+            removeEnvVar($key);
+            auditAppend('env.remove', ['key' => $key]);
+        } else {
+            $value = (string) ($body['value'] ?? '');
+            if (str_contains($value, "\n") || str_contains($value, "\r")) {
+                sendJson(['error' => 'value must be a single line'], 400);
+            }
+            updateDotEnv($key, $value);
+            auditAppend('env.update', ['key' => $key]);
+        }
+        $vars = listEnvVars();
+        sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($vars) {
+            $sensitive = isSensitiveKey($k);
+            $value = $vars[$k] ?? '';
+
+            return ['key' => $k, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
+        }, array_keys($vars))]);
+    }
+
+    sendJson(['env' => $rows, 'source' => '.env', 'timestamp' => date('c')]);
+}
+
+
+// Serve backup archives as downloads (they live under storage/backups).
+if (str_starts_with($path, '/storage/backups/')) {
+    $file = dirname(__DIR__) . $path;
+    if (is_file($file)) {
+        header('Content-Type: application/gzip');
+        header('Content-Disposition: attachment; filename="' . basename($file) . '"');
+        header('Content-Length: ' . filesize($file));
+        readfile($file);
+        exit;
+    }
+    sendJson(['error' => 'backup not found'], 404);
 }
 
 sendJson(['error' => 'not found', 'path' => $path], 404);
