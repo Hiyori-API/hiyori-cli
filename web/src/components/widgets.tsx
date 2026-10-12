@@ -144,16 +144,19 @@ export function Section({ title, icon: Icon, children, defaultOpen = true, badge
   const [open, setOpen] = useState(defaultOpen)
   return (
     <Card className={cn('overflow-hidden', className)}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center gap-2 rounded-t-xl px-4 py-3 text-left hover:bg-muted/40"
-      >
-        {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</span>
-        {badge && <span className="ml-2">{badge}</span>}
-        <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
-      </button>
+      <div className="flex w-full items-center gap-2 rounded-t-xl px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+          className="flex flex-1 items-center gap-2 text-left hover:bg-muted/40"
+        >
+          {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</span>
+          <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        </button>
+        {badge && <span className="ml-2 shrink-0">{badge}</span>}
+      </div>
       {open && <CardContent className="border-t p-4">{children}</CardContent>}
     </Card>
   )

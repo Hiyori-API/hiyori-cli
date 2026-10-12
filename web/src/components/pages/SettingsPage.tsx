@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { fetchMeta, fetchSettings, postSettings, type UiSettings } from '@/lib/api'
-import { useSettings } from '@/lib/hooks'
+import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
 
@@ -34,8 +34,10 @@ export function SettingsPage() {
   useEffect(() => { void fetchMeta().then(m => setMeta(m.collections ?? {})) }, [])
 
   const prefs = settings.prefs ?? {}
+  const [refreshLocal, setRefreshLocal] = useState<number>(prefs.refresh ?? 3000)
+  const setPre = (k: string, v: unknown) => void update({ prefs: { ...prefs, [k]: v } })
+  const persistRefresh = useDebouncedCallback((v: number) => setPre('refresh', v), 400)
   const widgets = prefs.widgets
-  const refreshMs = prefs.refresh ?? 3000
   const dark = prefs.theme !== 'light'
   const density = prefs.density ?? 'comfortable'
   const accent = prefs.accent ?? '#4fb3ff'
@@ -118,8 +120,8 @@ export function SettingsPage() {
                 <div className="text-xs text-muted-foreground">base polling rate; adaptively slows when idle</div>
               </div>
               <div className="flex w-56 items-center gap-3">
-                <Slider value={[refreshMs]} min={1000} max={60000} step={500} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setPref({ refresh: Number(v ?? 3000) }) }} className="flex-1" />
-                <span className="w-14 text-right text-sm tabular-nums">{(refreshMs / 1000).toFixed(1)}s</span>
+                <Slider value={[refreshLocal]} min={1000} max={60000} step={500} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; const n = Number(v ?? 3000); setRefreshLocal(n); persistRefresh(n) }} className="flex-1" />
+                <span className="w-14 text-right text-sm tabular-nums">{(refreshLocal / 1000).toFixed(1)}s</span>
               </div>
             </div>
             <div className="flex items-center justify-between">
@@ -176,7 +178,7 @@ export function SettingsPage() {
             {newToken && (
               <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs">
                 <div className="mb-1 flex items-center gap-2 text-emerald-400">New token (copy now — shown once)
-                  <Button size="icon-xs" variant="ghost" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy className="h-3 w-3" /></Button>
+                  <Button size="icon-xs" variant="ghost" aria-label="Copy new token" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy className="h-3 w-3" /></Button>
                 </div>
                 <code className="break-all">{newToken}</code>
               </div>

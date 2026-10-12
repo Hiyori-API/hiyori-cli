@@ -27,7 +27,7 @@ export function AlertToasts() {
   if (visible.length === 0) return null
 
   return (
-    <div className="pointer-events-none fixed top-16 right-5 z-[60] flex w-80 flex-col gap-2">
+    <div role="status" aria-live="assertive" className="pointer-events-none fixed top-16 right-5 z-[60] flex w-80 flex-col gap-2">
       {visible.map((a, i) => {
         const id = a.msg ?? a.type ?? `a${i}` + (a.source ?? '')
         return (
@@ -47,7 +47,7 @@ export function AlertToasts() {
               </div>
               <p className="mt-0.5 text-xs">{a.msg}</p>
             </div>
-            <Button size="icon-xs" variant="ghost" onClick={() => setAcked(s => new Set(s).add(id))}><X className="h-3 w-3" /></Button>
+            <Button size="icon-xs" variant="ghost" aria-label="Dismiss alert" onClick={() => setAcked(s => new Set(s).add(id))}><X className="h-3 w-3" /></Button>
           </div>
         )
       })}
