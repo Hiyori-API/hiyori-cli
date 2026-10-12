@@ -13,6 +13,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
+use Hiyori\Service\Telemetry;
 
 final class KitsuIngestion
 {
@@ -25,8 +26,14 @@ final class KitsuIngestion
         $meta = KitsuEntryListMeta::create()->setCurrentPage(0);
         $config = $sources->get();
         $sourceKey = 'kitsu';
+        $total = $meta->getTotalEntries();
+        Telemetry::track($sourceKey, 0, $total, 0, 'running');
 
-        $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
+        $processed = 0;
+        $saved = 0;
+        $errors = 0;
+
+        $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
@@ -44,6 +51,7 @@ final class KitsuIngestion
 
             foreach ($list->getList() as $listItem) {
                 $itemId = $listItem[$config->getJsonId()];
+                $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
                     $progressBar->advance();
@@ -95,18 +103,29 @@ final class KitsuIngestion
                     );
 
                 } catch (\Exception $e) {
+                    $errors++;
                     $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
                 if ($listItemData !== null) {
                     $db->save($config->getTable(), KitsuBase::create($listItemData));
+                    $saved++;
                 }
                 $progressBar->advance();
+
+                if ($processed % 25 === 0) {
+                    Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
+                        'saved' => $saved,
+                    ]);
+                }
             }
 
             $meta->setCurrentPage($meta->getCurrentPage() + 20);
         }
 
         $progressBar->finish();
+        Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
+            'saved' => $saved,
+        ]);
     }
 }

@@ -97,7 +97,13 @@ class Database
             foreach ($errors as $field => $messages) {
                 $summary[] = $field . '=' . implode(',', $messages);
             }
-            error_log(sprintf('[validator] %s entry validation issues: %s', $source, implode('; ', $summary)));
+            $message = sprintf('[validator] %s entry validation issues: %s', $source, implode('; ', $summary));
+            error_log($message);
+            (new \Hiyori\Service\Telemetry())->append('validation-log', [
+                'source' => $source,
+                'title' => $entry['title'] ?? null,
+                'errors' => $errors,
+            ]);
         }
 
         return $this->getCollection($source)

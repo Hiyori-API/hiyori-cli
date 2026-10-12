@@ -7,3 +7,4 @@
 /storage/backups/
 .php-cs-fixer.cache
 .phpunit.result.cache
+/storage/state/

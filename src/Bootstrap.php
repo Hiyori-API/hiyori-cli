@@ -80,6 +80,7 @@ $app->addCommands([
     new \Hiyori\Commands\ExportCommand($hiyori),
     new \Hiyori\Commands\HealthCommand($hiyori),
     new \Hiyori\Commands\MetricsCommand($hiyori),
+    new \Hiyori\Commands\DashboardCommand(),
     new \Hiyori\Commands\BackupCommand(),
     new \Hiyori\Commands\ValidateCommand($hiyori),
     new \Hiyori\Commands\RestoreCommand(),
