@@ -9,6 +9,7 @@ use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
+use Hiyori\Service\Telemetry;
 
 final class KitsuMangaIngestion
 {
@@ -21,13 +22,21 @@ final class KitsuMangaIngestion
         $meta = KitsuEntryListMeta::create()->setCurrentPage(0);
         $config = $sources->get();
         $sourceKey = 'kitsu_manga';
+        $total = $meta->getTotalEntries();
 
-        $progressBar = $console->io()->createProgressBar($meta->getTotalEntries());
+        $processed = 0;
+        $saved = 0;
+        $skipped = 0;
+        $errors = 0;
+        Telemetry::track($sourceKey, 0, $total, 0, 'running');
+
+        $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
 
-        while ($meta->getCurrentPage() <= $meta->getTotalEntries()) {
+        // Kitsu uses page[offset] pagination with a 20-item page — step offsets by 20.
+        while ($meta->getCurrentPage() <= $total) {
             $currentPage = $meta->getCurrentPage();
 
             $list = $rateLimiter->executeWithRetry(
@@ -40,8 +49,10 @@ final class KitsuMangaIngestion
 
             foreach ($list->getList() as $listItem) {
                 $itemId = $listItem[$config->getJsonId()];
+                $processed++;
 
-                if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {
+                if ($db->exists($config->getTable(), $config->getShorthand(), (string) $itemId)) {
+                    $skipped++;
                     $progressBar->advance();
                     continue;
                 }
@@ -90,18 +101,31 @@ final class KitsuMangaIngestion
                     );
 
                 } catch (\Exception $e) {
+                    $errors++;
                     $console->io()->error("[$itemId] " . $e->getMessage());
                 }
 
                 if ($listItemData !== null) {
                     $db->save($config->getTable(), KitsuBase::create($listItemData));
+                    $saved++;
                 }
                 $progressBar->advance();
             }
 
+            if ($processed % 25 === 0) {
+                Telemetry::track($sourceKey, $processed, $total, $errors, 'running', 'initial', [
+                    'saved' => $saved,
+                    'skipped' => $skipped,
+                ]);
+            }
             $meta->setCurrentPage($meta->getCurrentPage() + 20);
         }
 
+        Telemetry::track($sourceKey, $processed, $total, $errors, 'done', 'initial', [
+            'saved' => $saved,
+            'skipped' => $skipped,
+        ]);
         $progressBar->finish();
+        $console->io()->info("Kitsu Manga ingest complete: saved $saved, skipped $skipped, errors $errors");
     }
 }
