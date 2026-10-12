@@ -121,3 +121,17 @@ token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/lim
   - probes: timeout 10s, max_redirects 0 (don't chase error.json)
 - alerts() debounces: the critical banner needs 2+ consecutive unreachable polls within
   120s; a sustained degraded state (3+ polls of 429/307) produces a soft WARN instead.
+
+## Benchmark v2 results (anime, base anilist)
+
+| strategy | wall | organized | has MAL | has Kitsu | triple | dups |
+|---|---|---|---|---|---|---|
+| relational_mapping | 264s | 4,677 | 4,677 | 3,045 | 3,045 | 0 |
+| relational_fuzzy | 859s | 6,873 | 6,865 | 3,393 | 3,392 | 0 |
+| metadata_fuzzy (tuned) | 1,429s | 10,770 | 10,768 | 8,359 | 8,358 | 0 |
+
+- metadata_fuzzy with weightage-tuned weights wins on coverage by ~1.6x organized /
+  2.5x triple-linked. `organized` = 10,770 (histogram: 70–80=3,705 · 80–90=680 · 90–100=6,385).
+- metadata_fuzzy is now the DEFAULT combine strategy with tuned weights embedded.
+- Dev: `npm run dev` serves HMR at http://localhost:5173 (proxy → :8080); port pinned via
+  strictPort + `@` alias added.
