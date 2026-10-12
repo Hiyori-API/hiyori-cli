@@ -90,6 +90,8 @@ export interface StatusPayload {
   cache?: { requests?: number; enabled?: boolean; host?: string }
   coverage?: Record<string, CoverageRow>
   alerts?: AlertItem[]
+  slow?: SlowEntry[]
+  schedule?: ScheduleInfo
 }
 
 export async function fetchStatus(): Promise<StatusPayload> {
@@ -128,4 +130,17 @@ export async function fetchSample(collection: string): Promise<{ sample?: Record
 
 export async function runAction(job: string, cmd: 'pause' | 'resume' | 'retry'): Promise<ActionResponse> {
   return postAction(job, cmd)
+}
+
+export interface ScheduleInfo {
+  sources?: string
+  interval_hours?: number
+  next_in?: number | null
+  method?: string
+}
+export interface SlowEntry {
+  ts?: string
+  url?: string
+  ms?: number
+  method?: string
 }

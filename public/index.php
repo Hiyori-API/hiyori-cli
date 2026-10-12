@@ -65,6 +65,20 @@ if ($path === '/' || $path === '/index.html' || $path === '/spa') {
     exit;
 }
 
+// PWA static files
+if (in_array($path, ['/sw.js', '/favicon.svg', '/manifest.webmanifest'], true)) {
+    $file = dirname(__DIR__) . '/web/public' . $path;
+    if (!is_file($file)) {
+        $file = dirname(__DIR__, 2) . '/public' . $path;
+    }
+    if (is_file($file)) {
+        header('Content-Type: ' . (str_ends_with($path, '.js') ? 'application/javascript' : (str_ends_with($path, '.svg') ? 'image/svg+xml' : 'application/manifest+json')));
+        header('Cache-Control: no-cache');
+        echo file_get_contents($file);
+        exit;
+    }
+}
+
 // React build assets
 if (str_starts_with($path, '/assets/') || str_starts_with($path, '/vite.svg')) {
     $file = dirname(__DIR__) . '/web/dist' . str_replace(['..', '//'], '', $path);
@@ -192,7 +206,7 @@ function benchmarkData(Telemetry $telemetry): array
     return ['seeded' => $seed, 'latest' => $combine];
 }
 
-function alerts(HealthCheck $health): array
+function alerts(HealthCheck $health, Telemetry $telemetry): array
 {
     $out = [];
     $h = $health->check();
@@ -209,7 +223,47 @@ function alerts(HealthCheck $health): array
         $out[] = ['level' => 'critical', 'type' => 'api_down', 'source' => '*', 'msg' => 'One or more external APIs unreachable'];
     }
 
+    // Webhook delivery (throttled: once per alert identity per hour)
+    $webhook = $_ENV['WEBHOOK_URL'] ?? '';
+    if ($webhook !== '' && $out !== []) {
+        $sent = $telemetry->read('alerts-sent');
+        $now = time();
+        foreach ($out as $a) {
+            $id = ($a['type'] ?? '') . ':' . ($a['source'] ?? '');
+            $last = (int) ($sent[$id] ?? 0);
+            if ($now - $last >= 3600) {
+                @file_get_contents($webhook, false, stream_context_create([
+                    'http' => [
+                        'method' => 'POST',
+                        'header' => 'Content-Type: application/json',
+                        'content' => json_encode(['text' => '[Hiyori] ' . $a['msg']]),
+                        'timeout' => 5,
+                    ],
+                ]));
+                $sent[$id] = $now;
+            }
+        }
+        $telemetry->update('alerts-sent', $sent);
+    }
+
     return $out;
+}
+
+function scheduleView(Telemetry $telemetry): array
+{
+    $s = $telemetry->read('schedule');
+    $envSources = isset($_ENV['SCHEDULE_SOURCES']) && $_ENV['SCHEDULE_SOURCES'] !== '' ? $_ENV['SCHEDULE_SOURCES'] : 'anilist,kitsu,myanimelist';
+    $sources = $s['sources'] ?? $envSources;
+    $envInterval = isset($_ENV['SCHEDULE_INTERVAL']) && $_ENV['SCHEDULE_INTERVAL'] !== '' ? (int) $_ENV['SCHEDULE_INTERVAL'] : 86400;
+    $interval = (int) ($s['interval'] ?? $envInterval);
+    $last = (int) ($s['last_run'] ?? 0);
+
+    return [
+        'sources' => is_array($sources) ? implode(',', $sources) : (string) $sources,
+        'interval_hours' => $interval / 3600,
+        'next_in' => $last ? max(0, $last + $interval - time()) : null,
+        'method' => $s['method'] ?? 'systemd-timer (see schedule --install)',
+    ];
 }
 
 if ($path === '/api/counts') {
@@ -274,7 +328,7 @@ if ($path === '/api/benchmark') {
 }
 
 if ($path === '/api/alerts') {
-    sendJson(['alerts' => alerts($health), 'timestamp' => date('c')]);
+    sendJson(['alerts' => alerts($health, $telemetry), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/sample') {
@@ -285,6 +339,14 @@ if ($path === '/api/sample') {
 
 if ($path === '/api/jobsV2') {
     sendJson(['jobs' => $telemetry->allState(), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/slow') {
+    sendJson(['slow' => $telemetry->tail('slow-requests', 50), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/schedule') {
+    sendJson(['schedule' => scheduleView($telemetry), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/status') {
@@ -304,7 +366,9 @@ if ($path === '/api/status') {
         'backup' => backupInfo(),
         'cache' => $telemetry->read('cache'),
         'coverage' => coverage($client),
-        'alerts' => alerts($health),
+        'alerts' => alerts($health, $telemetry),
+        'slow' => $telemetry->tail('slow-requests', 30),
+        'schedule' => scheduleView($telemetry),
         'health' => $health->check(),
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),

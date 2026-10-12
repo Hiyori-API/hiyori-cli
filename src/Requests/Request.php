@@ -17,11 +17,29 @@ class Request
 
     public static function fetch(string $url, string $method = self::GET, ?array $options = []): ResponseInterface
     {
-        (new \Hiyori\Service\Telemetry())->update('cache', [
-            'requests' => (int) ((new \Hiyori\Service\Telemetry())->read('cache')['requests'] ?? 0) + 1,
+        $telemetry = new \Hiyori\Service\Telemetry();
+        $telemetry->update('cache', [
+            'requests' => (int) ($telemetry->read('cache')['requests'] ?? 0) + 1,
             'enabled' => (bool) ($_ENV['HTTP_CACHE'] ?? false),
             'host' => (string) parse_url($url, PHP_URL_HOST),
         ]);
+
+        $start = microtime(true);
+        $response = self::doFetch($url, $method, $options);
+        $ms = (microtime(true) - $start) * 1000;
+        if ($ms >= 2000) {
+            $telemetry->append('slow-requests', [
+                'url' => (string) parse_url($url, PHP_URL_HOST) . (string) parse_url($url, PHP_URL_PATH),
+                'ms' => (int) $ms,
+                'method' => $method,
+            ], 500);
+        }
+
+        return $response;
+    }
+
+    private static function doFetch(string $url, string $method = self::GET, ?array $options = []): \Symfony\Contracts\HttpClient\ResponseInterface
+    {
         $client = new RetryableHttpClient(HttpClient::create());
 
         if (!boolval($_ENV['HTTP_CACHE'] ?? false)) {

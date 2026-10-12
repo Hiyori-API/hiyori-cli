@@ -56,6 +56,12 @@ export function Dashboard() {
   const [sample, setSample] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [samplerFeed, setSamplerFeed] = useState<{ right: number; wrong: number }>({ right: 0, wrong: 0 })
   const [dismissedAlert, setDismissedAlert] = useState<string | null>(null)
+  const [tz, setTz] = useState<'local' | 'utc'>('local')
+  const fmtClock = (ts?: string) => {
+    if (!ts) return '—'
+    const d = new Date(ts)
+    return tz === 'utc' ? d.toUTCString().slice(17, 25) + ' UTC' : d.toLocaleTimeString()
+  }
 
   const refreshBench = useCallback(async () => {
     try { setBench(await fetchBenchmark()) } catch { /* ignore */ }
@@ -146,7 +152,7 @@ export function Dashboard() {
           <h1 className="text-lg font-bold">Hiyori<span className="text-primary">DB</span> · Live</h1>
           <Badge variant="outline">{data?.health?.status === 'healthy' ? 'healthy' : 'degraded'}</Badge>
           <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-            {error ? 'reconnecting…' : data ? `updated ${new Date(data.timestamp).toLocaleTimeString()}` : 'connecting…'}
+            {error ? 'reconnecting…' : data ? `updated ${fmtClock(data.timestamp)}` : 'connecting…'}
           </span>
         </div>
       </header>
@@ -181,6 +187,7 @@ export function Dashboard() {
           <Button size="sm" variant="outline" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? '↑' : '↓'}</Button>
           <Button size="sm" variant="outline" onClick={exportCSV}>⬇ CSV</Button>
           <Button size="sm" variant="outline" onClick={() => void refreshBench()}>refresh</Button>
+          <Button size="sm" variant="outline" onClick={() => setTz(t => t === 'local' ? 'utc' : 'local')}>{tz === 'local' ? '🕐 local' : '🕐 utc'}</Button>
         </div>
 
         {/* ALERTS: JOBS */}
@@ -194,7 +201,7 @@ export function Dashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs uppercase text-muted-foreground">
-                    <tr><th className="px-4 py-2">Source</th><th className="px-2 py-2">Status</th><th className="px-2 py-2">Progress</th><th className="px-2 py-2 text-right">Speed</th><th className="px-2 py-2 text-right">Pending</th><th className="px-2 py-2 text-right">Saved/Skip</th><th className="px-2 py-2 text-right">ETA</th></tr>
+                    <tr><th className="px-4 py-2">Source</th><th className="px-2 py-2">Status</th><th className="px-2 py-2">Progress</th><th className="px-2 py-2 text-right">Speed</th><th className="px-2 py-2 text-right">Pending</th><th className="px-2 py-2 text-right">Saved/Skip</th><th className="px-2 py-2 text-right">ETA</th><th className="px-4 py-2 text-right">Done ~</th></tr>
                   </thead>
                   <tbody>
                     {sortedJobs.map(({ key, job }) => {
@@ -221,6 +228,7 @@ export function Dashboard() {
                           <td className="px-2 py-2 text-right tabular-nums">{fmt(pending)}</td>
                           <td className="px-2 py-2 text-right tabular-nums">{fmt(job.saved)}/{fmt(job.skipped)}</td>
                           <td className="px-2 py-2 text-right tabular-nums">{fmtSec(job.eta_seconds)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{job.eta_seconds ? new Date(Date.now() + job.eta_seconds * 1000).toLocaleTimeString() : '—'}</td>
                         </tr>
                       )
                     })}
@@ -483,6 +491,35 @@ export function Dashboard() {
                 <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Strategy</div><div className="font-medium">{data.combine.strategy}</div></div>
                 <div className="rounded-lg border p-2"><div className="text-xs text-muted-foreground">Merges</div><div className="font-medium">{fmt(data.combine.merges)}</div></div>
                 {data.combine.scores && <div className="col-span-2 rounded-lg border p-2"><div className="text-xs text-muted-foreground">Score avg/min/max</div><div className="font-medium">{data.combine.scores.avg} / {data.combine.scores.min} / {data.combine.scores.max}</div></div>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* SCHEDULER */}
+        <Card className="col-span-12 md:col-span-4">
+          <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Scheduler</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center justify-between"><span className="text-muted-foreground">Sources</span><span className="tabular-nums">{data?.schedule?.sources ?? '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-muted-foreground">Interval</span><span className="tabular-nums">{data?.schedule?.interval_hours ?? 24} h</span></div>
+            <div className="flex items-center justify-between"><span className="text-muted-foreground">Next run</span><span className="tabular-nums">{data?.schedule?.next_in != null ? fmtSec(data.schedule.next_in) : '—'}</span></div>
+            <div className="rounded-lg border p-2 text-xs text-muted-foreground">{data?.schedule?.method ?? 'systemd timer'}</div>
+            <div className="text-xs text-muted-foreground">Run <code className="mono">php hiyori schedule --install</code> to print systemd/cron units; use <code className="mono">retry (↻)</code> above to trigger now.</div>
+          </CardContent>
+        </Card>
+
+        {/* SLOW REQUESTS */}
+        <Card className="col-span-12 md:col-span-4">
+          <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Slow requests (&gt;2s)</CardTitle></CardHeader>
+          <CardContent>
+            {!data?.slow?.length ? <p className="text-sm text-muted-foreground">none yet</p> : (
+              <div className="max-h-48 space-y-1.5 overflow-auto text-xs">
+                {data.slow.slice(0, 30).map((s, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-md border px-2 py-1">
+                    <span className="mr-2 truncate text-muted-foreground">{s.url}</span>
+                    <span className="tabular-nums text-amber-500">{s.ms}ms</span>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
