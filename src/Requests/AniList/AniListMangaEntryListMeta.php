@@ -11,7 +11,7 @@ class AniListMangaEntryListMeta extends EntryListMeta
 
     private bool $hasNextPage = false;
 
-    public static function create(&$currentPage = 1): self
+    public static function create(&$currentPage = 1, ?int $startDateGreater = null, ?int $startDateLesser = null): self
     {
         $self = new self();
 
@@ -20,10 +20,12 @@ class AniListMangaEntryListMeta extends EntryListMeta
             Request::POST,
             [
                 'query' => file_get_contents(__DIR__ . '/Data/MangaEntryListRequest.graphql'),
-                'variables' => [
+                'variables' => array_filter([
                     'page' => $currentPage,
                     'type' => 'MANGA',
-                ],
+                    'startDateGreater' => $startDateGreater,
+                    'startDateLesser' => $startDateLesser,
+                ], static fn ($v) => $v !== null),
             ],
         )
             ->toArray();
