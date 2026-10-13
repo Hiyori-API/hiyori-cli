@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import {
   fetchAudit, fetchBackups, fetchLimits, postAction, postLimits, restoreBackup,
@@ -213,7 +214,7 @@ export function ManagementPage() {
           {failures.length === 0 ? (
             <EmptyState icon={ListChecks} title="No validation issues" description="Failed entries and violations appear here for retry." />
           ) : (
-            <div className="max-h-64 space-y-1.5 overflow-auto text-xs">
+            <ScrollArea className="max-h-64"><div className="space-y-1.5 text-xs">
               {failures.map((f, i) => (
                 <div key={i} className="rounded-lg border px-2 py-1.5">
                   <div className="flex items-center gap-2">
@@ -224,7 +225,7 @@ export function ManagementPage() {
                   <div className="mt-1 text-amber-500">{Object.keys(f.errors ?? {}).join(', ')}</div>
                 </div>
               ))}
-            </div>
+            </div></ScrollArea>
           )}
         </Section>
       </div>
