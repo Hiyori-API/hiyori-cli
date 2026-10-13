@@ -26,7 +26,7 @@ final class Publisher
 
     private string $outBase;
 
-    /** @return array{written: array<string,int>, rows: int} */
+    /** @return array{written: array<string,int>, rows: int, dir: string} */
     public function dump(bool $gzip = true, bool $includeManga = true): array
     {
         $stamp = (new \DateTime('now'))->format('Ymd-His');
