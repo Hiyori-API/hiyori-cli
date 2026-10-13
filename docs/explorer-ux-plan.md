@@ -1,5 +1,13 @@
 # Explorer UX overhaul — implementation plan
 
+> [!NOTE]
+> **Status:** the Explorer page shipped (React + TanStack DataTable) with the
+> Dashboard v2 restructure; the backend wave (`/api/explore*`, `/api/histogram`,
+> `/api/meta`, facets, ranges, bulk/undo/import) is complete — see
+> [dashboard-roadmap.md](dashboard-roadmap.md) → “Explorer backend wave”.
+> This file keeps the original UX checklist; unchecked items below are
+> grooming/review work, not shipped features.
+
 Selected via checkbox review (57 of 60; B5 server views & B8 regex toggle & F2 gallery deferred).
 Decision: **detail opens in a right side-panel (Sheet)** — no separate detail page.
 
@@ -31,10 +39,10 @@ H4 zebra + tighter borders + compact default · H5 mono toggle for id/refs · H6
 dots · H7 shadowed sticky action bar when selected · H8 collection brand icons ·
 H9 first-visit onboarding tooltips · H10 per-row ref-density heat strip
 
-## Backend (parallel)
-- restore /api/histogram (+ ?collection=)
-- explore: facets co-fetch, range params, /api/explore/update (inline edit), /api/explore/bulk
-  (set field / delete), /api/explore/import (CSV upsert), undo queue + restore, meta facets
+## Backend (shipped — see roadmap “Explorer backend wave”)
+restore /api/histogram (+ ?collection=) · explore facets co-fetch + range
+params · /api/explore/update (inline edit) · /api/explore/bulk (set/delete) ·
+/api/explore/import (CSV upsert) · undo queue + restore · meta facets.
 
-## Shared DataTable (parallel, additive)
-- virtual rows, stickyLeft pin, multi-sort (resizable already exists)
+## Shared DataTable (shipped, additive)
+- virtual rows (TanStack Virtual), stickyLeft pin, multi-sort (resizable already exists)
