@@ -270,8 +270,8 @@ export async function fetchHistory(): Promise<HistoryPayload> {
   return r.json() as Promise<HistoryPayload>
 }
 
-export async function fetchHistogram(): Promise<{ histogram?: Record<string, number>; bins?: number[] }> {
-  const r = await fetch('/api/histogram')
+export async function fetchHistogram(collection = 'organized'): Promise<{ histogram?: Record<string, number>; bins?: number[]; collection?: string }> {
+  const r = await fetch(`/api/histogram?collection=${encodeURIComponent(collection)}`)
   return r.json() as Promise<{ histogram?: Record<string, number>; bins?: number[] }>
 }
 
@@ -324,4 +324,9 @@ export async function postEnvRaw(raw: string): Promise<{ raw_updated?: boolean; 
 }
 export async function postEnvPatterns(patterns: string[]): Promise<{ patterns?: string[] }> {
   return jsonPost('/api/env', { patterns }) as Promise<{ patterns?: string[] }>
+}
+
+export async function fetchBenchmarkManga(): Promise<{ benchmark?: BenchmarkRow[]; source?: string }> {
+  const r = await fetch('/api/benchmark-manga')
+  return r.json() as Promise<{ benchmark?: BenchmarkRow[]; source?: string }>
 }
