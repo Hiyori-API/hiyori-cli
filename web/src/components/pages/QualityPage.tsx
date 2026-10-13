@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   downloadExport, fetchBenchmarkManga, fetchSample, type BenchmarkRow,
 } from '@/lib/api'
@@ -12,15 +14,14 @@ import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { useCachedFetch, useFailures } from '@/lib/fetch-cache'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
-import { BenchmarkBars, CompletenessRadar, DensityHistogram, ThresholdScatter } from '../chartcard'
+import { CompletenessRadar, DensityHistogram } from '../chartcard'
 import { COLORS } from '../charts'
 import { EmptyState } from '../empty'
+import { fmt, fmtCompact, fmtSec } from '@/lib/format'
 import { PageHead, Section } from '../widgets'
 
 const FULL_COLS = ['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'cr', 'nf', 'sb', 'ttv', 't', 'adb', 'tx', 'b', 'fm', 'yt', 'ap', 'tvt']
 const DEFAULT_WEIGHTS = { title: 31, episodes: 31, year: 15, season: 14, type: 6, tags: 3, status: 0 }
-// demo per-field similarity for the weight explorer (fixed sample pair)
-const DEMO_SIMS = { title: 0.86, episodes: 1, year: 1, season: 1, type: 1, tags: 0.5, status: 1 }
 
 /** Missing critical refs per collection, kept as hidden sortable columns. */
 const MISSING_KEYS = ['missing_al', 'missing_mal', 'missing_k'] as const
@@ -31,7 +32,7 @@ interface CoverageMatrixRow {
   counts: Record<string, number | undefined>
 }
 
-/** Enriched, sortable coverage matrix built on the shared DataTable. */
+/** Enriched, sortable coverage matrix built on the shared DataTable (Q1: empty shorthand columns are hidden). */
 function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<string, number | undefined>> }) {
   const rows = useMemo<CoverageMatrixRow[]>(
     () =>
@@ -42,48 +43,52 @@ function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<str
     [coverage],
   )
 
-  const columns = useMemo<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>[]>(() => [
-    {
-      id: 'name',
-      header: 'Collection',
-      accessorFn: r => r.name,
-      sortingFn: 'basic',
-      meta: { align: 'left' } as const,
-      cell: info => (
-        <>
-          {info.row.original.name}{' '}
-          <span className="text-muted-foreground">({(info.row.original.total ?? 0).toLocaleString()})</span>
-        </>
-      ),
-    },
-    ...FULL_COLS.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(sh => ({
-      id: sh,
-      header: sh,
-      accessorFn: r => r.counts[sh] ?? 0,
-      sortingFn: 'basic',
-      meta: { align: 'center' } as const,
-      cell: info => {
-        const { total } = info.row.original
-        const v = info.row.original.counts[sh] ?? 0
-        const pct = v / (total || 1)
-        return (
-          <span
-            title={String(v)}
-            className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground'}`}
-          >
-            {pct > 0 ? (pct * 100).toFixed(0) : '·'}
-          </span>
-        )
+  const columns = useMemo<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>[]>(() => {
+    // Only render shorthand columns that carry at least one doc across collections.
+    const active = FULL_COLS.filter(sh => rows.some(r => (r.counts[sh] ?? 0) > 0))
+    return [
+      {
+        id: 'name',
+        header: 'Collection',
+        accessorFn: r => r.name,
+        sortingFn: 'basic',
+        meta: { align: 'left' } as const,
+        cell: info => (
+          <>
+            {info.row.original.name}{' '}
+            <span className="text-muted-foreground">({fmt(info.row.original.total)})</span>
+          </>
+        ),
       },
-    })),
-    ...MISSING_KEYS.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(k => ({
-      id: k,
-      header: k,
-      accessorFn: r => r.counts[k] ?? 0,
-      sortingFn: 'basic',
-      meta: { className: 'hidden' } as const,
-    })),
-  ], [])
+      ...active.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(sh => ({
+        id: sh,
+        header: sh,
+        accessorFn: r => r.counts[sh] ?? 0,
+        sortingFn: 'basic',
+        meta: { align: 'center' } as const,
+        cell: info => {
+          const { total } = info.row.original
+          const v = info.row.original.counts[sh] ?? 0
+          const pct = v / (total || 1)
+          return (
+            <span
+              title={String(v)}
+              className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground'}`}
+            >
+              {pct > 0 ? (pct * 100).toFixed(0) : '·'}
+            </span>
+          )
+        },
+      })),
+      ...MISSING_KEYS.map<ColumnDef<DataTableFeatures, CoverageMatrixRow, any>>(k => ({
+        id: k,
+        header: k,
+        accessorFn: r => r.counts[k] ?? 0,
+        sortingFn: 'basic',
+        meta: { className: 'hidden' } as const,
+      })),
+    ]
+  }, [rows])
 
   return (
     <DataTable
@@ -97,6 +102,43 @@ function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<str
       ariaLabel="Reference coverage matrix"
       footerLeft={`${rows.length} collections · % of docs carrying each shorthand`}
     />
+  )
+}
+
+/** One benchmark table (Q4): strategy, wall, merges, dups. */
+function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
+  if (!rows.length) {
+    return <EmptyState icon={Scale} title="No benchmark rows" description="Run a combine benchmark to compare strategies." />
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Strategy</TableHead>
+          <TableHead className="text-right">Wall</TableHead>
+          <TableHead className="text-right">Merges</TableHead>
+          <TableHead className="text-right">Dups</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map(b => {
+          // dups: prefer the API field when a benchmark exposes it; until then,
+          // estimate duplicate hits as merges minus uniquely-organized docs.
+          const withDups = b as BenchmarkRow & { dups?: number }
+          const dups = withDups.dups ?? Math.max(0, (b.merges ?? 0) - (b.organized ?? 0))
+          return (
+            <TableRow key={b.strategy ?? `${b.wall_s ?? ''}-${b.merges ?? ''}`}>
+              <TableCell className="font-medium">{b.strategy ?? '—'}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtSec(b.wall_s)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtCompact(b.merges)}</TableCell>
+              <TableCell className="text-right tabular-nums" title={withDups.dups === undefined ? 'estimated: merges − organized until the API exposes dups' : 'duplicate merges'}>
+                {fmtCompact(dups)}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -146,21 +188,6 @@ export function QualityPage() {
     color: COLORS[i % COLORS.length],
   })), [coverage, cols])
 
-  const thresholdCurve = useMemo(() => {
-    const h = hist.data?.histogram
-    if (!h) return []
-    const total = Object.values(h).reduce((a, b) => a + b, 0)
-    if (!total) return []
-    const points = []
-    let acc = 0
-    const bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-    for (let i = bins.length - 1; i >= 0; i--) {
-      acc += (h[String(bins[i])] ?? 0)
-      points.push({ threshold: bins[i], merges: Math.round((acc / total) * 1000), organized: Math.round((acc / total) * 700) })
-    }
-    return points.reverse()
-  }, [hist])
-
   const validationTrend = useMemo(() => {
     const buckets: Record<string, number> = {}
     failures.forEach(f => {
@@ -171,22 +198,14 @@ export function QualityPage() {
     return Object.entries(buckets).slice(-24).map(([k, v]) => ({ t: k.slice(11), n: v }))
   }, [failures])
 
-  const scorePreview = useMemo(() => {
-    const ws = Object.values(weights).reduce((a, b) => a + b, 0) || 1
-    const sims = Object.entries(weights).map(([k, w]) => {
-      const sim = DEMO_SIMS[k as keyof typeof DEMO_SIMS] ?? 0
-      return { k, w, sim, contrib: (w / ws) * sim * 100 }
-    })
-    const score = sims.reduce((a, s) => a + s.contrib, 0)
-    return { sims, score }
-  }, [weights])
-
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
   const reloadAnalysis = () => {
     setBenchKey(k => k + 1)
     void refreshFailures()
   }
+
+  const weightsJson = JSON.stringify(weights)
 
   return (
     <div className="space-y-4">
@@ -201,85 +220,96 @@ export function QualityPage() {
         }
       />
 
-      {/* Q2: coverage */}
+      {/* Q2: coverage as Matrix / Radar tabs (missing-refs bars kept in Radar) */}
       <Section title="Reference coverage" icon={GitMerge} badge={<Badge variant="outline">{cols.length} collections</Badge>}>
         {cols.length === 0 ? <EmptyState icon={GitMerge} title="No coverage data" description="Ingest sources to populate reference coverage." /> : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <CoverageMatrixTable coverage={coverage} />
-            <div>
-              <CompletenessRadar title="Completeness profile" data={radarData} series={radarSeries} emptyMsg="no coverage to plot" />
-              <div className="mt-2 space-y-1 text-xs">
-                <div className="mb-1 text-muted-foreground">Missing critical refs</div>
-                {missingRows.map(m => (
-                  <div key={m.name} className="flex items-center gap-2">
-                    <span className="w-24 truncate">{m.name}</span>
-                    <span className="flex-1 rounded bg-muted"><span className="block h-3 max-w-full rounded bg-red-400/70" style={{ width: `${Math.min(100, ((m.al + m.mal + m.k) / Math.max(1, (coverage[m.name]?.total ?? 1))) * 100)}%` }} /></span>
-                    <span className="tabular-nums text-muted-foreground">{m.al + m.mal + m.k}</span>
-                  </div>
-                ))}
+          <Tabs defaultValue="matrix">
+            <TabsList>
+              <TabsTrigger value="matrix">Matrix</TabsTrigger>
+              <TabsTrigger value="radar">Radar</TabsTrigger>
+            </TabsList>
+            <TabsContent value="matrix" className="pt-3">
+              <CoverageMatrixTable coverage={coverage} />
+            </TabsContent>
+            <TabsContent value="radar" className="pt-3">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <CompletenessRadar title="Completeness profile" data={radarData} series={radarSeries} emptyMsg="no coverage to plot" />
+                <div className="space-y-1 text-xs">
+                  <div className="mb-1 text-muted-foreground">Missing critical refs</div>
+                  {missingRows.map(m => (
+                    <div key={m.name} className="flex items-center gap-2">
+                      <span className="w-24 truncate">{m.name}</span>
+                      <span className="flex-1 rounded bg-muted"><span className="block h-3 max-w-full rounded bg-red-400/70" style={{ width: `${Math.min(100, ((m.al + m.mal + m.k) / Math.max(1, (coverage[m.name]?.total ?? 1))) * 100)}%` }} /></span>
+                      <span className="tabular-nums text-muted-foreground">{m.al + m.mal + m.k}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
         )}
       </Section>
 
-      {/* Q3: benchmark + thresholds */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Strategy benchmark" icon={Scale} badge={
-          <Button size="icon-xs" variant="ghost" title="Refresh benchmark + histogram" onClick={reloadAnalysis}><RefreshCw className="h-3 w-3" /></Button>
-        }>
-          {!bench.data?.seeded?.length ? <Skeleton className="h-40 w-full" /> : (
-            <>
-              <BenchmarkBars title="Wall time vs baseline" rows={(bench.data?.seeded ?? []).map(b => ({ name: b.strategy ?? '?', wall_s: b.wall_s ?? 0, merges: b.merges, speed: b.speed }))} />
-              <div className="mt-2 space-y-1 text-xs">
-                {bench.data.seeded.map(b => (
-                  <div key={b.strategy} className="flex justify-between text-muted-foreground">
-                    <span>{b.strategy}</span>
-                    <span className="tabular-nums">{b.merges?.toLocaleString()} merges · {Math.round((b.wall_s ?? 0) / 60)}m · {b.speed}/s</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </Section>
-        <Section title="Threshold sensitivity" icon={TrendingDown} badge={<Badge variant="outline">estimated</Badge>}>
-          <ThresholdScatter title="Merges above threshold" points={thresholdCurve} />
-          <p className="mt-1 text-[10px] text-muted-foreground">Cumulative merges above each score threshold, inferred from the recorded confidence histogram. Run a real sweep (combine --threshold) for exact numbers.</p>
-        </Section>
-      </div>
+      {/* Q7 + Q4 + Q3: strategy benchmark, Anime/Manga tabs, one table, honesty note */}
+      <Section title="Strategy benchmark" icon={Scale} badge={
+        <Button size="icon-xs" variant="ghost" title="Refresh benchmark + histogram" onClick={reloadAnalysis}><RefreshCw className="h-3 w-3" /></Button>
+      }>
+        <Tabs defaultValue="anime">
+          <TabsList>
+            <TabsTrigger value="anime">Anime</TabsTrigger>
+            <TabsTrigger value="manga">Manga</TabsTrigger>
+          </TabsList>
+          <TabsContent value="anime" className="space-y-3 pt-3">
+            {!bench.data?.seeded?.length ? <Skeleton className="h-40 w-full" /> : <BenchmarkTable rows={bench.data.seeded} />}
+            <p className="text-xs text-muted-foreground">
+              sensitivity sweep: run <code className="rounded bg-muted px-1">combine --threshold</code> to populate
+            </p>
+          </TabsContent>
+          <TabsContent value="manga" className="space-y-3 pt-3">
+            {benchManga.length === 0 ? (
+              <EmptyState icon={Scale} title="No manga benchmark yet" description="Runs from benchmark-manga.sh (--into organized_manga) appear here." />
+            ) : (
+              <BenchmarkTable rows={benchManga} />
+            )}
+            {!histManga.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Manga merged scores (organized_manga)" bins={histManga.data?.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histManga.data?.histogram ?? {}} color={['#9b7bff', '#b9a6ff']} />}
+          </TabsContent>
+        </Tabs>
+      </Section>
 
-      {/* Q1 + Q4 + histogram */}
+      {/* Q5: one Confidence card — histogram on top, sampler + single min-score slider below */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Section title="Confidence distribution" icon={Sparkles}>
-          {!hist.data ? <Skeleton className="h-40 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
-        </Section>
-        <Section title="Merge sampler" icon={ListChecks}>
-          <div className="mb-3 flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">min score</span>
-            <Slider value={[minConf]} min={0} max={97} step={1} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }} className="flex-1" />
-            <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
-          </div>
-          {sampled === undefined && !sample && (
-            <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" />
-          )}
-          {sampled === null && <p className="text-sm text-muted-foreground">No organized records{minConf > 0 ? ` above ${minConf}` : ''} found.</p>}
-          {sampled && (
-            <div className="space-y-2 text-sm">
-              <div className="rounded-lg border p-2">
-                <div className="font-medium">{(sampled as { title?: string }).title ?? '(no title)'}</div>
-                <div className="text-xs text-muted-foreground">score: {(sampled as { score?: number }).score?.toFixed?.() ?? (sampled as { confidence?: number }).confidence ?? '—'}</div>
-                <div className="text-xs text-muted-foreground">refs: {Object.keys(((sampled as { reference_ids?: Record<string, string> }).reference_ids) ?? {}).join(', ') || 'none'}</div>
+        <Section title="Confidence" icon={Sparkles} className="lg:col-span-2">
+          <div className="space-y-4">
+            {!hist.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
+            <div>
+              <div className="mb-3 flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">min score</span>
+                <Slider value={[minConf]} min={0} max={97} step={1} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }} className="flex-1" />
+                <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" className="flex-1" onClick={() => { setFeed(f => ({ ...f, right: f.right + 1 })); draw(minConf) }}>Looks right</Button>
-                <Button size="sm" className="flex-1" variant="destructive" onClick={() => { setFeed(f => ({ ...f, wrong: f.wrong + 1 })); draw(minConf) }}>Wrong</Button>
-                <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
-              </div>
-              {(feed.right + feed.wrong) > 0 && (
-                <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok)</p>
+              {sampled === undefined && !sample && (
+                <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" />
+              )}
+              {sampled === null && <p className="text-sm text-muted-foreground">No organized records{minConf > 0 ? ` above ${minConf}` : ''} found.</p>}
+              {sampled && (
+                <div className="space-y-2 text-sm">
+                  <div className="rounded-lg border p-2">
+                    <div className="font-medium">{(sampled as { title?: string }).title ?? '(no title)'}</div>
+                    <div className="text-xs text-muted-foreground">score: {(sampled as { score?: number }).score?.toFixed?.() ?? (sampled as { confidence?: number }).confidence ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground">refs: {Object.keys(((sampled as { reference_ids?: Record<string, string> }).reference_ids) ?? {}).join(', ') || 'none'}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1" onClick={() => { setFeed(f => ({ ...f, right: f.right + 1 })); draw(minConf) }}>Looks right</Button>
+                    <Button size="sm" className="flex-1" variant="destructive" onClick={() => { setFeed(f => ({ ...f, wrong: f.wrong + 1 })); draw(minConf) }}>Wrong</Button>
+                    <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
+                  </div>
+                  {(feed.right + feed.wrong) > 0 && (
+                    <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok)</p>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </Section>
         <Section title="Validation trend" icon={TrendingDown}>
           {validationTrend.length === 0 ? (
@@ -298,31 +328,7 @@ export function QualityPage() {
         </Section>
       </div>
 
-      {/* Manga — organized_manga results */}
-      <Section title="Manga (organized_manga)" icon={GitMerge} badge={<Badge variant="outline">manga merge</Badge>}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            {!histManga.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Manga merged scores (organized_manga)" bins={histManga.data?.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histManga.data?.histogram ?? {}} color={['#9b7bff', '#b9a6ff']} />}
-          </div>
-          <div>
-            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Manga benchmark</div>
-            {benchManga.length === 0 ? (
-              <EmptyState icon={Scale} title="No manga benchmark yet" description="Runs from benchmark-manga.sh (--into organized_manga) appear here." />
-            ) : (
-              <div className="space-y-1.5 text-xs">
-                {benchManga.map(b => (
-                  <div key={b.strategy} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <span>{b.strategy}</span>
-                    <span className="tabular-nums text-muted-foreground">{b.merges?.toLocaleString()} · {Math.round((b.wall_s ?? 0) / 60)}m</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* Q6: weightage explorer */}
+      {/* Q6: weight explorer — adjustable weights + honest CLI note, preview dropped */}
       <Section title="Weightage explorer" icon={SlidersHorizontal} badge={<Badge variant="outline">metadata_fuzzy</Badge>}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-3">
@@ -333,22 +339,13 @@ export function QualityPage() {
                 <span className="w-8 text-right text-sm tabular-nums">{v}</span>
               </div>
             ))}
-            <p className="text-[10px] text-muted-foreground">Live preview of the weighted similarity score on a fixed sample pair. Persisted to Settings and feeds <code>combine --weights</code>.</p>
           </div>
-          <div className="rounded-lg border p-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Demo score</span>
-              <span className="text-3xl font-semibold tabular-nums">{scorePreview.score.toFixed(1)}<span className="text-sm text-muted-foreground">/100</span></span>
-            </div>
-            <div className="mt-3 space-y-1.5 text-xs">
-              {scorePreview.sims.map(s => (
-                <div key={s.k} className="flex items-center gap-2">
-                  <span className="w-20 capitalize">{s.k}</span>
-                  <span className="flex-1 rounded bg-muted"><span className="block h-2 rounded bg-primary/70" style={{ width: `${s.sim * 100}%` }} /></span>
-                  <span className="w-24 text-right tabular-nums text-muted-foreground">w{s.w} · {(s.sim * (s.w || 1) / 31 * 100).toFixed(0)}</span>
-                </div>
-              ))}
-            </div>
+          <div className="rounded-lg border p-4 text-xs leading-relaxed text-muted-foreground">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground"><SlidersHorizontal className="h-4 w-4" />Live tuning</div>
+            <p>Weights drive <code className="rounded bg-muted px-1">metadata_fuzzy</code> string similarity for anime merges (0–50 per field). Changes persist to Settings → <code className="rounded bg-muted px-1">prefs.weights</code> and feed <code className="rounded bg-muted px-1">combine --weights</code>.</p>
+            <p className="mt-2">Adjust weights, then rebuild:
+              <code className="mt-1 block overflow-x-auto rounded bg-muted px-2 py-1.5">php hiyori combine anilist --strategy metadata_fuzzy --weights '{weightsJson}'</code>
+            </p>
           </div>
         </div>
       </Section>

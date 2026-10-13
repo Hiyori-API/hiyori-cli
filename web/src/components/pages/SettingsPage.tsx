@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Check, Copy, Download, KeyRound, Moon, RotateCcw, Send, Sun, Upload, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Check, Clock, Copy, Download, KeyRound, Moon, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { fetchMeta, fetchSettings, postSettings, type UiSettings } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
+import { fmtCompact } from '@/lib/format'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
 import { EnvSettings } from './settings-env'
@@ -23,13 +25,29 @@ export const WIDGETS: Array<[string, string]> = [
 ]
 const ACCENTS = ['#4fb3ff', '#3fd06a', '#e8b64c', '#9b7bff', '#ff5f57', '#ff8fd8']
 
+/** Compact choice chip / swatch used across the Interface card (S1). */
+function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition',
+        active ? 'border-transparent bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 export function SettingsPage() {
   const { settings, update, refresh } = useSettings()
   const [env, setEnv] = useState<{ token_present?: boolean; webhook?: string }>({})
   const [meta, setMeta] = useState<Record<string, { count?: number }>>({})
   const [webhook, setWebhook] = useState('')
   const [newToken, setNewToken] = useState<string | null>(null)
-  const [importText, setImportText] = useState('')
 
   useEffect(() => { void fetchSettings().then(r => { setEnv(r.env ?? {}); setWebhook(r.env?.webhook ?? '') }) }, [])
   useEffect(() => { void fetchMeta().then(m => setMeta(m.collections ?? {})) }, [])
@@ -43,6 +61,7 @@ export function SettingsPage() {
   const density = prefs.density ?? 'compact'
   const accent = prefs.accent ?? '#4fb3ff'
   const tz = prefs.tz ?? 'local'
+  const realtime = prefs.realtime !== false
   const hidden = prefs.hiddenCollections ?? []
 
   const setPref = (patch: object) => void update({ prefs: { ...prefs, ...patch } })
@@ -87,12 +106,12 @@ export function SettingsPage() {
     a.download = 'hiyori-dashboard-settings.json'
     a.click()
   }
-  const importJson = async () => {
+  // S3: import straight from a picked .json file (no paste blob).
+  const importJson = async (file: File) => {
     try {
-      const parsed = JSON.parse(importText) as UiSettings
+      const parsed = JSON.parse(await file.text()) as UiSettings
       await update(parsed)
       toast.success('settings imported')
-      setImportText('')
       refresh()
     } catch {
       toast.error('invalid JSON')
@@ -112,8 +131,11 @@ export function SettingsPage() {
         <Section title="Live dashboard" icon={Sun}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm">Theme</span>
-              <Button size="sm" variant="outline" onClick={toggleTheme}>{dark ? <Sun className="mr-1.5 h-3.5 w-3.5" /> : <Moon className="mr-1.5 h-3.5 w-3.5" />}{dark ? 'Dark' : 'Light'}</Button>
+              <div>
+                <div className="text-sm">Real-time updates</div>
+                <div className="text-xs text-muted-foreground">SSE push over the base poll; off = polling only</div>
+              </div>
+              <Switch checked={realtime} onCheckedChange={(v: boolean) => setPre('realtime', v)} />
             </div>
             <div className="flex items-center justify-between">
               <div>
@@ -125,19 +147,32 @@ export function SettingsPage() {
                 <span className="w-14 text-right text-sm tabular-nums">{(refreshLocal / 1000).toFixed(1)}s</span>
               </div>
             </div>
+          </div>
+        </Section>
+
+        {/* S1: theme + accent + density + timezone as one compact Interface card */}
+        <Section title="Interface" icon={Palette}>
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm">Timezone</div>
-                <div className="text-xs text-muted-foreground">how timestamps render</div>
+              <span className="text-sm">Theme</span>
+              <div className="flex gap-1.5">
+                <Chip active={dark} onClick={() => { if (!dark) toggleTheme() }}><Moon className="h-3.5 w-3.5" />Dark</Chip>
+                <Chip active={!dark} onClick={() => { if (dark) toggleTheme() }}><Sun className="h-3.5 w-3.5" />Light</Chip>
               </div>
-              <Button size="sm" variant="outline" onClick={() => tz === 'local' ? setPref({ tz: 'utc' }) : setPref({ tz: 'local' })}>{tz === 'local' ? 'Local' : 'UTC'}</Button>
             </div>
             <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm">Density</div>
-                <div className="text-xs text-muted-foreground">table & row spacing</div>
+              <span className="text-sm">Density</span>
+              <div className="flex gap-1.5">
+                <Chip active={density === 'compact'} onClick={() => setPref({ density: 'compact' })}><Rows3 className="h-3.5 w-3.5" />Compact</Chip>
+                <Chip active={density !== 'compact'} onClick={() => setPref({ density: 'comfortable' })}><Rows3 className="h-3.5 w-3.5" />Comfortable</Chip>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setPref({ density: density === 'compact' ? 'comfortable' : 'compact' })}>{density}</Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Timezone</span>
+              <div className="flex gap-1.5">
+                <Chip active={tz === 'local'} onClick={() => setPref({ tz: 'local' })}><Clock className="h-3.5 w-3.5" />Local</Chip>
+                <Chip active={tz !== 'local'} onClick={() => setPref({ tz: 'utc' })}><Clock className="h-3.5 w-3.5" />UTC</Chip>
+              </div>
             </div>
             <div>
               <div className="mb-2 text-sm">Accent</div>
@@ -151,7 +186,9 @@ export function SettingsPage() {
             </div>
           </div>
         </Section>
+      </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title="Dashboard widgets" icon={X}>
           <p className="mb-2 text-xs text-muted-foreground">Choose which widgets appear on the Dashboard page.</p>
           <div className="grid grid-cols-2 gap-2">
@@ -163,6 +200,18 @@ export function SettingsPage() {
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">Unchecking a widget hides it; check to restore.</p>
+        </Section>
+
+        <Section title="Collections" icon={Upload}>
+          <p className="mb-2 text-xs text-muted-foreground">Hide collections from the Dataset view (they stay in Explorer).</p>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.keys(meta).map(c => (
+              <label key={c} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                <Switch checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />
+                <span>{c} <span className="text-xs text-muted-foreground">({fmtCompact(meta[c]?.count)})</span></span>
+              </label>
+            ))}
+          </div>
         </Section>
       </div>
 
@@ -196,35 +245,35 @@ export function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="Collections" icon={Upload}>
-          <p className="mb-2 text-xs text-muted-foreground">Hide collections from the Dataset view (they stay in Explorer).</p>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.keys(meta).map(c => (
-              <label key={c} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />
-                <span>{c} <span className="text-xs text-muted-foreground">({meta[c]?.count?.toLocaleString()})</span></span>
-              </label>
-            ))}
+        <Section title="Import / export" icon={Download}>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={exportJson}><Download className="mr-1.5 h-3.5 w-3.5" />Export settings JSON</Button>
+              <Button size="sm" variant="destructive" onClick={() => { if (window.confirm('Reset all dashboard preferences and audit trail?')) void resetAll() }}>Reset telemetry & prefs</Button>
+            </div>
+            <div>
+              <div className="mb-1.5 text-sm">Import</div>
+              <Input
+                type="file"
+                accept="application/json,.json"
+                className="h-9 w-full max-w-md text-xs"
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) void importJson(f)
+                  e.target.value = ''
+                }}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Pick a settings JSON file (from Export) to restore prefs on this dashboard.</p>
+            </div>
+            {Object.keys(settings).length === 0 && (
+              <EmptyState icon={X} title="No custom settings yet" description="Preferences you change here persist across page loads and browsers." />
+            )}
           </div>
         </Section>
       </div>
 
-      <Section title="Import / export" icon={Download}>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={exportJson}><Download className="mr-1.5 h-3.5 w-3.5" />Export settings JSON</Button>
-            <Button size="sm" variant="destructive" onClick={() => { if (window.confirm('Reset all dashboard preferences and audit trail?')) void resetAll() }}>Reset telemetry & prefs</Button>
-          </div>
-          <div className="flex items-start gap-2">
-            <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder='Paste a settings JSON blob to import…' className="h-20 flex-1 rounded-lg border bg-transparent p-2 text-xs" />
-            <Button size="sm" variant="outline" onClick={() => void importJson()}><Upload className="mr-1.5 h-3.5 w-3.5" />Import</Button>
-          </div>
-          {Object.keys(settings).length === 0 && (
-            <EmptyState icon={X} title="No custom settings yet" description="Preferences you change here persist across page loads and browsers." />
-          )}
-        </div>
-      </Section>
-      <Section title="Environment" icon={KeyRound}>
+      {/* S2: Environment manager under a collapsible Advanced section */}
+      <Section title="Advanced" icon={Settings2} defaultOpen={false}>
         <EnvSettings />
       </Section>
     </div>

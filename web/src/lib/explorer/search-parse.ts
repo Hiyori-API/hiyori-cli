@@ -7,12 +7,12 @@ import { titleOf } from './doc-utils'
 
 export type SearchField = 'all' | 'title' | 'synonyms' | 'id' | 'refs'
 
-export const SEARCH_FIELDS: Array<{ value: SearchField; label: string }> = [
-  { value: 'all', label: 'All fields' },
-  { value: 'title', label: 'Title' },
-  { value: 'synonyms', label: 'Synonyms' },
-  { value: 'id', label: 'ID' },
-  { value: 'refs', label: 'References' },
+export const SEARCH_FIELDS: Array<{ value: SearchField; label: string; short: string }> = [
+  { value: 'all', label: 'All fields', short: 'All' },
+  { value: 'title', label: 'Title', short: 'Title' },
+  { value: 'synonyms', label: 'Synonyms', short: 'Syn' },
+  { value: 'id', label: 'ID', short: 'ID' },
+  { value: 'refs', label: 'References', short: 'Refs' },
 ]
 
 export interface ParsedTerm { field: SearchField; term: string }

@@ -1,22 +1,21 @@
-import { useEffect, useState } from 'react'
-import { Activity, Database, GitMerge, LayoutDashboard, Radio, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
-import { DashboardPage } from './pages/DashboardPage'
-import { ExplorerPage } from './pages/ExplorerPage'
-import { ManagementPage } from './pages/ManagementPage'
-import { QualityPage } from './pages/QualityPage'
-import { LogsPage } from './pages/LogsPage'
-import { SettingsPage } from './pages/SettingsPage'
 import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
+
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
+const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
+const ManagementPage = lazy(() => import('./pages/ManagementPage').then(m => ({ default: m.ManagementPage })))
+const QualityPage = lazy(() => import('./pages/QualityPage').then(m => ({ default: m.QualityPage })))
+const LogsPage = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })))
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
 
@@ -28,6 +27,57 @@ const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard; desc: 
   { id: 'logs', label: 'Logs', icon: ScrollText, desc: 'Slow requests, validation, runs' },
   { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
 ]
+
+/** Lazy page-load fallback: centered spinner while a chunk streams in. */
+function PageFallback() {
+  return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
+
+/** Single header connection chip (G7) — realtime toggle lives in Settings now. */
+function StatusChip() {
+  const { realtime, sseOpen, sseReconnects, refreshMs } = useStatus()
+  const [online, setOnline] = useState<boolean>(navigator.onLine)
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  const secs = Math.max(1, Math.round(refreshMs / 1000))
+  let dot = 'bg-emerald-500'
+  let hollow = false
+  let pulse = false
+  let label: string
+  if (!online) {
+    dot = 'bg-red-500'
+    label = 'offline · cached'
+  } else if (realtime) {
+    if (sseOpen) {
+      dot = 'bg-emerald-500'
+      pulse = true
+      label = `live · ${secs}s`
+    } else {
+      hollow = true
+      label = `reconnecting (${sseReconnects})`
+    }
+  } else {
+    dot = 'bg-sky-500'
+    label = `polling · ${secs}s`
+  }
+
+  return (
+    <span role="status" title="Connection status" className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums text-muted-foreground">
+      <span className={`h-2 w-2 rounded-full ${hollow ? 'border border-amber-500 bg-transparent' : dot} ${pulse ? 'animate-pulse' : ''}`} />
+      {label}
+    </span>
+  )
+}
 
 export function Dashboard() {
   const [view, setView] = useState<View>('dashboard')
@@ -72,9 +122,7 @@ export function Dashboard() {
           </SidebarContent>
           <SidebarFooter>
             <div className="px-3 py-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />hiyori-cli · v2 dashboard
-              </div>
+              hiyori-cli · v2 dashboard
             </div>
           </SidebarFooter>
           <SidebarRail />
@@ -92,54 +140,23 @@ export function Dashboard() {
               </BreadcrumbList>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
-              <LiveToggle />
+              <StatusChip />
             </div>
           </header>
           <main className="flex-1 p-6">
-            {view === 'dashboard' && <DashboardPage />}
-            {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
-            {view === 'management' && <ManagementPage />}
-            {view === 'quality' && <QualityPage />}
-            {view === 'logs' && <LogsPage />}
-            {view === 'settings' && <SettingsPage />}
+            <Suspense fallback={<PageFallback />}>
+              {view === 'dashboard' && <DashboardPage />}
+              {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
+              {view === 'management' && <ManagementPage />}
+              {view === 'quality' && <QualityPage />}
+              {view === 'logs' && <LogsPage />}
+              {view === 'settings' && <SettingsPage />}
+            </Suspense>
           </main>
         </SidebarInset>
       </div>
       <AlertToasts />
     </SidebarProvider>
     </StatusProvider>
-  )
-}
-
-
-function LiveToggle() {
-  const { realtime, setRealtime, sseOpen, sseReconnects } = useStatus()
-  const [online, setOnline] = useState<boolean>(navigator.onLine)
-  useEffect(() => {
-    const on = () => setOnline(true)
-    const off = () => setOnline(false)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
-  }, [])
-  return (
-    <div className="flex items-center gap-2">
-      {!online && <Badge variant="destructive">offline · cached</Badge>}
-      {realtime && !sseOpen && (
-        <span className="text-xs text-amber-400" role="status">
-          reconnecting{sseReconnects > 0 ? ` (${sseReconnects})` : ''}…
-        </span>
-      )}
-      <Button
-        size="sm"
-        variant={realtime ? 'default' : 'outline'}
-        title={realtime ? 'Real-time updates on (SSE)' : 'Enable real-time updates (SSE)'}
-        aria-pressed={realtime}
-        onClick={() => setRealtime(!realtime)}
-      >
-        <Radio className={`mr-1.5 h-3.5 w-3.5 ${realtime ? '' : 'text-muted-foreground'}`} />
-        {realtime ? (sseOpen ? 'Live' : 'Live…') : 'Live off'}
-      </Button>
-    </div>
   )
 }

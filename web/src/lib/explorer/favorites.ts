@@ -1,7 +1,6 @@
 /**
- * Favorites, recent searches and first-visit onboarding flag — all keyed in
- * localStorage. Favorites are per-collection so ids don't collide across
- * sources (anilist #1 ≠ mal #1).
+ * Favorites and recent searches — both keyed in localStorage. Favorites are
+ * per-collection so ids don't collide across sources (anilist #1 ≠ mal #1).
  */
 
 const favKey = (collection: string) => `hiyori-explorer-favorites:${collection}`
@@ -58,23 +57,4 @@ export function addRecent(q: string, field: string): RecentSearch[] {
     /* ignore */
   }
   return next
-}
-
-// ---- onboarding ----
-export const ONBOARD_KEY = 'hiyori-explorer-onboarded'
-
-export function isOnboarded(): boolean {
-  try {
-    return localStorage.getItem(ONBOARD_KEY) === '1'
-  } catch {
-    return true // no storage — don't nag
-  }
-}
-
-export function markOnboarded(): void {
-  try {
-    localStorage.setItem(ONBOARD_KEY, '1')
-  } catch {
-    /* ignore */
-  }
 }

@@ -194,18 +194,62 @@ function coverage(MongoClient $client): array
     return $out;
 }
 
+function readBenchmarkLog(string $file): array
+{
+    $rows = [];
+    $walls = [];
+    if (!is_file($file)) {
+        return $rows;
+    }
+    foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+        $line = trim($line);
+        if (preg_match('/^wall(?:_[a-z_]+)?:\s*([\d.]+)s/', $line, $m)) {
+            $walls[] = (float) $m[1];
+        }
+        if (!str_starts_with($line, '{')) {
+            continue;
+        }
+        $decoded = json_decode($line, true);
+        if (is_array($decoded) && isset($decoded['strategy'])) {
+            $decoded['wall'] = array_shift($walls) ?? 0.0;
+            $rows[] = $decoded;
+        }
+    }
+
+    return $rows;
+}
+
 function benchmarkData(Telemetry $telemetry): array
 {
-    // Seed from combine telemetry history + hard-coded measured runs so the
-    // comparison chart has data even before a fresh benchmark.
     $combine = $telemetry->read('combine-latest');
     $seed = [
-        ['strategy' => 'relational_mapping', 'wall_s' => 457, 'merges' => 14638, 'organized' => 8417, 'speed' => 32.0],
-        ['strategy' => 'relational_fuzzy', 'wall_s' => 880, 'merges' => 25124, 'organized' => 16492, 'speed' => 28.5],
-        ['strategy' => 'metadata_fuzzy', 'wall_s' => 749, 'merges' => 18291, 'organized' => 14933, 'speed' => 24.4],
+        ['strategy' => 'relational_mapping', 'wall_s' => 457, 'merges' => 14638, 'organized' => 8417, 'speed' => 32.0, 'dups' => 0],
+        ['strategy' => 'relational_fuzzy', 'wall_s' => 880, 'merges' => 25124, 'organized' => 16492, 'speed' => 28.5, 'dups' => 0],
+        ['strategy' => 'metadata_fuzzy', 'wall_s' => 749, 'merges' => 18291, 'organized' => 14933, 'speed' => 24.4, 'dups' => 0],
     ];
 
-    return ['seeded' => $seed, 'latest' => $combine];
+    // Overlay real measured rows when the anime benchmark log exists.
+    $measured = readBenchmarkLog(dirname(__DIR__) . '/storage/logs/strategy-benchmark-v2.log');
+    $byStrategy = [];
+    foreach ($measured as $row) {
+        $byStrategy[(string) $row['strategy']] = $row;
+    }
+    $out = [];
+    foreach ($seed as $s) {
+        $m = $byStrategy[$s['strategy']] ?? [];
+        if ($m !== []) {
+            $s = array_merge($s, [
+                'wall_s' => (float) ($m['wall'] ?? $m['wall_s'] ?? $s['wall_s']),
+                'merges' => (int) ($m['merges'] ?? $s['merges']),
+                'organized' => (int) ($m['total'] ?? $s['organized']),
+                'speed' => isset($m['wall']) && (float) $m['wall'] > 0 ? round((int) $m['total'] / (float) $m['wall'], 2) : $s['speed'],
+                'dups' => (int) ($m['duplicate_keys'] ?? $s['dups']),
+            ]);
+        }
+        $out[] = $s;
+    }
+
+    return ['seeded' => $out, 'latest' => $combine];
 }
 
 function outageDebounce(Telemetry $telemetry, bool $unreachable): bool
@@ -1165,6 +1209,26 @@ if (str_starts_with($path, '/storage/backups/')) {
         exit;
     }
     sendJson(['error' => 'backup not found'], 404);
+}
+
+
+if ($path === '/api/benchmark-manga') {
+    $rows = readBenchmarkLog(dirname(__DIR__) . '/storage/logs/strategy-benchmark-manga.log');
+    $out = [];
+    foreach ($rows as $row) {
+        $strategy = (string) ($row['strategy'] ?? '');
+        $total = (int) ($row['total'] ?? 0);
+        $wall = (float) ($row['wall_s'] ?? $row['wall'] ?? 0);
+        $out[] = [
+            'strategy' => $strategy,
+            'wall_s' => (int) $wall,
+            'merges' => $total,
+            'organized' => $total,
+            'dups' => (int) ($row['duplicate_keys'] ?? 0),
+            'speed' => $wall > 0 ? round($total / $wall, 2) : 0,
+        ];
+    }
+    sendJson(['benchmark' => $out, 'source' => 'strategy-benchmark-manga.log', 'timestamp' => date('c')]);
 }
 
 sendJson(['error' => 'not found', 'path' => $path], 404);

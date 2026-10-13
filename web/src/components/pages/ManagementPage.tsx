@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Play, Pause,
-  RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
+  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, MoreHorizontal,
+  Pause, Play, RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
 } from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Switch } from '@/components/ui/switch'
 import {
   fetchAudit, fetchBackups, fetchLimits, postAction, postLimits, restoreBackup,
   runBackup, type AuditItem, type BackupItem,
@@ -26,11 +27,25 @@ import { EmptyState } from '../empty'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
 import { PageHead, Section } from '../widgets'
 
-export const SOURCES = ['anilist', 'myanimelist', 'kitsu', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga']
+const SOURCES = ['anilist', 'myanimelist', 'kitsu', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga']
 const SOURCE_LABEL: Record<string, string> = {
   anilist: 'AniList', myanimelist: 'MAL', kitsu: 'Kitsu',
   anilist_manga: 'AniList Manga', kitsu_manga: 'Kitsu Manga', myanimelist_manga: 'MAL Manga',
 }
+
+const AUDIT_FILTERS = [
+  { value: 'all', label: 'All actions' },
+  { value: 'env.', label: 'env.*' },
+  { value: 'job.', label: 'job.*' },
+  { value: 'settings.', label: 'settings.*' },
+  { value: 'restore', label: 'restore' },
+  { value: 'schedule.', label: 'schedule.*' },
+]
+
+/** M4 — cap on the number of validation-failure groups shown before the toggle. */
+const MAX_FAILURE_GROUPS = 30
+/** M6 — audit log is capped to the latest 50 entries. */
+const AUDIT_CAP = 50
 
 export function ManagementPage() {
   const { data } = useStatus()
@@ -39,14 +54,14 @@ export function ManagementPage() {
   const { failures, refresh: refreshFailures } = useFailures()
   const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
   const [audit, setAudit] = useState<AuditItem[]>([])
+  const [auditFilter, setAuditFilter] = useState('all')
   const [limits, setLimits] = useState<{ max?: number; window?: number }>({})
-  const [sources, setSources] = useState('anilist,myanimelist,kitsu')
-  const [intervalH, setIntervalH] = useState(24)
-  const [enabled, setEnabled] = useState(true)
   const [confirm, setConfirm] = useState<{ cmd: string; src: string } | null>(null)
   const [restorePick, setRestorePick] = useState<string | null>(null)
   const [max, setMax] = useState(100)
   const [win, setWin] = useState(60)
+  const [showAllFailures, setShowAllFailures] = useState(false)
+  const [showAcked, setShowAcked] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const loadAll = useCallback(() => {
@@ -62,16 +77,48 @@ export function ManagementPage() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  useEffect(() => {
-    const s = settings.schedule as { sources?: string; interval_hours?: number; enabled?: boolean } | undefined
-    if (s?.sources) setSources(s.sources)
-    if (s?.interval_hours) setIntervalH(Number(s.interval_hours))
-    if (s?.enabled !== undefined) setEnabled(s.enabled)
-  }, [settings])
-
   const circuit = Object.entries(data?.health?.checks?.rate_limiter?.limiters ?? {})
   const acks = (settings.prefs?.acks as string[] | undefined) ?? []
   const alerts = data?.alerts ?? []
+
+  // M1 — scheduler is read-only (managed via `schedule --install` / SCHEDULE_* env).
+  const sched = data?.schedule
+  const schedCfg = settings.schedule as { sources?: string; interval_hours?: number; enabled?: boolean } | undefined
+  const scheduleSources = sched?.sources ?? schedCfg?.sources ?? '—'
+  const intervalH = sched?.interval_hours ?? schedCfg?.interval_hours
+  const scheduleEnabled = schedCfg?.enabled
+
+  // M4 — validation failures deduped by source + title, one retry per group.
+  const failureGroups = useMemo(() => {
+    const m = new Map<string, { source: string; title: string; count: number; errors: Set<string> }>()
+    for (const f of failures) {
+      const source = f.source ?? '?'
+      const title = f.title ?? '(no title)'
+      const key = `${source}\u0000${title}`
+      let g = m.get(key)
+      if (!g) { g = { source, title, count: 0, errors: new Set<string>() }; m.set(key, g) }
+      g.count++
+      for (const k of Object.keys(f.errors ?? {})) g.errors.add(k)
+    }
+    return Array.from(m.values())
+  }, [failures])
+  const visibleGroups = showAllFailures ? failureGroups : failureGroups.slice(0, MAX_FAILURE_GROUPS)
+
+  // M5 — acked alerts hidden by default.
+  const hasAcked = alerts.some(a => acks.includes(a.msg ?? ''))
+  const visibleAlerts = showAcked ? alerts : alerts.filter(a => !acks.includes(a.msg ?? ''))
+
+  // M6 — audit capped at 50 + action-type filter.
+  const visibleAudit = useMemo(() => {
+    const list = auditFilter === 'all' ? audit : audit.filter(a => (a.action ?? '').startsWith(auditFilter))
+    return list.slice(0, AUDIT_CAP)
+  }, [audit, auditFilter])
+
+  // M7 — newest backup for the header line.
+  const lastBackup = useMemo(
+    () => backups.reduce<BackupItem | undefined>((acc, b) => ((b.mtime ?? 0) > (acc?.mtime ?? 0) ? b : acc), undefined),
+    [backups],
+  )
 
   const run = async (cmd: string, src: string) => {
     await postAction(`ingest-${src}`, cmd as 'start' | 'retry' | 'pause' | 'resume')
@@ -91,10 +138,6 @@ export function ManagementPage() {
     else { toast.success(`restore of ${restorePick} started`); setRestorePick(null) }
   }
 
-  const saveSchedule = async () => {
-    await update({ schedule: { sources, interval_hours: intervalH, enabled, updated_at: new Date().toISOString() } })
-    toast.success('scheduler config saved')
-  }
   const saveLimits = async () => {
     await postLimits({ max, window: win })
     toast.success('limits saved — applied on next ingest start')
@@ -106,7 +149,7 @@ export function ManagementPage() {
       <PageHead title="Management" desc="Control plane — sources, scheduler, backups, safety and change log." />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* M1 + M3: Sources & scheduler */}
+        {/* M1 + M2: Sources & scheduler */}
         <Section title="Sources & scheduler" icon={ServerCog} defaultOpen>
           {!data ? <Skeleton className="h-24 w-full" /> : (
             <div className="space-y-2">
@@ -120,122 +163,167 @@ export function ManagementPage() {
                     <span className="flex-1 text-sm">{SOURCE_LABEL[src] ?? src}<span className="ml-1 text-[10px] text-muted-foreground">{src}</span></span>
                     <SourceStatusLabel status={sourceStatus(data?.health, src)} />
                     <Badge variant={phase === 'done' ? 'secondary' : phase === 'running' ? 'outline' : 'ghost'}>{paused ? 'paused' : phase}</Badge>
-                    <Button size="icon-sm" variant="ghost" title="Start" aria-label={`Start ${src}`} onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Pause" aria-label={`Pause ${src}`} onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Resume" aria-label={`Resume ${src}`} onClick={() => void run('resume', src)}><RefreshCw className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon-sm" variant="ghost" title="Retry from scratch" aria-label={`Retry ${src}`} onClick={() => setConfirm({ cmd: 'retry', src })}><RotateCcw className="h-3.5 w-3.5" /></Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${src}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>} />
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" />Start</DropdownMenuItem>
+                        <DropdownMenuItem disabled={!!paused} onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" />Pause</DropdownMenuItem>
+                        <DropdownMenuItem disabled={!paused} onClick={() => void run('resume', src)}><RefreshCw className="h-3.5 w-3.5" />Resume</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onClick={() => setConfirm({ cmd: 'retry', src })}><RotateCcw className="h-3.5 w-3.5" />Retry</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )
               })}
-              <div className="grid grid-cols-2 gap-2 rounded-lg border p-3 text-sm">
-                <div className="col-span-2 text-xs text-muted-foreground">Scheduler</div>
-                <Input value={sources} onChange={e => setSources(e.target.value)} placeholder="comma-separated sources" className="col-span-2 h-8 text-xs" />
-                <div className="flex items-center gap-2">
-                  <Input type="number" value={intervalH} onChange={e => setIntervalH(Number(e.target.value))} className="h-8 w-20 text-xs" />
-                  <span className="text-xs text-muted-foreground">h interval</span>
+              <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
+                <div className="col-span-full text-xs text-muted-foreground">Scheduler</div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Sources</span>
+                  <span className="truncate font-medium">{scheduleSources}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={enabled} onCheckedChange={setEnabled} />
-                  <span className="text-xs text-muted-foreground">enabled</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Interval</span>
+                  <span className="font-medium">{intervalH != null ? `${intervalH}h` : '—'}</span>
                 </div>
-                <Button size="sm" className="col-span-2" onClick={() => void saveSchedule()}>Save scheduler</Button>
-                <Button size="sm" variant="outline" className="col-span-2" onClick={() => { void postAction('schedule', 'runnow'); toast('all sources triggered') }}>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Enabled</span>
+                  <span className="font-medium">{scheduleEnabled == null ? '—' : scheduleEnabled ? 'yes' : 'no'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-muted-foreground">Next run</span>
+                  <span className="font-medium">{sched?.next_in != null ? `in ${Math.round(sched.next_in / 60)}m` : '—'}</span>
+                </div>
+                <p className="col-span-full text-[10px] text-muted-foreground">Managed via <code>hiyori schedule --install</code> or SCHEDULE_* env vars — edit there, not here.</p>
+                <Button size="sm" variant="outline" className="col-span-full" onClick={() => { void postAction('schedule', 'runnow'); toast('all sources triggered') }}>
                   <Terminal className="mr-1.5 h-3.5 w-3.5" />Run now
                 </Button>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />
-                next scheduled run in {data?.schedule?.next_in != null ? `${Math.round(data.schedule.next_in / 60)}m` : '—'}
               </div>
             </div>
           )}
         </Section>
 
-        {/* M4 + M5: Backups */}
+        {/* M7: Backups */}
         <Section title="Backups" icon={Archive}>
           <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={doBackup}><Archive className="mr-1.5 h-3.5 w-3.5" />Backup now</Button>
+              <span className="text-xs text-muted-foreground">
+                {lastBackup?.file
+                  ? <>Last backup: <span className="font-medium">{lastBackup.file}</span> <span className="tabular-nums">({ago(lastBackup.mtime)})</span></>
+                  : 'No backups yet.'}
+              </span>
+            </div>
             {backups.length === 0 ? (
-              <EmptyState icon={Archive} title="No backups yet" description="Run one to protect the dataset." action={doBackup} actionLabel="Backup now" />
+              <EmptyState icon={Archive} title="No backups yet" description="Run one to protect the dataset." />
             ) : (
               <BackupsTable backups={backups} onRestore={setRestorePick} />
             )}
-            <Button size="sm" variant="outline" className="w-full" onClick={doBackup}><Archive className="mr-1.5 h-3.5 w-3.5" />Backup now</Button>
           </div>
         </Section>
 
-        {/* M6 + M9: Circuits & limits */}
-        <Section title="Rate limiter & circuits" icon={Gauge}>
-          <div className="space-y-2 text-sm">
+        {/* M3: Rate limiter & circuits */}
+        <Section title="Rate limiter" icon={Gauge}>
+          <div className="space-y-3 text-sm">
             {circuit.length === 0 && <p className="text-xs text-muted-foreground">No limiter state reported yet (needs an ingestion run).</p>}
             {circuit.map(([src, s]) => (
               <div key={src} className="flex items-center gap-2 rounded-lg border px-3 py-2">
                 <Badge variant={s.circuit_state === 'open' ? 'destructive' : 'secondary'}>{s.circuit_state === 'open' ? 'OPEN' : 'closed'}</Badge>
                 <span className="flex-1 text-xs">{src}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">tokens {s.tokens_available}/{s.max_tokens}</span>
+                <span className="text-right text-xs tabular-nums text-muted-foreground">{s.tokens_available ?? 0}/{s.max_tokens ?? 0} tokens</span>
               </div>
             ))}
             <div className="rounded-lg border p-3">
-              <div className="mb-2 text-xs text-muted-foreground">Overrides (applied to ingest processes on start)</div>
-              <div className="flex items-center gap-2">
-                <Input type="number" value={max} onChange={e => setMax(Number(e.target.value))} className="h-8 w-24 text-xs" aria-label="max requests" />
-                <span className="text-xs text-muted-foreground">req /</span>
-                <Input type="number" value={win} onChange={e => setWin(Number(e.target.value))} className="h-8 w-24 text-xs" aria-label="window seconds" />
-                <span className="text-xs text-muted-foreground">s</span>
+              <p className="text-xs font-medium text-muted-foreground">Overrides</p>
+              <p className="mb-2 text-[10px] text-muted-foreground">Applied to ingest processes on start.</p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="rate-max" className="text-[10px] text-muted-foreground">Max requests</label>
+                  <Input id="rate-max" type="number" value={max} onChange={e => setMax(Number(e.target.value))} className="h-8 w-24 text-xs" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="rate-window" className="text-[10px] text-muted-foreground">Window (s)</label>
+                  <Input id="rate-window" type="number" value={win} onChange={e => setWin(Number(e.target.value))} className="h-8 w-24 text-xs" />
+                </div>
                 <Button size="sm" variant="outline" onClick={() => void saveLimits()}>Save</Button>
               </div>
-              <p className="mt-2 text-[10px] text-muted-foreground">current: {limits.max ?? '—'} req / {limits.window ?? '—'}s · {limits.max ? 'active env' : ''}</p>
+              <p className="mt-2 text-[10px] text-muted-foreground">current: {limits.max ?? '—'} req / {limits.window ?? '—'}s{limits.max ? ' · active env' : ''}</p>
             </div>
           </div>
         </Section>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* M8: Alerts */}
+        {/* M5: Alerts & acknowledgements */}
         <Section title="Alerts & acknowledgements" icon={ShieldAlert}>
-          {alerts.length === 0 ? (
-            <EmptyState icon={CheckCircle2} title="No active alerts" description="Circuit breaks and API outages will appear here." />
-          ) : (
-            <div className="space-y-1.5">
-              {alerts.map((a, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                  <span className={`h-2 w-2 rounded-full ${a.level === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`} />
-                  <span className="flex-1">{a.msg}</span>
-                  {acks.includes(a.msg ?? '') ? <Badge variant="secondary">acked</Badge> : (
-                    <Button size="sm" variant="ghost" onClick={() => void update({ prefs: { ...settings.prefs, acks: [...acks, a.msg ?? ''] } })}><BellOff className="mr-1 h-3.5 w-3.5" />Ack</Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="space-y-1.5">
+            {hasAcked && (
+              <div className="flex justify-end">
+                <Button size="sm" variant="ghost" onClick={() => setShowAcked(s => !s)}>{showAcked ? 'Hide acked' : 'Show acked'}</Button>
+              </div>
+            )}
+            {visibleAlerts.length === 0 ? (
+              <EmptyState icon={CheckCircle2} title="No active alerts" description="Circuit breaks and API outages will appear here." />
+            ) : visibleAlerts.map((a, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                <span className={`h-2 w-2 rounded-full ${a.level === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                <span className="flex-1">{a.msg}</span>
+                {acks.includes(a.msg ?? '') ? <Badge variant="secondary">acked</Badge> : (
+                  <Button size="sm" variant="ghost" onClick={() => void update({ prefs: { ...settings.prefs, acks: [...acks, a.msg ?? ''] } })}><BellOff className="mr-1 h-3.5 w-3.5" />Ack</Button>
+                )}
+              </div>
+            ))}
+          </div>
         </Section>
 
-        {/* M7: Retry queue */}
+        {/* M4: Validation failures */}
         <Section title="Validation failures" icon={ListChecks} badge={<Badge variant="outline">{failures.length}</Badge>}>
-          {failures.length === 0 ? (
+          {failureGroups.length === 0 ? (
             <EmptyState icon={ListChecks} title="No validation issues" description="Failed entries and violations appear here for retry." />
           ) : (
-            <ScrollArea className="max-h-64"><div className="space-y-1.5 text-xs">
-              {failures.map((f, i) => (
-                <div key={i} className="rounded-lg border px-2 py-1.5">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{f.source ?? '?'}</Badge>
-                    <span className="flex-1 truncate">{f.title ?? '(no title)'}</span>
-                    <Button size="icon-xs" variant="ghost" title="Retry source" onClick={() => void run('retry', f.source ?? 'anilist')}><RotateCcw className="h-3 w-3" /></Button>
-                  </div>
-                  <div className="mt-1 text-amber-500">{Object.keys(f.errors ?? {}).join(', ')}</div>
+            <div className="space-y-1.5">
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1.5 text-xs">
+                  {visibleGroups.map((g, i) => (
+                    <div key={`${g.source}-${g.title}-${i}`} className="rounded-lg border px-2 py-1.5">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{g.source}</Badge>
+                        <span className="flex-1 truncate">{g.title}</span>
+                        <Badge variant="secondary" title={`${g.count} entries`}>×{g.count}</Badge>
+                        <Button size="icon-xs" variant="ghost" title="Retry source" onClick={() => void run('retry', g.source === '?' ? 'anilist' : g.source)}><RotateCcw className="h-3 w-3" /></Button>
+                      </div>
+                      {g.errors.size > 0 && <div className="mt-1 text-amber-500">{Array.from(g.errors).join(', ')}</div>}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div></ScrollArea>
+              </ScrollArea>
+              {failureGroups.length > MAX_FAILURE_GROUPS && (
+                <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowAllFailures(s => !s)}>
+                  {showAllFailures ? 'Show fewer' : `Show all (${failureGroups.length})`}
+                </Button>
+              )}
+            </div>
           )}
         </Section>
       </div>
 
-      {/* M10: audit */}
+      {/* M6: audit */}
       <Section title="Audit log" icon={Terminal}>
         {loading ? <Skeleton className="h-24 w-full" /> : audit.length === 0 ? (
           <EmptyState icon={Terminal} title="No actions logged" description="Management actions will be recorded here." />
         ) : (
-          <AuditTable audit={audit} tz={tz} />
+          <div className="space-y-2">
+            <div className="flex items-center justify-end">
+              <Select value={auditFilter} onValueChange={v => setAuditFilter(v ?? 'all')}>
+                <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {AUDIT_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <AuditTable audit={visibleAudit} total={audit.length} tz={tz} />
+          </div>
         )}
       </Section>
 
@@ -329,7 +417,7 @@ function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore
 
 const auditHelper = createColumnHelper<DataTableFeatures, AuditItem>()
 
-function AuditTable({ audit, tz }: { audit: AuditItem[]; tz: Tz }) {
+function AuditTable({ audit, tz, total }: { audit: AuditItem[]; tz: Tz; total: number }) {
   const columns = useMemo<ColumnDef<DataTableFeatures, AuditItem, any>[]>(() => [
     auditHelper.accessor('ts', {
       id: 'ts',
@@ -364,7 +452,7 @@ function AuditTable({ audit, tz }: { audit: AuditItem[]; tz: Tz }) {
       pageSizeOptions={[10, 15, 25, 50]}
       maxHeight="16rem"
       ariaLabel="Audit log"
-      footerLeft={`${audit.length} actions`}
+      footerLeft={`${audit.length} of ${total} actions`}
     />
   )
 }

@@ -203,3 +203,9 @@ export function sourceCollection(shorthand: string): string | null {
 export function isScalar(v: unknown): boolean {
   return v === null || v === undefined || ['string', 'number', 'boolean'].includes(typeof v)
 }
+
+/** Compact count formatting: plain locale string below 10k, compact ≥ 10k. */
+export function fmtCount(n: number): string {
+  if (n >= 10000) return n.toLocaleString('en', { notation: 'compact', maximumFractionDigits: 1 })
+  return n.toLocaleString()
+}

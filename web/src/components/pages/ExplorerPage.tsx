@@ -9,35 +9,46 @@
 
 import { safeCopy } from '@/lib/explorer/clipboard'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlignJustify, CircleDot, Database, Download, Link2, Rows3, X } from 'lucide-react'
+import { Database, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import type { PaginationState, SortingState, Updater } from '@tanstack/react-table'
 import type { ExploreRow, UiSettings } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
 import { PageHead } from '@/components/widgets'
 import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc, type ExploreResp } from '@/lib/explorer/backend'
-import { brandOf, isScalar, stringId, titleOf } from '@/lib/explorer/doc-utils'
-import { addRecent, isOnboarded, loadFavs, loadRecents, markOnboarded, toggleFav as favToggle, type RecentSearch } from '@/lib/explorer/favorites'
+import { brandOf, fmtCount, isMissing, isScalar, stringId, titleOf } from '@/lib/explorer/doc-utils'
+import { addRecent, loadFavs, loadRecents, toggleFav as favToggle, type RecentSearch } from '@/lib/explorer/favorites'
 import { fetchServerViews, loadLocalViews, mergeViews, persistLocalViews, pushViewsToServer } from '@/lib/explorer/views'
 import type { SavedView, SavedViewState } from '@/lib/explorer/views'
 import { isTypingTarget, mapKey } from '@/lib/explorer/keyboard'
 import { findDupes, parseQueryTerm, type DupPair, type SearchField } from '@/lib/explorer/search-parse'
 import { parseHash, urlFor, type ExplorerUrlState } from '@/lib/explorer/url-state'
 import { buildCsv, buildJsonl, downloadText } from '@/lib/explorer/export'
-import { buildColumns, emptyRate, numericMax, type ColumnCtx, type EditingTarget } from '@/components/explorer/cells'
+import { buildColumns, emptyRate, numericMax, type ColumnCtx } from '@/components/explorer/cells'
 import { DetailSheet } from '@/components/explorer/detail-sheet'
 import { ExplorerDialogs } from '@/components/explorer/dialogs'
 import { BulkBar } from '@/components/explorer/bulk-bar'
-import { ColumnsMenu, FacetMenu, FilterChips, PREBUILT_IDS, RangesRow, SearchBox, ViewsMenu, type Ranges } from '@/components/explorer/toolbar'
+import { ColumnsMenu, FacetMenu, FilterChips, HelpPopover, PREBUILT_IDS, RangesRow, SearchBox, ViewsMenu, type Ranges } from '@/components/explorer/toolbar'
 import '@/components/explorer/explorer.css'
 
-const PREFERRED_COLS = ['title', 'reference_ids', 'format', 'status', 'episodes', 'start_date', 'season', 'genres']
+/** Slim default visible columns: keep the table focused; everything else is
+ *  one click away in the columns picker. Format is preferred over status but
+ *  only when the field is actually populated on this collection. */
+function defaultColumns(fields: string[], docs: ExploreRow[]): string[] {
+  const cols: string[] = []
+  if (fields.includes('title')) cols.push('title')
+  const formatPopulated = fields.includes('format') && docs.some(d => !isMissing(d['format']))
+  const statusPopulated = fields.includes('status') && docs.some(d => !isMissing(d['status']))
+  if (formatPopulated) cols.push('format')
+  else if (statusPopulated) cols.push('status')
+  if (fields.includes('reference_ids')) cols.push('reference_ids')
+  return cols.length > 0 ? cols : fields.slice(0, 3)
+}
 
 const EMPTY_STATES: Record<string, { title: string; desc: string }> = {
   no_mal: { title: 'No rows missing MAL', desc: 'Every row here has a MAL reference. Try a different filter or collection.' },
@@ -97,10 +108,8 @@ export function ExplorerPage() {
   const [resolver, setResolver] = useState('')
   const [favs, setFavs] = useState<Set<string>>(() => loadFavs(urlInit.collection || 'anilist'))
   const [recents, setRecents] = useState<RecentSearch[]>(() => loadRecents())
-  const [editing, setEditing] = useState<EditingTarget | null>(null)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const [eq, setEq] = useState<{ zebra: boolean; mono: boolean; showSource: boolean }>(() => eqPrefs())
-  const [onboarded, setOnboarded] = useState<boolean>(() => isOnboarded())
+  const [eq] = useState<{ zebra: boolean; mono: boolean; showSource: boolean }>(() => eqPrefs())
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seq = useRef(0)
@@ -126,11 +135,6 @@ export function ExplorerPage() {
     return docs.filter(d => favs.has(stringId(d)) || favs.has(String((d._id as { $oid?: unknown } | undefined)?.$oid ?? d._id ?? '')))
   }, [docs, pinnedActive, favs])
   const totalShown = pinnedActive ? visibleDocs.length : total
-
-  const persistEq = (next: typeof eq) => {
-    setEq(next)
-    try { localStorage.setItem('hiyori-explorer-eq', JSON.stringify(next)) } catch { /* ignore */ }
-  }
 
   // ---------- meta / collection bootstrapping ----------
   useEffect(() => {
@@ -245,9 +249,7 @@ export function ExplorerPage() {
       setFacets(res.facets ?? null)
       if (res.fields && !colsInit.current) {
         colsInit.current = true
-        setCols(PREFERRED_COLS.filter(f => res.fields?.includes(f))
-          .concat((res.fields ?? []).filter(f => !PREFERRED_COLS.includes(f)))
-          .slice(0, 6))
+        setCols(defaultColumns(res.fields, res.docs ?? []))
       }
       if (pendingOpen.current) {
         const pid = pendingOpen.current
@@ -367,7 +369,6 @@ export function ExplorerPage() {
   }, [collections])
 
   const onCommitEditCb = useCallback(async (id: string, key: string, value: string) => {
-    setEditing(null)
     let oldVal: unknown = undefined
     setData(prev => {
       if (!prev) return prev
@@ -423,10 +424,6 @@ export function ExplorerPage() {
       onToggleFav: id => setFavs(prev => favToggle(collection, id, prev)),
       onOpenDoc: d => setSheet({ doc: d, collection }),
       onOpenRef: onOpenRefCb,
-      editing,
-      onStartEdit: (d, key) => setEditing({ id: stringId(d), key }),
-      onCommitEdit: onCommitEditCb,
-      onCancelEdit: () => setEditing(null),
       diffPair,
       onToggleDiff: d => setDiffPair(p => (p.includes(d) ? p.filter(x => x !== d) : [...p, d])),
       showSource: eq.showSource,
@@ -436,7 +433,7 @@ export function ExplorerPage() {
     }
     return buildColumns(cols, ctx)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols, visibleDocs, favs, collections, collection, editing, diffPair, eq, maxOf])
+  }, [cols, visibleDocs, favs, collections, collection, diffPair, eq, maxOf])
 
   // ---------- delete ----------
   const done = async (ids: string[]) => {
@@ -517,12 +514,6 @@ export function ExplorerPage() {
   }
 
   // ---------- export ----------
-  const exportCSV = () => {
-    const headings = cols.length ? cols : fields
-    downloadText(buildCsv(visibleDocs, headings), 'text/csv;charset=utf-8', `hiyori-${collection}-p${page}.csv`)
-    toast.success(`exported ${visibleDocs.length} rows`)
-  }
-
   const exportAll = async (format: 'csv' | 'jsonl') => {
     if (exporting) return
     setExporting(true)
@@ -544,7 +535,7 @@ export function ExplorerPage() {
         rows.push(...pageDocs)
         if (big && toastId !== undefined) {
           const pct = totalN > 0 ? Math.min(99, Math.round((rows.length / totalN) * 100)) : Math.min(99, Math.round(rows.length / 500))
-          toast.loading(`exporting ${Math.round(pct)}%`, { id: toastId, description: `${rows.length.toLocaleString()} rows` })
+          toast.loading(`exporting ${Math.round(pct)}%`, { id: toastId, description: `${fmtCount(rows.length)} rows` })
         }
         if (cancelExport.current) break
         if (rows.length >= totalN || pageDocs.length === 0 || pageDocs.length < 500) break
@@ -558,7 +549,7 @@ export function ExplorerPage() {
     setExporting(false)
     if (cancelExport.current) {
       if (big && toastId !== undefined) toast.dismiss(toastId)
-      toast.info(`export cancelled at ${rows.length.toLocaleString()} rows`)
+      toast.info(`export cancelled at ${fmtCount(rows.length)} rows`)
       return
     }
     if (rows.length === 0) {
@@ -573,8 +564,8 @@ export function ExplorerPage() {
     } else {
       downloadText(buildJsonl(rows), 'application/x-ndjson', filename)
     }
-    if (big && toastId !== undefined) toast.success(`exported ${rows.length.toLocaleString()} rows`, { id: toastId })
-    else toast.success(`exported ${rows.length.toLocaleString()} rows`)
+    if (big && toastId !== undefined) toast.success(`exported ${fmtCount(rows.length)} rows`, { id: toastId })
+    else toast.success(`exported ${fmtCount(rows.length)} rows`)
   }
 
   // ---------- diff ----------
@@ -694,23 +685,10 @@ export function ExplorerPage() {
           title="Explorer"
           desc="Browse MongoDB collections — search, filter, inspect, compare."
           actions={
-            <>
-              <div className="flex items-center gap-1.5">
-                <Input value={resolver} onChange={e => setResolver(e.target.value)} placeholder="paste URL or src/id…" className="h-8 w-52" />
-                <Button size="sm" variant="outline" onClick={resolveRef}><Link2 className="mr-1.5 h-3.5 w-3.5" />Resolve</Button>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button size="sm" variant="outline" disabled={!visibleDocs.length && !total}><Download className="mr-1.5 h-3.5 w-3.5" />Export</Button>} />
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Export</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportCSV} disabled={!visibleDocs.length}>Export page (CSV)</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void exportAll('csv')} disabled={exporting || !total}>Export all matching (CSV)</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void exportAll('jsonl')} disabled={exporting || !total}>Export all matching (JSONL)</DropdownMenuItem>
-                  {exporting && <DropdownMenuItem onClick={() => { cancelExport.current = true }}>Cancel export</DropdownMenuItem>}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+            <div className="flex items-center gap-1.5">
+              <Input value={resolver} onChange={e => setResolver(e.target.value)} placeholder="paste URL or src/id…" className="h-8 w-52" />
+              <Button size="sm" variant="outline" onClick={resolveRef}><Link2 className="mr-1.5 h-3.5 w-3.5" />Resolve</Button>
+            </div>
           }
         />
 
@@ -727,30 +705,10 @@ export function ExplorerPage() {
               >
                 {brand && <span className="brand-chip" style={{ background: brand.color }}>{brand.label}</span>}
                 <span className="max-w-[140px] truncate">{c}</span>
-                <span className="ml-1 text-xs tabular-nums text-muted-foreground">{meta[c]?.count?.toLocaleString() ?? '…'}</span>
+                <span className="ml-1 text-xs tabular-nums text-muted-foreground">{fmtCount(meta[c]?.count ?? 0)}</span>
               </button>
             )
           })}
-        </div>
-
-        {/* view options */}
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Rows3 className="mr-1.5 h-3.5 w-3.5" />View</Button>} />
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Table options</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={eq.zebra} onCheckedChange={v => persistEq({ ...eq, zebra: v })}>
-                <Rows3 className="h-3.5 w-3.5" />Zebra rows
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={eq.mono} onCheckedChange={v => persistEq({ ...eq, mono: v })}>
-                <AlignJustify className="h-3.5 w-3.5" />Mono id/ref columns
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={eq.showSource} onCheckedChange={v => persistEq({ ...eq, showSource: v })}>
-                <CircleDot className="h-3.5 w-3.5" />Source dots
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <div ref={gridWrapRef}>
@@ -779,7 +737,7 @@ export function ExplorerPage() {
             empty={emptyState}
             footerLeft={
               <span className="flex items-center gap-2">
-                <span>{totalShown.toLocaleString()} docs in <code className="rounded bg-muted px-1">{collection}</code></span>
+                <span>{fmtCount(totalShown)} docs in <code className="rounded bg-muted px-1">{collection}</code></span>
                 {pinnedActive && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">pinned ({favs.size})</span>}
                 {filters.length > 1 && (
                   <span title="Combined filters are sent as a list — older backends apply the first filter only." className="cursor-help underline decoration-dotted">multi-filter</span>
@@ -804,18 +762,16 @@ export function ExplorerPage() {
                 />
                 <FilterChips
                   filters={filters}
-                  onAdd={f => setFilters(fs => [...fs, f])}
                   onRemove={f => setFilters(fs => fs.filter(x => x !== f))}
                   onClear={() => setFilters([])}
-                  extra={favs.size > 0 ? [{ id: 'pinned', label: `Pinned (${favs.size})` }] : []}
                 />
-                {facets?.format && <FacetMenu title="Format" groups={facets.format} onPick={v => facetPick('format', v)} />}
-                {facets?.status && <FacetMenu title="Status" groups={facets.status} onPick={v => facetPick('status', v)} />}
+                {facets?.format && facets.format.length > 0 && <FacetMenu title="Format" groups={facets.format} onPick={v => facetPick('format', v)} />}
+                {facets?.status && facets.status.length > 0 && <FacetMenu title="Status" groups={facets.status} onPick={v => facetPick('status', v)} />}
                 <ColumnsMenu
                   fields={fields}
                   cols={cols}
                   onToggle={f => setCols(c => (c.includes(f) ? c.filter(x => x !== f) : [...c, f]))}
-                  onReset={() => setCols(PREFERRED_COLS.filter(f => fields.includes(f)).slice(0, 6))}
+                  onReset={() => setCols(defaultColumns(fields, visibleDocs))}
                   emptyStats={colStats}
                 />
                 <ViewsMenu
@@ -825,8 +781,14 @@ export function ExplorerPage() {
                   queryName={queryName}
                   onQueryName={setQueryName}
                   onSave={() => void saveView()}
+                  exporting={exporting}
+                  exportDisabled={!total}
+                  onExportCsv={() => void exportAll('csv')}
+                  onExportJsonl={() => void exportAll('jsonl')}
+                  onCancelExport={() => { cancelExport.current = true }}
                 />
                 <RangesRow open={rangesOpen} onToggle={() => setRangesOpen(o => !o)} ranges={ranges} onRanges={setRanges} />
+                <HelpPopover />
               </>
             }
           />
@@ -843,17 +805,6 @@ export function ExplorerPage() {
           onBulkSet={() => setBulkSetOpen(true)}
           onDupScan={runDupScan}
         />
-
-        {/* onboarding hint */}
-        {!onboarded && (
-          <div className="relative z-10 max-w-sm rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs shadow-sm">
-            <button type="button" className="absolute top-2 right-2 cursor-pointer text-muted-foreground hover:text-foreground" aria-label="Dismiss tip" onClick={() => { setOnboarded(true); markOnboarded() }}><X className="h-3.5 w-3.5" /></button>
-            <p className="font-medium">Explorer tips</p>
-            <p className="mt-1 text-muted-foreground">
-              <kbd className="rounded bg-muted px-1">/</kbd> search · <kbd className="rounded bg-muted px-1">j</kbd><kbd className="rounded bg-muted px-1">k</kbd> move rows · <kbd className="rounded bg-muted px-1">Enter</kbd> inspect · <kbd className="rounded bg-muted px-1">c</kbd> copy ids · <kbd className="rounded bg-muted px-1">g e</kbd> switch collection
-            </p>
-          </div>
-        )}
 
         {/* detail sheet */}
         <DetailSheet

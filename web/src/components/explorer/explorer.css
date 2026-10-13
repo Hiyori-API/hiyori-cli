@@ -10,40 +10,6 @@
   background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
 }
 
-/* ---- sticky-left fallback: checkbox col + first data col (title).
-   The checkbox column is fixed width (w-8 = 32px) so offsets are stable
-   even with resizable columns. Used until the DataTable supports
-   meta.stickyLeft (teammate's additive prop). ---- */
-/* pinning now via DataTable stickyLeft/stickySelection */
-.explorer-grid.pin-cols-disabled thead th:first-child,
-.explorer-grid.pin-cols-disabled tbody td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 12;
-  background-color: var(--background);
-  box-shadow: 1px 0 0 var(--border);
-}
-.explorer-grid.pin-cols-disabled thead th:nth-child(2),
-.explorer-grid.pin-cols-disabled tbody td:nth-child(2) {
-  position: sticky;
-  left: 32px;
-  z-index: 11;
-  background-color: var(--background);
-  box-shadow: 1px 0 0 var(--border);
-}
-.explorer-grid.pin-cols tbody tr:hover td:first-child,
-.explorer-grid.pin-cols tbody tr:hover td:nth-child(2) {
-  background-color: var(--muted);
-}
-.explorer-grid.pin-cols.zebra tbody tr:nth-child(even) td:first-child,
-.explorer-grid.pin-cols.zebra tbody tr:nth-child(even) td:nth-child(2) {
-  background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
-}
-.explorer-grid.pin-cols.zebra tbody tr:hover td:first-child,
-.explorer-grid.pin-cols.zebra tbody tr:hover td:nth-child(2) {
-  background-color: color-mix(in oklab, var(--muted) 75%, var(--background));
-}
-
 /* ---- active row focus ring (keyboard nav) ---- */
 .explorer-grid tbody tr.explorer-row-active td {
   background-color: color-mix(in oklab, var(--ring) 16%, transparent) !important;
@@ -165,11 +131,6 @@
   background: color-mix(in oklab, var(--popover) 88%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
-}
-
-/* ---- inline edit input in cells ---- */
-.cell-edit-input {
-  min-width: 90px;
 }
 
 /* focus-ring for keyboard-driven collection tabs */
