@@ -357,7 +357,7 @@ if ($path === '/api/action') {
         auditAppend('schedule.runnow', ['sources' => (string) $srcs]);
         sendJson(['job' => $job, 'cmd' => 'runnow', 'scheduled' => true]);
     }
-    $state = uniqid() === '' ? '' : (string) file_put_contents(
+    file_put_contents(
         dirname(__DIR__) . '/storage/state/control-' . $job . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
@@ -955,6 +955,10 @@ if ($path === '/api/settings') {
             sendJson(['settings' => [], 'reset' => true]);
         }
         $merged = array_merge(uiSettings(), $body);
+        if (isset($body['prefs']) && is_array($body['prefs'])) {
+            $prevPrefs = (array) (uiSettings()['prefs'] ?? []);
+            $merged['prefs'] = array_merge($prevPrefs, $body['prefs']);
+        }
         saveUiSettings($merged);
         auditAppend('settings.update', ['keys' => array_keys($body)]);
         sendJson(['settings' => $merged]);

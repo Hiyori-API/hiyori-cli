@@ -90,7 +90,9 @@ export function parseHash(hash: string): Partial<ExplorerUrlState> {
     if (v === null || v === '') continue
     if (NUM_KEYS.has(key)) {
       const n = Number(v)
-      if (Number.isFinite(n)) out[key] = n as never
+      if (!Number.isFinite(n)) continue
+      // E2: per=0 would produce Infinity pageCount; clamp both.
+      out[key] = (key === 'page' ? Math.max(1, n) : Math.min(100, Math.max(1, n))) as never
     } else if (LIST_KEYS.has(key)) {
       out[key] = v.split(',').filter(Boolean) as never
     } else {

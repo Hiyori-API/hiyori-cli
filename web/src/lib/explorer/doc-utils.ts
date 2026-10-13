@@ -80,6 +80,41 @@ export function linkUrl(v: unknown): string | null {
   return null
 }
 
+/**
+ * Collect every image URL worth showing in a gallery (F2): deduped, with known
+ * cover/banner/image/pictures fields first, then any other string URL that
+ * looks like an image or object carrying url/medium/extraLarge-style keys.
+ */
+export function collectImages(d: ExploreRow | null | undefined): string[] {
+  if (!d) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (u: unknown): void => {
+    if (typeof u === 'string' && isImageUrl(u) && !seen.has(u)) {
+      seen.add(u)
+      out.push(u)
+    }
+  }
+  const walk = (v: unknown, depth: number): void => {
+    if (typeof v === 'string') { push(v); return }
+    if (v === null || typeof v !== 'object' || depth > 8) return
+    if (Array.isArray(v)) {
+      for (const item of v) walk(item, depth + 1)
+      return
+    }
+    const o = v as Record<string, unknown>
+    // Image-shorthand object ({extraLarge, large, medium, url, …}) → best single URL.
+    for (const k of ['extraLarge', 'large', 'medium', 'small', 'original', 'url']) {
+      const u = o[k]
+      if (typeof u === 'string' && isImageUrl(u)) { push(u); return }
+    }
+    for (const k of Object.keys(o)) walk(o[k], depth + 1)
+  }
+  for (const f of ['coverImage', 'posterImage', 'bannerImage', 'cover', 'images', 'pictures']) walk(d[f], 0)
+  walk(d, 0)
+  return out
+}
+
 export function describeField(f: string): string {
   const desc: Record<string, string> = {
     title: 'Primary title (romaji/english/native)',

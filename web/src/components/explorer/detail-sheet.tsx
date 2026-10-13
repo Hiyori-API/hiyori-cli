@@ -7,14 +7,14 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Copy, ExternalLink, Pencil as PencilIcon, Trash2 as TrashIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, ExternalLink, Pencil as PencilIcon, Trash2 as TrashIcon, X } from 'lucide-react'
 import { cn } from 'cn'
 import type { ExploreRow } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchValidation, type ValidationEvent } from '@/lib/explorer/backend'
-import { externalUrl, isImageUrl, longestImage, refsOf, sourceCollection, stringId, titleOf } from '@/lib/explorer/doc-utils'
+import { collectImages, externalUrl, isImageUrl, longestImage, refsOf, sourceCollection, stringId, titleOf } from '@/lib/explorer/doc-utils'
 
 function preview(v: unknown, cap = 200): string {
   try {
@@ -46,6 +46,93 @@ function CopyBtn({ get }: { get: () => string }) {
     >
       <Copy className="h-3 w-3" />
     </button>
+  )
+}
+
+// ---------- image gallery (F2) ----------
+
+function ImageStrip({ images, onOpen }: { images: string[]; onOpen: (i: number) => void }) {
+  const [broken, setBroken] = useState<Set<number>>(new Set())
+  return (
+    <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1" aria-label="Image gallery">
+      {images.map((src, i) =>
+        broken.has(i) ? null : (
+          <button
+            key={`${src}-${i}`}
+            type="button"
+            className="shrink-0 cursor-pointer overflow-hidden rounded-md border border-border/70 bg-muted/20 hover:border-primary/50"
+            aria-label={`Open image ${i + 1} of ${images.length}`}
+            onClick={() => onOpen(i)}
+          >
+            <img loading="lazy" src={src} alt="" className="h-16 w-12 object-cover" onError={() => setBroken(s => new Set(s).add(i))} />
+          </button>
+        )
+      )}
+    </div>
+  )
+}
+
+/** Owns the lightbox state; keyed by the doc id so it resets per document. */
+function GallerySection({ images }: { images: string[] }) {
+  const [lightbox, setLightbox] = useState<number | null>(null)
+  const nav = (dir: 1 | -1) => {
+    setLightbox(i => (i === null || images.length === 0 ? i : (i + dir + images.length) % images.length))
+  }
+  return (
+    <>
+      <ImageStrip images={images} onOpen={setLightbox} />
+      {lightbox !== null && (
+        <Lightbox images={images} index={lightbox} onClose={() => setLightbox(null)} onNav={nav} />
+      )}
+    </>
+  )
+}
+
+/** Full-screen dark lightbox with prev/next + keyboard (Esc / arrows). */
+function Lightbox({ images, index, onClose, onNav }: {
+  images: string[]
+  index: number
+  onClose: () => void
+  onNav: (dir: 1 | -1) => void
+}) {
+  const n = images.length
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      } else if (e.key === 'ArrowLeft' && n > 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        onNav(-1)
+      } else if (e.key === 'ArrowRight' && n > 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        onNav(1)
+      }
+    }
+    window.addEventListener('keydown', h, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', h, { capture: true })
+      document.body.style.overflow = prevOverflow
+    }
+  }, [n, onClose, onNav])
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85" role="dialog" aria-modal="true" aria-label="Image lightbox">
+      <button type="button" className="absolute inset-0" aria-label="Close lightbox" onClick={onClose} />
+      <img key={images[index]} src={images[index]} alt="" className="relative max-h-[85vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" />
+      <button type="button" className="absolute top-4 right-4 z-10 cursor-pointer rounded-full bg-black/40 p-2 text-white hover:bg-black/60" aria-label="Close lightbox" onClick={onClose}><X className="h-4 w-4" /></button>
+      {n > 1 && (
+        <>
+          <button type="button" className="absolute left-3 z-10 cursor-pointer rounded-full bg-black/40 p-2 text-white hover:bg-black/60" aria-label="Previous image" onClick={() => onNav(-1)}><ChevronLeft className="h-5 w-5" /></button>
+          <button type="button" className="absolute right-3 z-10 cursor-pointer rounded-full bg-black/40 p-2 text-white hover:bg-black/60" aria-label="Next image" onClick={() => onNav(1)}><ChevronRight className="h-5 w-5" /></button>
+          <span className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-2.5 py-1 text-xs text-white tabular-nums">{index + 1} / {n}</span>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -187,6 +274,7 @@ export function DetailSheet({ doc, collection, collections, onOpenChange, onOpen
   const [tab, setTab] = useState<'fields' | 'raw'>('fields')
   const issues = useValidationIssues(doc, collection)
   const d = doc ?? ({} as ExploreRow)
+  const images = useMemo(() => collectImages(doc), [doc])
   return (
     <Sheet open={!!doc} onOpenChange={o => { if (!o) onOpenChange(null) }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl md:max-w-2xl" side="right">
@@ -194,6 +282,7 @@ export function DetailSheet({ doc, collection, collections, onOpenChange, onOpen
           <SheetTitle className="pr-6">{titleOf(d) || 'Document'}</SheetTitle>
           <SheetDescription className="font-mono text-[11px]">{collection} · {stringId(d)}</SheetDescription>
         </SheetHeader>
+        {images.length > 0 && <GallerySection key={stringId(doc)} images={images} />}
         <Tabs value={tab} onValueChange={v => setTab(v as 'fields' | 'raw')} className="min-h-0 flex-1">
           <TabsList className="ml-1">
             <TabsTrigger value="fields">Fields</TabsTrigger>
@@ -207,7 +296,7 @@ export function DetailSheet({ doc, collection, collections, onOpenChange, onOpen
                 {issues.map((iss, i) => (
                   <div key={i} className="mb-1 text-xs">
                     {Object.entries(iss.errors ?? {}).map(([f, msgs]) => (
-                      <p key={f}><span className="font-mono text-amber-400">{f}</span>: {msgs.join('; ')}</p>
+                      <p key={f}><span className="font-mono text-amber-400">{f}</span>: {(Array.isArray(msgs) ? msgs : [String(msgs)]).join('; ')}</p>
                     ))}
                   </div>
                 ))}

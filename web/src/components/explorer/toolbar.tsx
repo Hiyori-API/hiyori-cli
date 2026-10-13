@@ -5,13 +5,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Bookmark, Filter, ListFilter, Save, Search, Settings2, SlidersHorizontal, X } from 'lucide-react'
+import { Bookmark, Cloud, Filter, ListFilter, Regex, Save, Search, Settings2, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { SavedView } from '@/lib/explorer/views'
 import { SEARCH_FIELDS, type SearchField } from '@/lib/explorer/search-parse'
 import type { RecentSearch } from '@/lib/explorer/favorites'
 
@@ -26,15 +27,13 @@ export const PREBUILTS: Array<{ id: string; label: string }> = [
 
 export const PREBUILT_IDS = new Set(PREBUILTS.map(p => p.id))
 
-export interface SavedQuery { name: string; collection: string; q: string; filters: string[] }
-
 export function filterLabel(id: string): string {
   return PREBUILTS.find(p => p.id === id)?.label ?? id
 }
 
 // ---------- search box ----------
 
-export function SearchBox({ q, onQ, field, onField, resultCount, loading, recents, onPickRecent, inputRef }: {
+export function SearchBox({ q, onQ, field, onField, resultCount, loading, recents, onPickRecent, inputRef, regex, onRegex }: {
   q: string
   onQ: (v: string) => void
   field: SearchField
@@ -44,6 +43,8 @@ export function SearchBox({ q, onQ, field, onField, resultCount, loading, recent
   recents: RecentSearch[]
   onPickRecent: (r: RecentSearch) => void
   inputRef: React.Ref<HTMLInputElement>
+  regex: boolean
+  onRegex: (v: boolean) => void
 }) {
   const [focused, setFocused] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -84,6 +85,21 @@ export function SearchBox({ q, onQ, field, onField, resultCount, loading, recent
           {SEARCH_FIELDS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
         </SelectContent>
       </Select>
+      <Tooltip>
+        <TooltipTrigger render={
+          <Button
+            size="sm"
+            variant={regex ? 'default' : 'outline'}
+            aria-pressed={regex}
+            title={regex ? 'Regex search on' : 'Regex search off'}
+            className={cn('h-8 w-8 shrink-0 px-0', !regex && 'text-muted-foreground')}
+            onClick={() => onRegex(!regex)}
+          >
+            <Regex className="h-3.5 w-3.5" />
+          </Button>
+        } />
+        <TooltipContent>Regex search — treat the box as a regular expression. Requires server support; falls back to plain search if unsupported.</TooltipContent>
+      </Tooltip>
       {focused && recents.length > 0 && !q && (
         <div className="absolute top-9 left-0 z-40 w-72 rounded-lg border bg-popover p-1.5 text-sm shadow-lg">
           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recent searches</p>
@@ -188,37 +204,54 @@ export function ColumnsMenu({ fields, cols, onToggle, onReset, emptyStats }: {
   )
 }
 
-// ---------- views menu (prebuilt + saved queries) ----------
+// ---------- views menu (prebuilt + saved views) ----------
 
 export function ViewsMenu({ saved, onLoad, onDelete, queryName, onQueryName, onSave }: {
-  saved: SavedQuery[]
-  onLoad: (s: SavedQuery) => void
+  saved: SavedView[]
+  onLoad: (v: SavedView) => void
   onDelete: (name: string) => void
   queryName: string
   onQueryName: (v: string) => void
   onSave: () => void
 }) {
+  const prebuilt = (name: string, filter?: string): SavedView => ({
+    name,
+    state: { collection: '', q: '', field: 'all', filters: filter ? [filter] : [], per: 25, sort: '', dir: 'asc', cols: [] },
+    source: 'local',
+  })
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Bookmark className="mr-1.5 h-3.5 w-3.5" />Views</Button>} />
       <DropdownMenuContent align="end" className="max-h-96 overflow-auto">
         <DropdownMenuLabel>Prebuilt views</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onLoad({ name: '__all', collection: '', q: '', filters: [] })}>
+        <DropdownMenuItem onClick={() => onLoad(prebuilt('__all'))}>
           <ListFilter className="h-3.5 w-3.5" />All entries
         </DropdownMenuItem>
         {PREBUILTS.map(p => (
-          <DropdownMenuItem key={p.id} onClick={() => onLoad({ name: p.id, collection: '', q: '', filters: [p.id] })}>
+          <DropdownMenuItem key={p.id} onClick={() => onLoad(prebuilt(p.id, p.id))}>
             <ListFilter className="h-3.5 w-3.5" />{p.label}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Saved queries</DropdownMenuLabel>
+        <DropdownMenuLabel>Saved views</DropdownMenuLabel>
         {saved.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">none saved</div>}
         {saved.map(s => (
           <div key={s.name} className="flex items-center gap-1 px-2 py-1">
-            <button type="button" className="flex-1 cursor-pointer text-left text-sm hover:text-primary" onClick={() => onLoad(s)}>{s.name}</button>
-            <button type="button" className="cursor-pointer text-muted-foreground hover:text-red-400" aria-label={`Delete saved query ${s.name}`} onClick={() => onDelete(s.name)}><X className="h-3 w-3" /></button>
+            <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left text-sm hover:text-primary" onClick={() => onLoad(s)}>
+              <span className="truncate">{s.name}</span>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-px text-[9px] font-medium',
+                  s.source === 'cloud' ? 'bg-sky-500/15 text-sky-500' : 'bg-muted text-muted-foreground'
+                )}
+                title={s.source === 'cloud' ? 'Saved on the server' : 'Saved locally (offline)'}
+              >
+                {s.source === 'cloud' && <Cloud className="h-2.5 w-2.5" />}
+                {s.source === 'cloud' ? 'cloud' : 'local'}
+              </span>
+            </button>
+            <button type="button" className="cursor-pointer text-muted-foreground hover:text-red-400" aria-label={`Delete saved view ${s.name}`} onClick={() => onDelete(s.name)}><X className="h-3 w-3" /></button>
           </div>
         ))}
         <DropdownMenuSeparator />
