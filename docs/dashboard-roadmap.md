@@ -383,3 +383,56 @@ also gains `missing` — null/missing counts for those fields, computed in one
     "missing": { "episodes": 25, "chapters": 10770, "volumes": 10770 } } },
   "timestamp": "…" }
 ```
+
+## Alert delivery + regex search (2026-10)
+
+### Multi-channel alert delivery
+
+`alerts()` now hands every generated alert to
+`Hiyori\Service\AlertNotifier::deliver($alerts, $telemetry)`, which fans each
+alert out to **every configured channel**, throttled once per
+channel+alert identity per hour in the existing `alerts-sent` telemetry store
+(`storage/state/alerts-sent.json`, keys `"<channel>:<type>:<source>"`, e.g.
+`telegram:circuit_open:anilist`). The old webhook-only path is unchanged in
+payload/timeout; it now lives under the `webhook:` throttle prefix. Delivery is
+best-effort — transport failures are swallowed and never raise.
+
+| channel | env vars | transport |
+|---|---|---|
+| webhook | `WEBHOOK_URL` | one POST per alert, `{"text": "[Hiyori] <msg>"}`, 5s timeout |
+| telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `POST https://api.telegram.org/bot<token>/sendMessage` per batch, `{chat_id, text, parse_mode: "Markdown"}`, 5s timeout, try/catch |
+| email | `SMTP_HOST`, `SMTP_PORT` (default 25), `SMTP_SECURE` (`tls`→STARTTLS, `ssl`, empty→plaintext), `SMTP_USER`/`SMTP_PASS` (optional AUTH LOGIN), `SMTP_FROM` (default `SMTP_USER` or `no-reply@localhost`), `ALERT_EMAIL_TO` | minimal RFC5321 client (EHLO, STARTTLS, AUTH LOGIN, one RFC5322 message) — or `mail()` fallback when `SMTP_HOST` is unset and `mail()` exists |
+
+Messages are one line per alert (`[Hiyori] CRITICAL circuit_open (anilist):
+Circuit breaker open for anilist`). Telegram text is Markdown-escaped, and
+every builder redacts configured secrets (`TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID`, `SMTP_USER`, `SMTP_PASS`, `WEBHOOK_URL`) before sending.
+
+### /api/explore?regex=1
+
+`GET /api/explore` accepts `regex=1`: the `q` search term is used as a **raw
+PCRE pattern** instead of being `preg_quote`d (powers the frontend regex
+toggle). Escaping stays minimal and security-safe:
+
+- The pattern only runs when it compiles under PCRE and is ≤
+  `Explorer::MAX_REGEX_LENGTH` (512) chars — invalid or oversized input falls
+  back silently to escaped-literal matching (never an error response).
+- Anchors like `^`/`$` work as written because the pattern is passed inside a
+  `MongoDB\BSON\Regex` value, so there is no query-structure injection vector.
+- Case-insensitive matching (`i` flag) is kept; `q` is still trimmed.
+
+Response contract gains an echo flag:
+
+```json
+{ "collection": "organized", "regex": true, "page": 1, "per": 25, … }
+```
+
+`regex` is `true` when `?regex=1` was passed, `false` otherwise. Facets and
+numeric ranges continue to honour the resulting filter unchanged.
+
+### Tests
+
+`tests/Unit/AlertNotifierTest.php` covers: no-channel no-op, throttle key
+building, the one-hour throttle window (`due()`), webhook payload contract,
+Markdown escaping + secret redaction, and email message assembly/leak checks.
+`tests/Unit/ExploreQueryTest.php` gains raw-regex + fallback coverage.

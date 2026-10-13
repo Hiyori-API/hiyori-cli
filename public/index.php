@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Hiyori\Service\AlertNotifier;
 use Hiyori\Service\Database;
 use Hiyori\Service\Explorer;
 use Hiyori\Service\HealthCheck;
@@ -272,27 +273,10 @@ function alerts(HealthCheck $health, Telemetry $telemetry): array
         }
     }
 
-    // Webhook delivery (throttled: once per alert identity per hour)
-    $webhook = $_ENV['WEBHOOK_URL'] ?? '';
-    if ($webhook !== '' && $out !== []) {
-        $sent = $telemetry->read('alerts-sent');
-        $now = time();
-        foreach ($out as $a) {
-            $id = ($a['type'] ?? '') . ':' . ($a['source'] ?? '');
-            $last = (int) ($sent[$id] ?? 0);
-            if ($now - $last >= 3600) {
-                @file_get_contents($webhook, false, stream_context_create([
-                    'http' => [
-                        'method' => 'POST',
-                        'header' => 'Content-Type: application/json',
-                        'content' => json_encode(['text' => '[Hiyori] ' . $a['msg']]),
-                        'timeout' => 5,
-                    ],
-                ]));
-                $sent[$id] = $now;
-            }
-        }
-        $telemetry->update('alerts-sent', $sent);
+    // Multi-channel delivery (webhook / telegram / e-mail), throttled once per
+    // hour per channel+alert identity in the alerts-sent telemetry store.
+    if ($out !== []) {
+        AlertNotifier::deliver($out, $telemetry);
     }
 
     return $out;
@@ -590,8 +574,12 @@ function explore(MongoClient $client, array $q): array
     $sort = (string) ($q['sort'] ?? '');
     $dir = (strtolower((string) ($q['dir'] ?? 'asc')) === 'desc') ? -1 : 1;
 
+    // ?regex=1 → keep the search term as a raw PCRE pattern (frontend regex
+    // toggle); invalid/oversized patterns fall back to escaped-literal matching.
+    $regex = (($q['regex'] ?? '') === '1');
+
     $coll = exploreCollection($client, $collection);
-    $mongoFilter = Explorer::buildFilter($q);
+    $mongoFilter = Explorer::buildFilter($q, $regex);
 
     $total = $coll->countDocuments($mongoFilter);
     $opts = ['skip' => ($page - 1) * $per, 'limit' => $per];
@@ -606,6 +594,7 @@ function explore(MongoClient $client, array $q): array
 
     $out = [
         'collection' => $collection,
+        'regex' => $regex,
         'page' => $page,
         'per' => $per,
         'total' => $total,
