@@ -12,7 +12,7 @@ import { AlignJustify, CircleDot, Database, Download, Link2, Rows3, X } from 'lu
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import type { PaginationState, SortingState, Updater } from '@tanstack/react-table'
-import type { ExploreRow } from '@/lib/api'
+import type { ExploreRow, UiSettings } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -20,9 +20,11 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
 import { PageHead } from '@/components/widgets'
-import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc } from '@/lib/explorer/backend'
+import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc, type ExploreResp } from '@/lib/explorer/backend'
 import { brandOf, isScalar, stringId, titleOf } from '@/lib/explorer/doc-utils'
 import { addRecent, isOnboarded, loadFavs, loadRecents, markOnboarded, toggleFav as favToggle, type RecentSearch } from '@/lib/explorer/favorites'
+import { fetchServerViews, loadLocalViews, mergeViews, persistLocalViews, pushViewsToServer } from '@/lib/explorer/views'
+import type { SavedView, SavedViewState } from '@/lib/explorer/views'
 import { isTypingTarget, mapKey } from '@/lib/explorer/keyboard'
 import { findDupes, parseQueryTerm, type DupPair, type SearchField } from '@/lib/explorer/search-parse'
 import { parseHash, urlFor, type ExplorerUrlState } from '@/lib/explorer/url-state'
@@ -31,7 +33,7 @@ import { buildColumns, emptyRate, numericMax, type ColumnCtx, type EditingTarget
 import { DetailSheet } from '@/components/explorer/detail-sheet'
 import { ExplorerDialogs } from '@/components/explorer/dialogs'
 import { BulkBar } from '@/components/explorer/bulk-bar'
-import { ColumnsMenu, FacetMenu, FilterChips, PREBUILT_IDS, RangesRow, SearchBox, ViewsMenu, type Ranges, type SavedQuery } from '@/components/explorer/toolbar'
+import { ColumnsMenu, FacetMenu, FilterChips, PREBUILT_IDS, RangesRow, SearchBox, ViewsMenu, type Ranges } from '@/components/explorer/toolbar'
 import '@/components/explorer/explorer.css'
 
 const PREFERRED_COLS = ['title', 'reference_ids', 'format', 'status', 'episodes', 'start_date', 'season', 'genres']
@@ -68,6 +70,7 @@ export function ExplorerPage() {
   const [filters, setFilters] = useState<string[]>(urlInit.filters ?? [])
   const [ranges, setRanges] = useState<Ranges>({ epsMin: urlInit.epsMin ?? '', epsMax: urlInit.epsMax ?? '', yearMin: urlInit.yearMin ?? '', yearMax: urlInit.yearMax ?? '' })
   const [rangesOpen, setRangesOpen] = useState(false)
+  const [regex, setRegex] = useState(false)
   const [sort, setSort] = useState(urlInit.sort ?? '')
   const [dir, setDir] = useState<'asc' | 'desc'>(urlInit.dir ?? 'asc')
   const [page, setPage] = useState(urlInit.page ?? 1)
@@ -87,9 +90,8 @@ export function ExplorerPage() {
   const [bulkSetOpen, setBulkSetOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [sheetEditOpen, setSheetEditOpen] = useState(false)
-  const [saved, setSaved] = useState<SavedQuery[]>(() => {
-    try { return JSON.parse(localStorage.getItem('hiyori-saved-queries') ?? '[]') } catch { return [] }
-  })
+  const [saved, setSaved] = useState<SavedView[]>(() => loadLocalViews())
+  const prefsRef = useRef<UiSettings['prefs'] | undefined>(undefined)
   const [queryName, setQueryName] = useState('')
   const [resolver, setResolver] = useState('')
   const [favs, setFavs] = useState<Set<string>>(() => loadFavs(urlInit.collection || 'anilist'))
@@ -149,6 +151,21 @@ export function ExplorerPage() {
     if (collection) setFavs(loadFavs(collection))
   }, [collection])
 
+  // ---------- server-side saved views (B5): cloud list + prefs snapshot ----------
+  useEffect(() => {
+    let on = true
+    void fetchServerViews().then(r => {
+      if (!on || !r) return
+      prefsRef.current = r.prefs
+      setSaved(prev => {
+        const merged = mergeViews(r.cloud, prev)
+        persistLocalViews(merged)
+        return merged
+      })
+    })
+    return () => { on = false }
+  }, [])
+
   // ---------- URL hash sync (replaceState) ----------
   useEffect(() => {
     if (skipUrlWrite.current) { skipUrlWrite.current = false; return }
@@ -198,7 +215,12 @@ export function ExplorerPage() {
   // ---------- page reset + fetch (race-guarded) ----------
   const filtersKey = filters.join(',')
   const rangesKey = JSON.stringify(ranges)
-  useEffect(() => { setPage(1) }, [collection, qDebounced, field, filtersKey, rangesKey])
+  const firstPageReset = useRef(true)
+  useEffect(() => {
+    // L3: don't clobber a #page deep-link on first mount.
+    if (firstPageReset.current) { firstPageReset.current = false; return }
+    setPage(1)
+  }, [collection, qDebounced, field, filtersKey, rangesKey])
 
   useEffect(() => {
     const id = ++seq.current
@@ -206,7 +228,7 @@ export function ExplorerPage() {
     const prebuilt = filters.filter(f => PREBUILT_IDS.has(f))
     const facetFormat = filters.find(f => f.startsWith('format:'))?.slice(7)
     const facetStatus = filters.find(f => f.startsWith('status:'))?.slice(7)
-    void explore({
+    const req = {
       collection, page, per,
       q: qDebounced, field,
       filter: prebuilt[0] ?? undefined,
@@ -215,8 +237,9 @@ export function ExplorerPage() {
       sort, dir,
       facets: 'format,status',
       epsMin: ranges.epsMin, epsMax: ranges.epsMax, yearMin: ranges.yearMin, yearMax: ranges.yearMax,
-    }).then(res => {
-      if (seq.current !== id) return
+      regex: regex || undefined,
+    }
+    const apply = (res: ExploreResp) => {
       setData({ total: res.total, docs: res.docs, fields: res.fields })
       setFacets(res.facets ?? null)
       if (res.fields && !colsInit.current) {
@@ -233,9 +256,23 @@ export function ExplorerPage() {
         else void openDocById(pid)
       }
       setLoading(false)
-    }).catch(() => { if (seq.current === id) setLoading(false) })
+    }
+    const run = (useRegex: boolean): void => {
+      void explore({ ...req, regex: useRegex || undefined }).then(res => {
+        if (seq.current !== id) return
+        if (useRegex && res.error) {
+          // Backend doesn't support regex=1 yet → fall back to plain search.
+          setRegex(false)
+          toast.warning('Regex search not supported by the server — fell back to plain search')
+          run(false)
+          return
+        }
+        apply(res)
+      }).catch(() => { if (seq.current === id) setLoading(false) })
+    }
+    run(regex)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir, rangesKey])
+  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir, rangesKey, regex])
 
   // ---------- modal bookkeeping for keyboard ----------
   const modalOpen = !!(sheet || confirmDel || diffPair.length >= 2 || dupOpen || bulkSetOpen || sheetEditOpen)
@@ -371,9 +408,10 @@ export function ExplorerPage() {
       filter: prebuilt[0] ?? undefined,
       filters: filters.length > 1 ? filters.join(',') : undefined,
       sort, dir,
+      regex: regex || undefined,
     }).then(res => setData({ total: res.total, docs: res.docs, fields: res.fields }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir])
+  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir, regex])
 
   const columns = useMemo<ColumnDefList>(() => {
     const ctx: ColumnCtx = {
@@ -409,22 +447,47 @@ export function ExplorerPage() {
     forceRefetch()
   }
 
-  // ---------- saved queries ----------
-  const saveQuery = () => {
-    if (!queryName.trim()) { toast('name the query'); return }
-    const item: SavedQuery = { name: queryName.trim(), collection, q, filters }
-    const next = [...saved.filter(s => s.name !== item.name), item]
+  // ---------- saved views (local + server-synced via POST /api/settings) ----------
+  const saveView = async () => {
+    const name = queryName.trim()
+    if (!name) { toast('name the view'); return }
+    const state: SavedViewState = { collection, q, field, filters, per, sort, dir, cols }
+    const item: SavedView = { name, state, source: 'cloud' }
+    const next = mergeViews([item], saved)
+    persistLocalViews(next)
     setSaved(next)
-    localStorage.setItem('hiyori-saved-queries', JSON.stringify(next))
     setQueryName('')
-    toast.success(`saved “${item.name}”`)
+    const { ok, prefs } = await pushViewsToServer(next, prefsRef.current)
+    if (prefs) prefsRef.current = prefs
+    if (ok) {
+      toast.success(`saved “${name}”`)
+    } else {
+      const localOnly = next.map(v => (v.name === name ? { ...v, source: 'local' as const } : v))
+      persistLocalViews(localOnly)
+      setSaved(localOnly)
+      toast.warning(`server offline — saved “${name}” locally`)
+    }
   }
-  const loadQuery = (s: SavedQuery) => {
-    setCollection(s.collection || collection)
-    setQ(s.q)
-    setFilters(s.filters ?? [])
-    setField('all')
-    setView(s.name)
+  const deleteView = async (name: string) => {
+    const next = saved.filter(s => s.name !== name)
+    persistLocalViews(next)
+    setSaved(next)
+    const { ok, prefs } = await pushViewsToServer(next, prefsRef.current)
+    if (prefs) prefsRef.current = prefs
+    if (!ok) toast.warning('server offline — deletion may reappear after refresh')
+  }
+  /** Apply a saved view's full state (not just the query). */
+  const loadView = (v: SavedView) => {
+    const st = v.state
+    if (st.collection) setCollection(st.collection)
+    setQ(st.q ?? '')
+    setField((st.field as SearchField) || 'all')
+    setFilters(st.filters ?? [])
+    setPer(st.per ?? 25)
+    setSort(st.sort ?? '')
+    setDir(st.dir === 'desc' ? 'desc' : 'asc')
+    setCols(st.cols?.length ? st.cols : cols)
+    setView(v.name)
     setPage(1)
   }
 
@@ -473,7 +536,7 @@ export function ExplorerPage() {
     try {
       for (let p = 1; ; p++) {
         if (cancelExport.current) break
-        const res = await explore({ collection, page: p, per: 500, q: qDebounced, field, filter: prebuilt[0] ?? undefined, sort, dir })
+        const res = await explore({ collection, page: p, per: 500, q: qDebounced, field, filter: prebuilt[0] ?? undefined, sort, dir, regex: regex || undefined })
         totalN = res.total ?? totalN
         if (res.fields?.length && pageFields.length === 0) pageFields.push(...res.fields)
         const pageDocs = res.docs ?? []
@@ -735,6 +798,8 @@ export function ExplorerPage() {
                   recents={recents}
                   onPickRecent={r => { setQ(r.q); setField(r.field as SearchField) }}
                   inputRef={searchRef}
+                  regex={regex}
+                  onRegex={setRegex}
                 />
                 <FilterChips
                   filters={filters}
@@ -754,15 +819,11 @@ export function ExplorerPage() {
                 />
                 <ViewsMenu
                   saved={saved}
-                  onLoad={loadQuery}
-                  onDelete={name => {
-                    const n = saved.filter(s => s.name !== name)
-                    setSaved(n)
-                    localStorage.setItem('hiyori-saved-queries', JSON.stringify(n))
-                  }}
+                  onLoad={loadView}
+                  onDelete={name => void deleteView(name)}
                   queryName={queryName}
                   onQueryName={setQueryName}
-                  onSave={saveQuery}
+                  onSave={() => void saveView()}
                 />
                 <RangesRow open={rangesOpen} onToggle={() => setRangesOpen(o => !o)} ranges={ranges} onRanges={setRanges} />
               </>

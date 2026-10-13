@@ -27,6 +27,8 @@ export interface ExploreReq {
   dir?: 'asc' | 'desc'
   /** Comma list of facet axes to request, e.g. 'format,status'. */
   facets?: string
+  /** Regex search flag — sent as regex=1 (backend support optional). */
+  regex?: boolean
   epsMin?: string
   epsMax?: string
   yearMin?: string
@@ -60,6 +62,7 @@ export async function explore(p: ExploreReq): Promise<ExploreResp> {
     ['sort', p.sort],
     ['dir', p.dir],
     ['facets', p.facets],
+    ['regex', p.regex ? 1 : undefined],
     ['episodes_min', p.epsMin],
     ['episodes_max', p.epsMax],
     ['year_min', p.yearMin],

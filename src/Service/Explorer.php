@@ -19,6 +19,9 @@ final class Explorer
 
     public const MAX_IMPORT_ROWS = 10000;
 
+    /** Longest raw regex accepted via the ?regex=1 toggle (ReDoS guard). */
+    public const MAX_REGEX_LENGTH = 512;
+
     /**
      * Validate a collection name for use in route params. Returns the name
      * when it matches the safe charset, '' otherwise.
@@ -72,18 +75,27 @@ final class Explorer
      * Ranges apply to `episodes` and to `year` OR `start_date.year`, whichever
      * the source collection actually carries.
      *
+     * When $regex is true the search term is kept as a raw PCRE pattern (no
+     * preg_quote) so the frontend regex toggle can run real regexes; invalid
+     * or oversized patterns degrade silently back to escaped-literal matching.
+     *
      * @param array<string, mixed> $q
+     * @param bool                 $regex
      *
      * @return array<string, mixed>
      */
-    public static function buildFilter(array $q): array
+    public static function buildFilter(array $q, bool $regex = false): array
     {
         $search = trim((string) ($q['q'] ?? ''));
         $filter = (string) ($q['filter'] ?? '');
         $mongoFilter = [];
 
         if ($search !== '') {
-            $rx = new Regex(preg_quote($search, '/'), 'i');
+            $pattern = preg_quote($search, '/');
+            if ($regex && self::isSafeRegex($search)) {
+                $pattern = $search;
+            }
+            $rx = new Regex($pattern, 'i');
             $or = [
                 ['title' => $rx],
                 ['title.romaji' => $rx],
@@ -98,25 +110,47 @@ final class Explorer
             $mongoFilter['$or'] = $or;
         }
 
-        switch ($filter) {
-            case 'no_mal':
-                $mongoFilter['reference_ids.mal'] = ['$exists' => false];
-                break;
-            case 'no_al':
-                $mongoFilter['reference_ids.al'] = ['$exists' => false];
-                break;
-            case 'no_k':
-                $mongoFilter['reference_ids.k'] = ['$exists' => false];
-                break;
-            case 'has_mal':
-                $mongoFilter['reference_ids.mal'] = ['$exists' => true];
-                break;
-            case 'no_refs':
-                $mongoFilter = ['reference_ids' => ['$exists' => false]];
-                break;
-            case 'empty_title':
-                $mongoFilter['title'] = ['$in' => [null, '', []]];
-                break;
+        $applyFilterCode = static function (string $code) use (&$mongoFilter): void {
+            switch ($code) {
+                case 'no_mal':
+                    $mongoFilter['reference_ids.mal'] = ['$exists' => false];
+                    break;
+                case 'no_al':
+                    $mongoFilter['reference_ids.al'] = ['$exists' => false];
+                    break;
+                case 'no_k':
+                    $mongoFilter['reference_ids.k'] = ['$exists' => false];
+                    break;
+                case 'has_mal':
+                    $mongoFilter['reference_ids.mal'] = ['$exists' => true];
+                    break;
+                case 'no_refs':
+                    $mongoFilter['reference_ids'] = ['$exists' => false];
+                    break;
+                case 'empty_title':
+                    $mongoFilter['title'] = ['$in' => [null, '', []]];
+                    break;
+            }
+        };
+        if ($filter !== '') {
+            $applyFilterCode($filter);
+        }
+        // L2: plural filters= list applies every prebuilt code conjunctively.
+        $filtersParam = (string) ($q['filters'] ?? '');
+        if ($filtersParam !== '') {
+            foreach (array_filter(array_map('trim', explode(',', $filtersParam))) as $fc) {
+                $applyFilterCode($fc);
+            }
+        }
+        // L1: facet chips -> equality filters on known fields.
+        // AniList-style bases store the type as lowercase ('tv','movie'); the
+        // format/type alias + anchored case-insensitive regex keep chips working.
+        $facetMap = ['format' => 'type', 'type' => 'type', 'status' => 'status', 'season' => 'season'];
+        foreach ($facetMap as $param => $field) {
+            $fv = (string) ($q[$param] ?? '');
+            if ($fv !== '') {
+                $mongoFilter[$field] = new Regex('^' . preg_quote($fv, '/') . '$', 'i');
+            }
         }
 
         $range = self::rangeConditions($q);
@@ -125,6 +159,21 @@ final class Explorer
         }
 
         return $mongoFilter;
+    }
+
+    /**
+     * A user-supplied regex only runs when it compiles under PCRE and stays
+     * within a sane length budget — guards the ?regex=1 toggle against invalid
+     * patterns and pathological ReDoS input. Anything else falls back to the
+     * escaped-literal search.
+     */
+    private static function isSafeRegex(string $pattern): bool
+    {
+        if ($pattern === '' || strlen($pattern) > self::MAX_REGEX_LENGTH) {
+            return false;
+        }
+
+        return @preg_match('~' . str_replace('~', '\\~', $pattern) . '~u', '') !== false;
     }
 
     /**

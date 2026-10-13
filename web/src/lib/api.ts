@@ -158,6 +158,8 @@ export interface ExploreParams {
   sort?: string
   dir?: 'asc' | 'desc'
   filter?: string
+  /** Regex search flag — sent as regex=1 when true (backend support optional). */
+  regex?: boolean
 }
 export interface ExploreResponse {
   collection?: string
@@ -172,7 +174,8 @@ export interface ExploreResponse {
 export async function fetchExplore(p: ExploreParams): Promise<ExploreResponse> {
   const qs = new URLSearchParams()
   Object.entries(p).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+    if (v === undefined || v === null || v === '') return
+    qs.set(k, k === 'regex' ? (v ? '1' : '') : String(v))
   })
   const r = await fetch(`/api/explore?${qs.toString()}`)
   return r.json() as Promise<ExploreResponse>
@@ -205,9 +208,29 @@ export interface UiSettings {
     weights?: Record<string, number>
     acks?: string[]
     realtime?: boolean
+    /** Server-persisted Explorer views (POST /api/settings → ui.json). */
+    explorer_views?: ServerSavedView[]
   }
   limits?: { max?: number; window?: number }
   [k: string]: unknown
+}
+
+/** Full Explorer view state captured for a saved view (B5). */
+export interface SavedViewState {
+  collection: string
+  q: string
+  field: string
+  filters: string[]
+  per: number
+  sort: string
+  dir: 'asc' | 'desc'
+  cols: string[]
+}
+
+/** A view persisted server-side under ui.json prefs → `explorer_views`. */
+export interface ServerSavedView {
+  name: string
+  state: SavedViewState
 }
 export interface SettingsResponse {
   settings?: UiSettings
