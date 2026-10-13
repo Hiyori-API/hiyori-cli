@@ -8,6 +8,7 @@ use Hiyori\Service\HealthCheck;
 use Hiyori\Service\Ingestion\Ingestion;
 use Hiyori\Service\Logging;
 use Hiyori\Service\MetricsCollector;
+use Hiyori\Service\Migrator;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
@@ -42,6 +43,11 @@ class Hiyori
         }
 
         $this->ingestion->start();
+    }
+
+    public function getMigrator(string $database = 'hiyori'): Migrator
+    {
+        return new Migrator($this->database, $database);
     }
 
     public function combine(string $baseSource, string $strategy, array $config = [])
