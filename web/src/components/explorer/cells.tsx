@@ -16,7 +16,7 @@ import { cn } from 'cn'
 import type { ExploreRow } from '@/lib/api'
 import type { DataTableFeatures } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   brandOf, describeField, externalUrl, isImageUrl, isMissing, linkUrl, longestImage,
@@ -276,6 +276,7 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label={`Row actions for ${id}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>} />
             <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
               <DropdownMenuLabel>Row {prettyPreview(id).slice(0, 24)}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => ctx.onOpenDoc(d)}><ListFilter className="h-3.5 w-3.5" />Inspect</DropdownMenuItem>
@@ -285,6 +286,7 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
               <DropdownMenuItem onClick={copyJson}><Code2 className="h-3.5 w-3.5" />Copy JSON</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => ctx.onRequestDelete([id])}><Trash2 className="h-3.5 w-3.5" />Delete</DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

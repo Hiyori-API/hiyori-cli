@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bookmark, ChevronDown, CircleHelp, Cloud, FileDown, FileJson, Filter, ListFilter, Pin, Regex, Save, Search, Settings2, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtCount } from '@/lib/explorer/doc-utils'
@@ -189,6 +189,7 @@ export function ColumnsMenu({ fields, cols, onToggle, onReset, emptyStats }: {
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button size="sm" variant="outline" title="Visible columns"><Settings2 className="mr-1.5 h-3.5 w-3.5" />Columns</Button>} />
       <DropdownMenuContent align="end" className="min-w-56">
+        <DropdownMenuGroup>
         <div className="flex items-center justify-between px-2 py-1">
           <DropdownMenuLabel className="p-0">Visible columns</DropdownMenuLabel>
           <button type="button" className="cursor-pointer text-[10px] text-muted-foreground hover:text-foreground" onClick={onReset}>reset</button>
@@ -207,6 +208,7 @@ export function ColumnsMenu({ fields, cols, onToggle, onReset, emptyStats }: {
             )
           })}
         </div>
+      </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -238,6 +240,7 @@ export function ViewsMenu({ saved, onLoad, onDelete, queryName, onQueryName, onS
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Bookmark className="mr-1.5 h-3.5 w-3.5" />Views</Button>} />
       <DropdownMenuContent align="end" className="max-h-96 overflow-auto">
+        <DropdownMenuGroup>
         <DropdownMenuLabel>Prebuilt views</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onLoad(prebuilt('__all'))}>
@@ -251,7 +254,9 @@ export function ViewsMenu({ saved, onLoad, onDelete, queryName, onQueryName, onS
             <ListFilter className="h-3.5 w-3.5" />{p.label}
           </DropdownMenuItem>
         ))}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuGroup>
         <DropdownMenuLabel>Saved views</DropdownMenuLabel>
         {saved.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">none saved</div>}
         {saved.map(s => (
@@ -272,7 +277,9 @@ export function ViewsMenu({ saved, onLoad, onDelete, queryName, onQueryName, onS
             <button type="button" className="cursor-pointer text-muted-foreground hover:text-red-400" aria-label={`Delete saved view ${s.name}`} onClick={() => onDelete(s.name)}><X className="h-3 w-3" /></button>
           </div>
         ))}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuGroup>
         <DropdownMenuLabel>Export all matching</DropdownMenuLabel>
         <DropdownMenuItem disabled={exportDisabled || exporting} onClick={onExportCsv}>
           <FileDown className="h-3.5 w-3.5" />CSV
@@ -281,6 +288,7 @@ export function ViewsMenu({ saved, onLoad, onDelete, queryName, onQueryName, onS
           <FileJson className="h-3.5 w-3.5" />JSONL
         </DropdownMenuItem>
         {exporting && <DropdownMenuItem onClick={onCancelExport}><X className="h-3.5 w-3.5" />Cancel export</DropdownMenuItem>}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <div className="flex items-center gap-1.5 px-2 py-1.5">
           <Input value={queryName} onChange={e => onQueryName(e.target.value)} placeholder="save current as…" className="h-7 text-xs" />
@@ -337,6 +345,7 @@ export function FacetMenu({ title, groups, onPick }: {
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button size="sm" variant="outline"><Filter className="mr-1.5 h-3.5 w-3.5" />{title}</Button>} />
       <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
+        <DropdownMenuGroup>
         <DropdownMenuLabel>{title} facets</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {groups.map(g => (
@@ -347,6 +356,7 @@ export function FacetMenu({ title, groups, onPick }: {
             </span>
           </DropdownMenuItem>
         ))}
+      </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
