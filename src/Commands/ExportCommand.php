@@ -31,7 +31,7 @@ final class ExportCommand extends Command
     {
         $this
             ->addArgument('source', InputArgument::OPTIONAL, 'Source to export (myanimelist, anilist, kitsu, organized). Default: organized')
-            ->addOption('format', 'f', InputOption::VALUE_OPTIONAL, 'Export format: json, csv, jsonl (default: json)')
+            ->addOption('format', 'f', InputOption::VALUE_OPTIONAL, 'Export format: json, csv, jsonl, relational (default: json)')
             ->addOption('output', 'o', InputOption::VALUE_OPTIONAL, 'Output file path (default: stdout)')
             ->addOption('fields', null, InputOption::VALUE_OPTIONAL, 'Comma-separated list of fields to export')
             ->addOption('limit', 'l', InputOption::VALUE_OPTIONAL, 'Limit number of entries')
@@ -49,6 +49,15 @@ final class ExportCommand extends Command
         $pretty = $input->getOption('pretty');
 
         $db = $this->hiyori->getDatabase();
+
+        if ($format === 'relational') {
+            $outDir = $outputFile ?: null;
+            $publisher = new \Hiyori\Service\Publisher(new \MongoDB\Client($_ENV['MONGODB_URL']), 'hiyori', $outDir);
+            $result = $publisher->dump(false, true);
+            $io->success('Relational dump written to ' . $result['dir'] . ' (' . $result['rows'] . ' rows)');
+
+            return Command::SUCCESS;
+        }
 
         $validSources = ['myanimelist', 'anilist', 'kitsu', 'organized'];
         if (!in_array($source, $validSources)) {
