@@ -7,6 +7,7 @@
  * '#doc=<id>' deep links into the detail sheet.
  */
 
+import { safeCopy } from '@/lib/explorer/clipboard'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlignJustify, CircleDot, Database, Download, Link2, Rows3, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -317,7 +318,7 @@ export function ExplorerPage() {
         case 'copy-selected':
           if (sel.size > 0) {
             e.preventDefault()
-            void navigator.clipboard.writeText([...sel].join(','))
+            void safeCopy([...sel].join(','))
             toast(`copied ${sel.size} id${sel.size === 1 ? '' : 's'}`)
           }
           break
@@ -601,10 +602,10 @@ export function ExplorerPage() {
     downloadText(buildCsv(selDocs, headings), 'text/csv;charset=utf-8', `hiyori-${collection}-sel.csv`)
     toast.success(`exported ${selDocs.length} rows`)
   }
-  const copySelJson = () => { void navigator.clipboard.writeText(JSON.stringify(selDocs, null, 2)); toast('copied JSON') }
+  const copySelJson = () => { void safeCopy(JSON.stringify(selDocs, null, 2)); toast('copied JSON') }
   const copySelIds = () => {
     const ids = selDocs.map(stringId).filter(Boolean)
-    void navigator.clipboard.writeText(ids.join(','))
+    void safeCopy(ids.join(','))
     toast(`copied ${ids.length} ids`)
   }
 
