@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import {
-  downloadExport, fetchSample, type BenchmarkRow,
+  downloadExport, fetchBenchmarkManga, fetchSample, type BenchmarkRow,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
@@ -106,7 +106,11 @@ export function QualityPage() {
   const [benchKey, setBenchKey] = useState(0)
   const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown }>('/api/benchmark', benchKey)
   const hist = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram', benchKey)
+  const histManga = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?collection=organized_manga', benchKey)
+  const [benchManga, setBenchManga] = useState<BenchmarkRow[]>([])
   const { failures, refresh: refreshFailures } = useFailures()
+
+  useEffect(() => { void fetchBenchmarkManga().then(r => setBenchManga(r.benchmark ?? [])) }, [benchKey])
   const [sample, setSample] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [minConf, setMinConf] = useState(0)
   const [feed, setFeed] = useState({ right: 0, wrong: 0 })
@@ -293,6 +297,30 @@ export function QualityPage() {
           )}
         </Section>
       </div>
+
+      {/* Manga — organized_manga results */}
+      <Section title="Manga (organized_manga)" icon={GitMerge} badge={<Badge variant="outline">manga merge</Badge>}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            {!histManga.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Manga merged scores (organized_manga)" bins={histManga.data?.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histManga.data?.histogram ?? {}} color={['#9b7bff', '#b9a6ff']} />}
+          </div>
+          <div>
+            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Manga benchmark</div>
+            {benchManga.length === 0 ? (
+              <EmptyState icon={Scale} title="No manga benchmark yet" description="Runs from benchmark-manga.sh (--into organized_manga) appear here." />
+            ) : (
+              <div className="space-y-1.5 text-xs">
+                {benchManga.map(b => (
+                  <div key={b.strategy} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <span>{b.strategy}</span>
+                    <span className="tabular-nums text-muted-foreground">{b.merges?.toLocaleString()} · {Math.round((b.wall_s ?? 0) / 60)}m</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Section>
 
       {/* Q6: weightage explorer */}
       <Section title="Weightage explorer" icon={SlidersHorizontal} badge={<Badge variant="outline">metadata_fuzzy</Badge>}>
