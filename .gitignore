@@ -14,3 +14,5 @@ storage/logs/*.log
 storage/logs/daily-*
 
 .env.bak
+
+storage/logs/*.out

@@ -122,6 +122,55 @@ token rotate, webhook test), /api/backups, /api/restore, /api/failures, /api/lim
 - alerts() debounces: the critical banner needs 2+ consecutive unreachable polls within
   120s; a sustained degraded state (3+ polls of 429/307) produces a soft WARN instead.
 
+## Manga combine (organized_manga) (2026-10)
+
+The combiner can now target a per-call collection via `--into` (default `organized`),
+which lets manga merges land in a **new** `organized_manga` collection without touching
+the anime `organized` result.
+
+**What changed**
+
+- `combine` gained `--into <collection>` (CombinerCommand) and threads it through
+  `Hiyori::combine` → strategy config → `Database::mergeIntoOrganized` (which already
+  accepted a collection argument).
+- Strategies (`relational_mapping`, `relational_fuzzy`, `metadata_fuzzy`) read the
+  target collection from config and pass it to every merge.
+- **Manga key resolution** (`Helper::resolveReferenceId`): manga sources ingest their
+  canonical reference keys (`al`/`k`/`mal`) while the combine config declares mangafied
+  shorthands (`al_manga`/`k_manga`/`mal_manga`). The strategies now resolve the base
+  entry's id with a manga-shorthand fallback and stamp the mangafied key into the merged
+  document, so `organized_manga` docs are keyed by `reference_ids.al_manga` (etc.) and
+  dedup correctly. Reference-less entries (no own identifier) are skipped instead of
+  collapsing onto an empty upsert key.
+- **Manga model round-trip** (`Helper::mergeEntries`): `_manga` base tables merge via
+  `MangaBase` so `chapters`/`volumes` survive into `organized_manga` (anime tables keep
+  `AnimeBase`).
+
+**How to run**
+
+```bash
+# One strategy, e.g. the default tuned metadata_fuzzy:
+php hiyori combine anilist_manga --strategy metadata_fuzzy --into organized_manga
+
+# Full manga benchmark (3 strategies, logs to storage/logs/strategy-benchmark-manga.log):
+bash benchmark-manga.sh
+```
+
+`benchmark-manga.sh` mirrors `benchmark-v2.sh`: for each strategy it clears
+`organized_manga`, runs `combine anilist_manga --into organized_manga`, then measures
+wall time + `organized_manga` stats (total, has al_manga/mal_manga/k_manga,
+triple-linked, duplicate `al_manga` keys). The **final** strategy result
+(`metadata_fuzzy`) is left in place; `organized` is never touched.
+
+**Caveats observed on live data**
+
+- Manga source tables carry few cross-references yet: only ~3.1k of ~23k `anilist_manga`
+  docs have `reference_ids`; `kitsu_manga`/`myanimelist_manga` rows currently have none,
+  so relational strategies for manga are limited by reference coverage (they also match
+  same-numeric-id anime rows because the strategies iterate every configured source —
+  pre-existing behavior, unchanged here).
+- `metadata_fuzzy` manga merges start from the ~3.1k reference-bearing base rows.
+
 ## Benchmark v2 results (anime, base anilist)
 
 | strategy | wall | organized | has MAL | has Kitsu | triple | dups |

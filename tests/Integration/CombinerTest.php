@@ -18,6 +18,8 @@ final class CombinerTest extends TestCase
 
     private static string $testCollection = 'organized_test';
 
+    private static string $mangaTestCollection = 'organized_manga_test';
+
     public static function setUpBeforeClass(): void
     {
         $envFile = __DIR__ . '/../../.env';
@@ -34,6 +36,7 @@ final class CombinerTest extends TestCase
     {
         // Cleanup test data
         self::$client->hiyori->selectCollection(self::$testCollection)->drop([]);
+        self::$client->hiyori->selectCollection(self::$mangaTestCollection)->drop([]);
     }
 
     public function testMergeIntoOrganizedUpsertsInsteadOfDuplicating(): void
@@ -85,5 +88,56 @@ final class CombinerTest extends TestCase
 
         $doc = $col->findOne(['reference_ids.al' => '999001']);
         $this->assertSame('Test Anime Updated', $doc['title'], 'Doc should be replaced with the newer entry.');
+    }
+
+    public function testMangaMergeIntoCustomCollectionUsesMangaShorthandAndDedups(): void
+    {
+        $col = self::$client->hiyori->selectCollection(self::$mangaTestCollection);
+        $col->drop();
+
+        $entry1 = \Hiyori\Models\Manga\Base\MangaBase::create([
+            'title' => 'MONSTER',
+            'synonyms' => ['Monster', 'MONSTER'],
+            'type' => 'manga',
+            'chapters' => 162,
+            'volumes' => 18,
+            'status' => 'finished',
+            'year' => 1994,
+            'images' => ['https://example.com/monster.jpg'],
+            'reference_ids' => ['al' => '19', 'al_manga' => '90019'],
+            'references' => ['https://anilist.co/manga/30001'],
+            'tags' => ['drama'],
+        ]);
+        // --into organized_manga equivalent: keyed by the mangafied shorthand
+        // in a per-call collection, keeping manga fields (chapters/volumes).
+        self::$db->mergeIntoOrganized($entry1, 'al_manga', '90019', self::$mangaTestCollection, ['confidence' => 90.0]);
+
+        $this->assertSame(1, $col->countDocuments(), 'First manga merge should insert exactly 1 document');
+
+        $doc = $col->findOne(['reference_ids.al_manga' => '90019']);
+        $this->assertNotNull($doc, 'Manga doc must be keyed by reference_ids.al_manga');
+        $this->assertSame(162, $doc['chapters'], 'Manga merge must preserve chapters');
+        $this->assertSame(18, $doc['volumes'], 'Manga merge must preserve volumes');
+        $this->assertEquals(90.0, $doc['confidence']);
+
+        // Second merge with the same al_manga key must upsert, not duplicate.
+        $entry2 = \Hiyori\Models\Manga\Base\MangaBase::create([
+            'title' => 'MONSTER (Updated)',
+            'synonyms' => ['Monster'],
+            'type' => 'manga',
+            'chapters' => 162,
+            'volumes' => 18,
+            'status' => 'finished',
+            'year' => 1994,
+            'images' => [],
+            'reference_ids' => ['al' => '19', 'al_manga' => '90019'],
+            'references' => ['https://anilist.co/manga/30001'],
+            'tags' => ['drama'],
+        ]);
+        self::$db->mergeIntoOrganized($entry2, 'al_manga', '90019', self::$mangaTestCollection, ['confidence' => 92.0]);
+
+        $this->assertSame(1, $col->countDocuments(), 'Re-merging the same al_manga key must upsert, not duplicate');
+        $updated = $col->findOne(['reference_ids.al_manga' => '90019']);
+        $this->assertSame('MONSTER (Updated)', $updated['title']);
     }
 }
