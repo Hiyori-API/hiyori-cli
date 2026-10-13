@@ -172,4 +172,36 @@ final class ExploreQueryTest extends TestCase
         $this->assertSame([], Explorer::parseCsv("a,b\n"));
         $this->assertSame([], Explorer::parseCsv("\n\n"));
     }
+
+    public function testBuildFilterSearchIsEscapedLiteralByDefault(): void
+    {
+        $f = Explorer::buildFilter(['q' => 'a.b*c']);
+        $rx = $f['$or'][0]['title'];
+        $this->assertInstanceOf(Regex::class, $rx);
+        $this->assertSame('/a\.b\*c/i', (string) $rx);
+    }
+
+    public function testBuildFilterRegexKeepsRawPattern(): void
+    {
+        $f = Explorer::buildFilter(['q' => '^cowboy (bebop)?$'], true);
+        $rx = $f['$or'][0]['title'];
+        $this->assertInstanceOf(Regex::class, $rx);
+        $this->assertSame('/^cowboy (bebop)?$/i', (string) $rx);
+    }
+
+    public function testBuildFilterInvalidRegexFallsBackToLiteral(): void
+    {
+        $f = Explorer::buildFilter(['q' => '(unclosed'], true);
+        $rx = $f['$or'][0]['title'];
+        $this->assertInstanceOf(Regex::class, $rx);
+        $this->assertSame('/\(unclosed/i', (string) $rx);
+    }
+
+    public function testBuildFilterOversizedRegexFallsBackToLiteral(): void
+    {
+        $pattern = str_repeat('a', Explorer::MAX_REGEX_LENGTH + 1);
+        $f = Explorer::buildFilter(['q' => $pattern], true);
+        $rx = $f['$or'][0]['title'];
+        $this->assertSame('/' . preg_quote($pattern, '/') . '/i', (string) $rx);
+    }
 }
