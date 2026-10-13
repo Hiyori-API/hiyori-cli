@@ -74,6 +74,7 @@ $app->addCommands([
     new \Hiyori\Commands\IngestAllCommand($hiyori),
     new \Hiyori\Commands\MigrateCommand($hiyori),
     new \Hiyori\Commands\SetupCommand($hiyori),
+    new \Hiyori\Commands\PublishCommand(),
     new \Hiyori\Commands\ScheduleCommand(),
     new \Hiyori\Commands\CombinerCommand($hiyori),
     new \Hiyori\Commands\ReferencesCommand($hiyori),
