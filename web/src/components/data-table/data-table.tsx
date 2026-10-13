@@ -1,12 +1,15 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   createPaginatedRowModel,
   createSortedRowModel,
@@ -49,6 +52,13 @@ declare module '@tanstack/react-table' {
     align?: 'left' | 'right' | 'center'
     /** Renders the column pinned to the right edge of the scroll container. */
     stickyRight?: boolean
+    /**
+     * Renders the column pinned to the left edge of the scroll container.
+     * Consecutive pinned columns stack to the right automatically: the `left`
+     * offset of each pinned column accumulates the measured widths of the
+     * pinned columns that precede it.
+     */
+    stickyLeft?: boolean
     /** Adds `truncate` + a max width so long cell content ellipsizes. */
     truncate?: boolean
     /** Extra classes for both the `<th>` and `<td>` of this column. */
@@ -80,6 +90,20 @@ const RESIZE_MIN_WIDTH = 64
 const RESIZE_MAX_WIDTH = 640
 const RESIZE_DEFAULT_WIDTH = 160
 
+/**
+ * Estimated pixel height of one row, used by the virtualizer until rows are
+ * measured from the DOM (`px-2 py-2 text-sm` ≈ 37px including the top border).
+ */
+const VIRTUAL_ROW_ESTIMATE_HEIGHT = 36
+/** Rows rendered above and below the visible window while virtualized. */
+const VIRTUAL_OVERSCAN = 8
+/**
+ * Extra spacing added between adjacent left-pinned columns. Pinned cell
+ * borders are already included in the measured (border-box) widths, so 0 keeps
+ * stacked pinned columns perfectly flush. Bump it if you add custom gutters.
+ */
+const STICKY_LEFT_GUTTER = 0
+
 export interface DataTableProps<TData extends RowData> {
   columns: ColumnDef<DataTableFeatures, TData, any>[]
   data: TData[]
@@ -100,6 +124,11 @@ export interface DataTableProps<TData extends RowData> {
   pageSizeOptions?: number[]
   /** Enables the selection column + selected-count bar. */
   enableSelection?: boolean
+  /**
+   * Pins the built-in selection column to the left edge, stacking it before
+   * any data columns that opt into `meta.stickyLeft`. Defaults to false.
+   */
+  stickySelection?: boolean
   /** When provided, selection is controlled externally (a Set of row ids). */
   selected?: ReadonlySet<string>
   onSelectionChange?: (next: Set<string>) => void
@@ -123,6 +152,20 @@ export interface DataTableProps<TData extends RowData> {
   className?: string
   /** When true, each sortable header gets a drag handle to resize column widths. */
   resizable?: boolean
+  /**
+   * Enables shift-click multi-column sorting. Sorted headers show their
+   * direction arrow plus an ordinal ("1", "2", …) reflecting sort priority.
+   * Defaults to false, preserving the existing single-column toggle behavior.
+   */
+  multiSort?: boolean
+  /**
+   * Virtualizes client-side rows (ignored when `manualPagination` is true)
+   * inside the `maxHeight` scroll container, rendering only the visible
+   * window (+ `VIRTUAL_OVERSCAN` rows). The header and pinned columns remain
+   * sticky; selection, row-click and hover only apply to rendered rows.
+   * Defaults to false.
+   */
+  virtual?: boolean
 }
 
 /**
@@ -146,6 +189,7 @@ export function DataTable<TData extends RowData>({
   initialPageSize = 10,
   pageSizeOptions,
   enableSelection = false,
+  stickySelection = false,
   selected,
   onSelectionChange,
   selectionActions,
@@ -162,6 +206,8 @@ export function DataTable<TData extends RowData>({
   ariaLabel,
   className,
   resizable = false,
+  multiSort = false,
+  virtual = false,
 }: DataTableProps<TData>) {
   const [intSorting, setIntSorting] = useState<SortingState>(initialSorting ?? [])
   const [intPagination, setIntPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: initialPageSize })
@@ -215,6 +261,7 @@ export function DataTable<TData extends RowData>({
     if (!enableSelection) return null
     return {
       id: SELECT_COLUMN,
+      meta: stickySelection ? { stickyLeft: true } : undefined,
       enableSorting: false,
       header: ({ table }) => (
         <Checkbox
@@ -232,7 +279,7 @@ export function DataTable<TData extends RowData>({
         />
       ),
     }
-  }, [enableSelection])
+  }, [enableSelection, stickySelection])
 
   const table = useTable({
     features,
@@ -253,11 +300,97 @@ export function DataTable<TData extends RowData>({
     enableSorting: true,
     enableSortingRemoval,
     sortDescFirst,
+    ...(multiSort ? { enableMultiSort: true } : {}),
     enableRowSelection: enableSelection,
     autoResetPageIndex: !manualPagination,
   })
 
   const rows = table.getRowModel().rows
+
+  /* Scroll container + row virtualization (client-side rows only). */
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const virtualized = virtual && !manualPagination
+  /* oxlint-disable-next-line react/incompatible-library -- TanStack Virtual inherently opts out of React Compiler memoization; nothing memoized consumes it here. */
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
+    count: rows.length,
+    enabled: virtualized,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => VIRTUAL_ROW_ESTIMATE_HEIGHT,
+    overscan: VIRTUAL_OVERSCAN,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  })
+  const virtualRows = virtualizer.getVirtualItems()
+  const renderedRows = virtualized
+    ? virtualRows.map((vr) => ({ row: rows[vr.index], index: vr.index }))
+    : rows.map((row, index) => ({ row, index }))
+  const firstVirtual = virtualized ? virtualRows[0] : undefined
+  const lastVirtual = virtualized ? virtualRows[virtualRows.length - 1] : undefined
+  const topPad = firstVirtual ? firstVirtual.start : 0
+  const bottomPad = lastVirtual ? virtualizer.getTotalSize() - (lastVirtual.start + lastVirtual.size) : 0
+
+  /* DOM refs + measured layout for left-pinned (`meta.stickyLeft`) columns. */
+  const stickyLeftRefs = useRef(new Map<string, HTMLTableCellElement>())
+  const [stickyLeftLayout, setStickyLeftLayout] = useState<{
+    offsets: Record<string, number>
+    widths: Record<string, number>
+  }>({ offsets: {}, widths: {} })
+
+  /**
+   * Measures the left-pinned columns and keeps their `left` offsets / widths
+   * in state. Runs after every commit on purpose: pinned widths can change
+   * from data swaps, column resizing, density or font loads, so each commit
+   * re-measures and the equality guard below makes the setState idempotent
+   * (no render loop). The same offsets/widths are mirrored onto body cells.
+   *
+   * oxlint: exhaustive-deps/set-state-in-effect suppressed — this is an
+   * intentional every-commit, self-guarding measurement, not a missing-dep bug.
+   */
+  /* oxlint-disable-next-line react-hooks/exhaustive-deps, react/set-state-in-effect */
+  useLayoutEffect(() => {
+    const group = table.getHeaderGroups()[0]
+    const pinnedIds = group
+      ? group.headers
+          .filter((header) => !header.isPlaceholder && header.column.columnDef.meta?.stickyLeft)
+          .map((header) => header.column.id)
+      : []
+    if (pinnedIds.length === 0) return
+    const nextOffsets: Record<string, number> = {}
+    const nextWidths: Record<string, number> = {}
+    let accumulated = 0
+    for (const columnId of pinnedIds) {
+      const element = stickyLeftRefs.current.get(columnId)
+      if (!element) return // not mounted yet — retry on the next commit
+      const width = element.getBoundingClientRect().width
+      if (!width) return // zero/undisplayed — retry on the next commit
+      nextOffsets[columnId] = accumulated
+      accumulated += width + STICKY_LEFT_GUTTER
+      nextWidths[columnId] = width
+    }
+    setStickyLeftLayout((previous) => {
+      if (
+        Object.keys(previous.offsets).length === Object.keys(nextOffsets).length &&
+        Object.keys(previous.widths).length === Object.keys(nextWidths).length &&
+        Object.keys(nextOffsets).every(
+          (columnId) =>
+            columnId in previous.offsets &&
+            Math.abs(previous.offsets[columnId] - nextOffsets[columnId]) < 0.5,
+        ) &&
+        Object.keys(nextWidths).every(
+          (columnId) =>
+            columnId in previous.widths &&
+            Math.abs(previous.widths[columnId] - nextWidths[columnId]) < 0.5,
+        )
+      ) {
+        return previous
+      }
+      return { offsets: nextOffsets, widths: nextWidths }
+    })
+  })
+
+  /* Jump back to the top when the paged row set changes under virtualization. */
+  useEffect(() => {
+    if (virtualized) virtualizer.scrollToOffset(0)
+  }, [paginationState.pageIndex, paginationState.pageSize, virtualized, virtualizer])
 
   const handleWindowPointerMove = useCallback((e: PointerEvent) => {
     const session = resizeSessionRef.current
@@ -334,7 +467,7 @@ export function DataTable<TData extends RowData>({
             {empty ?? <EmptyState icon={Table2} title="No rows" description="Nothing to show for the current view." />}
           </div>
         ) : (
-          <div className="overflow-auto" style={maxHeight ? { maxHeight } : undefined}>
+          <div ref={scrollContainerRef} className="overflow-auto" style={maxHeight ? { maxHeight } : undefined}>
             <table className="w-full text-sm" aria-label={ariaLabel}>
               <thead className="sticky top-0 z-10 bg-background text-left text-xs uppercase text-muted-foreground">
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -347,9 +480,28 @@ export function DataTable<TData extends RowData>({
                       const isSelect = column.id === SELECT_COLUMN
                       const canResize = resizable && canSort && !isSelect && !meta?.stickyRight
                       const columnWidth = canResize ? (columnWidths[column.id] ?? RESIZE_DEFAULT_WIDTH) : undefined
+                      const isStickyLeft = !!meta?.stickyLeft
+                      const leftOffset = isStickyLeft ? stickyLeftLayout.offsets[column.id] : undefined
+                      const leftWidth = isStickyLeft ? stickyLeftLayout.widths[column.id] : undefined
+                      const effectiveWidth = leftWidth ?? columnWidth
+                      const thStyle: CSSProperties | undefined =
+                        effectiveWidth !== undefined || leftOffset !== undefined
+                          ? {
+                              ...(effectiveWidth !== undefined ? { width: effectiveWidth, minWidth: effectiveWidth } : null),
+                              ...(leftOffset !== undefined ? { left: leftOffset } : null),
+                            }
+                          : undefined
                       return (
                         <th
                           key={header.id}
+                          ref={
+                            isStickyLeft
+                              ? (element) => {
+                                  if (element) stickyLeftRefs.current.set(column.id, element)
+                                  else stickyLeftRefs.current.delete(column.id)
+                                }
+                              : undefined
+                          }
                           aria-sort={
                             canSort
                               ? sorted === 'asc'
@@ -364,11 +516,12 @@ export function DataTable<TData extends RowData>({
                             meta?.align === 'right' && 'text-right',
                             meta?.align === 'center' && 'text-center',
                             meta?.stickyRight && 'sticky right-0 z-20 bg-background',
+                            isStickyLeft && 'sticky z-20 border-r border-border bg-background',
                             meta?.className,
                             isSelect && 'w-8 px-3',
                             canResize && 'relative',
                           )}
-                          style={columnWidth !== undefined ? { width: columnWidth, minWidth: columnWidth } : undefined}
+                          style={thStyle}
                         >
                           {canSort ? (
                             <button
@@ -384,6 +537,11 @@ export function DataTable<TData extends RowData>({
                                 <ArrowUp className="h-3 w-3" />
                               ) : sorted === 'desc' ? (
                                 <ArrowDown className="h-3 w-3" />
+                              ) : null}
+                              {sorted !== false && multiSort ? (
+                                <span className="ml-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-semibold leading-none tabular-nums">
+                                  {column.getSortIndex() + 1}
+                                </span>
                               ) : null}
                             </button>
                           ) : (
@@ -408,12 +566,15 @@ export function DataTable<TData extends RowData>({
                 ))}
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {virtualized && topPad > 0 ? <tr aria-hidden="true" style={{ height: topPad }} /> : null}
+                {renderedRows.map(({ row, index }) => {
                   const original = row.original
                   const clickable = !!onRowClick
                   return (
                     <tr
                       key={row.id}
+                      ref={virtualized ? virtualizer.measureElement : undefined}
+                      data-index={virtualized ? index : undefined}
                       className={cn('group/row border-t', clickable && 'cursor-pointer hover:bg-muted/30')}
                       onClick={
                         clickable
@@ -434,11 +595,22 @@ export function DataTable<TData extends RowData>({
                         const meta = cell.column.columnDef.meta
                         const isSelect = cell.column.id === SELECT_COLUMN
                         const stickyActions = !!meta?.stickyRight
+                        const isStickyLeft = !!meta?.stickyLeft
                         const canResizeCell =
                           resizable && !isSelect && !stickyActions && cell.column.getCanSort()
                         const columnWidth = canResizeCell
                           ? (columnWidths[cell.column.id] ?? RESIZE_DEFAULT_WIDTH)
                           : undefined
+                        const leftOffset = isStickyLeft ? stickyLeftLayout.offsets[cell.column.id] : undefined
+                        const leftWidth = isStickyLeft ? stickyLeftLayout.widths[cell.column.id] : undefined
+                        const effectiveWidth = leftWidth ?? columnWidth
+                        const cellStyle: CSSProperties | undefined =
+                          effectiveWidth !== undefined || leftOffset !== undefined
+                            ? {
+                                ...(effectiveWidth !== undefined ? { width: effectiveWidth, minWidth: effectiveWidth } : null),
+                                ...(leftOffset !== undefined ? { left: leftOffset } : null),
+                              }
+                            : undefined
                         return (
                           <td
                             key={cell.id}
@@ -449,11 +621,13 @@ export function DataTable<TData extends RowData>({
                               meta?.align === 'center' && 'text-center',
                               meta?.stickyRight &&
                                 'sticky right-0 z-10 bg-background group-hover/row:bg-muted/30 dark:group-hover/row:bg-muted/30 dark:bg-background',
+                              isStickyLeft &&
+                                'sticky z-10 border-r border-border bg-background group-hover/row:bg-muted/30 dark:group-hover/row:bg-muted/30 dark:bg-background',
                               meta?.truncate && 'max-w-[220px] truncate',
                               meta?.className,
                               isSelect && 'w-8 px-3',
                             )}
-                            style={columnWidth !== undefined ? { width: columnWidth, minWidth: columnWidth } : undefined}
+                            style={cellStyle}
                           >
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
@@ -462,6 +636,7 @@ export function DataTable<TData extends RowData>({
                     </tr>
                   )
                 })}
+                {virtualized && bottomPad > 0 ? <tr aria-hidden="true" style={{ height: bottomPad }} /> : null}
               </tbody>
             </table>
           </div>
