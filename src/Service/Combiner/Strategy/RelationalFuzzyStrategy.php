@@ -3,7 +3,6 @@
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
-use Hiyori\Models\Anime\Base\AnimeBase;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -20,6 +19,7 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
     ): void {
+        $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
@@ -41,6 +41,8 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                 }
 
                 $entryArray = Helper::convertMongoResultToArray($entry);
+                $baseShorthand = $source->get()->getShorthand();
+                $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
                 foreach ($entryArray['reference_ids'] ?? [] as $identifier => $identifierValue) {
                     if ($db->exists(
                         $currentSource->getTable(),
@@ -64,14 +66,16 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                             }
                         }
 
-                        if ($matched) {
+                        if ($matched && $baseId !== '') {
+                            // Stamp the mangafied shorthand so the organized
+                            // doc's upsert key matches on later merges.
+                            $entryArray['reference_ids'][$baseShorthand] = $baseId;
+
                             $db->mergeIntoOrganized(
-                                AnimeBase::merge(
-                                    $entryArray,
-                                    $matchEntry,
-                                ),
-                                $source->get()->getShorthand(),
-                                (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
+                                Helper::mergeEntries($tableName, $entryArray, $matchEntry),
+                                $baseShorthand,
+                                $baseId,
+                                $collection,
                             );
 
                             $totalMerged++;

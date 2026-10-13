@@ -3,7 +3,6 @@
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
-use Hiyori\Models\Anime\Base\AnimeBase;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -20,6 +19,7 @@ final class RelationalMappingStrategy extends CombinerStrategy
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
     ): void {
+        $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
@@ -35,32 +35,39 @@ final class RelationalMappingStrategy extends CombinerStrategy
         $totalMerged = 0;
         foreach ($cursor as $id => $entry) {
             $entryArray = Helper::convertMongoResultToArray($entry);
+            $baseShorthand = $source->get()->getShorthand();
+            $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
             foreach ($availableSources as $currentSource) {
                 // skip if it's the same source as base source
                 if ($currentSource->getTable() === $tableName) {
                     continue;
                 }
 
-                $sourceShorthand = $source->get()->getShorthand();
+                if ($baseId === '') {
+                    continue;
+                }
+
                 if ($db->exists(
                     $currentSource->getTable(),
                     $currentSource->getShorthand(),
-                    $entryArray['reference_ids'][$sourceShorthand] ?? '',
+                    $baseId,
                 )) {
                     $matchEntry = $db->get(
                         $currentSource->getTable(),
                         $currentSource->getShorthand(),
-                        $entryArray['reference_ids'][$sourceShorthand] ?? '',
+                        $baseId,
                         true,
                     );
 
+                    // Stamp the mangafied shorthand so the organized doc's
+                    // upsert key matches on later merges (keeps dedup).
+                    $entryArray['reference_ids'][$baseShorthand] = $baseId;
+
                     $db->mergeIntoOrganized(
-                        AnimeBase::merge(
-                            $entryArray,
-                            $matchEntry,
-                        ),
-                        $source->get()->getShorthand(),
-                        (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
+                        Helper::mergeEntries($tableName, $entryArray, $matchEntry),
+                        $baseShorthand,
+                        $baseId,
+                        $collection,
                     );
 
                     $totalMerged++;

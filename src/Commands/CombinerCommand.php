@@ -34,7 +34,8 @@ final class CombinerCommand extends Command
             ->addArgument('base', InputArgument::REQUIRED, 'Source dataset to use as a base')
             ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to metadata_fuzzy (benchmark winner; tuned weights)')
             ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
-            ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}');
+            ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
+            ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -48,7 +49,7 @@ final class CombinerCommand extends Command
         $base = $input->getArgument('base');
         $strategy = $input->getOption('strategy') ?? MetadataFuzzyStrategy::class;
 
-        $config = [];
+        $config = ['collection' => (string) $input->getOption('into')];
         if ($input->getOption('threshold') !== null) {
             $config['threshold'] = (float) $input->getOption('threshold');
         }

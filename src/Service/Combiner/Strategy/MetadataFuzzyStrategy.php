@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
-use Hiyori\Models\Anime\Base\AnimeBase;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -44,6 +43,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     ): void {
         $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::DEFAULT_WEIGHTS);
         $threshold = self::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
+        $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -63,6 +63,11 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
 
         foreach ($cursor as $id => $entry) {
             $entryArray = Helper::convertMongoResultToArray($entry);
+            $baseShorthand = $source->get()->getShorthand();
+            // Entries without their own identifier (e.g. reference-less manga
+            // rows) cannot key an organized document; they are skipped rather
+            // than collapsed onto an empty upsert key.
+            $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
             $bestForEntry = 0.0;
 
             // Consider EVERY available source (do not break after the first hit)
@@ -88,14 +93,20 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $bestForEntry = max($bestForEntry, $score);
                     $mergedSources[$currentSource->getTable()] = ($mergedSources[$currentSource->getTable()] ?? 0) + 1;
 
-                    $db->mergeIntoOrganized(
-                        AnimeBase::merge($entryArray, $bestMatch),
-                        $source->get()->getShorthand(),
-                        (string) ($entryArray['reference_ids'][$source->get()->getShorthand()] ?? ''),
-                        'organized',
-                        ['confidence' => $score],
-                    );
-                    $totalMerged++;
+                    if ($baseId !== '') {
+                        // Stamp the mangafied shorthand so the organized doc's
+                        // upsert key matches on later merges (keeps dedup).
+                        $entryArray['reference_ids'][$baseShorthand] = $baseId;
+
+                        $db->mergeIntoOrganized(
+                            Helper::mergeEntries($tableName, $entryArray, $bestMatch),
+                            $baseShorthand,
+                            $baseId,
+                            $collection,
+                            ['confidence' => $score],
+                        );
+                        $totalMerged++;
+                    }
                 }
             }
             $progressBar->advance();

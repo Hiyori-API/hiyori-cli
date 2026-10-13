@@ -3,6 +3,8 @@
 namespace Hiyori\Tests\Unit;
 
 use Hiyori\Helper;
+use Hiyori\Models\Anime\Base\AnimeBase;
+use Hiyori\Models\Manga\Base\MangaBase;
 use PHPUnit\Framework\TestCase;
 
 final class HelperTest extends TestCase
@@ -84,5 +86,89 @@ final class HelperTest extends TestCase
     {
         // Now returns null instead of throwing (wider return type)
         $this->assertNull(Helper::convertMongoResultToArray(null));
+    }
+
+    public function testResolveReferenceIdUsesConfiguredShorthandFirst(): void
+    {
+        $entry = ['reference_ids' => ['al' => '19', 'al_manga' => '9019']];
+        $this->assertSame('9019', Helper::resolveReferenceId($entry, 'al_manga'));
+        $this->assertSame('19', Helper::resolveReferenceId($entry, 'al'));
+    }
+
+    public function testResolveReferenceIdFallsBackFromMangaShorthand(): void
+    {
+        // Manga sources are ingested with canonical keys ('al', 'k', 'mal')
+        // while the combine config declares mangafied shorthands ('al_manga').
+        $entry = ['reference_ids' => ['al' => '19']];
+        $this->assertSame('19', Helper::resolveReferenceId($entry, 'al_manga'));
+    }
+
+    public function testResolveReferenceIdReturnsEmptyWhenMissing(): void
+    {
+        // Reference-less manga rows (empty array) must resolve to '' so the
+        // combiner skips them instead of collapsing onto an empty upsert key.
+        $this->assertSame('', Helper::resolveReferenceId(['reference_ids' => []], 'al_manga'));
+        $this->assertSame('', Helper::resolveReferenceId(['reference_ids' => ['k' => '8']], 'al_manga'));
+        $this->assertSame('', Helper::resolveReferenceId(['title' => 'x'], 'al_manga'));
+        $this->assertSame('', Helper::resolveReferenceId(['reference_ids' => 'scalar'], 'al_manga'));
+    }
+
+    public function testMergeEntriesUsesMangaModelForMangaTable(): void
+    {
+        $entry = [
+            'title' => 'MONSTER',
+            'synonyms' => ['MONSTER'],
+            'type' => 'manga',
+            'status' => 'finished',
+            'year' => 1994,
+            'chapters' => 162,
+            'volumes' => 18,
+            'episodes' => null,
+            'season' => null,
+            'images' => ['https://example.com/monster.jpg'],
+            'reference_ids' => ['al' => '30001', 'al_manga' => '19'],
+            'references' => ['https://anilist.co/manga/30001'],
+            'tags' => ['drama'],
+        ];
+        $mergeEntry = [
+            'title' => 'Monster',
+            'synonyms' => [],
+            'type' => 'manga',
+            'status' => 'finished',
+            'year' => 1994,
+            'chapters' => 162,
+            'volumes' => 18,
+            'images' => [],
+            'reference_ids' => [],
+            'references' => [],
+            'tags' => [],
+        ];
+
+        $merged = Helper::mergeEntries('anilist_manga', $entry, $mergeEntry);
+        $this->assertInstanceOf(MangaBase::class, $merged);
+        $this->assertSame(162, $merged->getChapters());
+        $this->assertSame(18, $merged->getVolumes());
+        $this->assertSame(['al' => '30001', 'al_manga' => '19'], $merged->getReferenceIds());
+    }
+
+    public function testMergeEntriesUsesAnimeModelForAnimeTable(): void
+    {
+        $entry = [
+            'title' => 'Cowboy Bebop',
+            'synonyms' => [],
+            'type' => 'tv',
+            'status' => 'finished',
+            'season' => 'spring',
+            'year' => 1998,
+            'episodes' => 26,
+            'images' => [],
+            'reference_ids' => ['al' => '1'],
+            'references' => [],
+            'tags' => [],
+        ];
+
+        $merged = Helper::mergeEntries('anilist', $entry, $entry);
+        $this->assertInstanceOf(AnimeBase::class, $merged);
+        $this->assertSame(26, $merged->getEpisodes());
     }
 }
