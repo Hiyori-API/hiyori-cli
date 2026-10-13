@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart4, Clock, DatabaseZap, History, ListChecks, RefreshCw } from 'lucide-react'
+import { Clock, DatabaseZap, History, ListChecks, RefreshCw } from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,13 @@ import { tzDateTime, type Tz } from '@/lib/time'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 import { PageHead, Section } from '../widgets'
+
+/** G4 — compact formatting for large counts (11734 → "11.7k"). */
+function fmtCompact(n?: number | null): string {
+  if (n === undefined || n === null || Number.isNaN(n)) return '—'
+  if (n >= 10000) return `${(n / 1000).toFixed(1)}k`
+  return n.toLocaleString()
+}
 
 export function LogsPage() {
   const { data, error } = useStatus()
@@ -34,6 +41,7 @@ export function LogsPage() {
   }, [failures, srcFilter])
   const sources = useMemo(() => Array.from(new Set(failures.map(f => f.source ?? '?'))).sort(), [failures])
 
+  // L1 — latency buckets rendered compactly under the slow-requests table.
   const latBins = useMemo(() => {
     const buckets = { '2–3s': 0, '3–5s': 0, '5–10s': 0, '10s+': 0 }
     ;(data?.slow ?? []).forEach(s => {
@@ -45,6 +53,7 @@ export function LogsPage() {
     })
     return Object.entries(buckets)
   }, [data])
+  const maxSlowMs = useMemo(() => (slow.length ? Math.max(...slow.map(s => s.ms ?? 0)) : null), [slow])
 
   const runRows = useMemo(() => {
     if (!history) return []
@@ -63,31 +72,28 @@ export function LogsPage() {
         actions={<Button size="sm" variant="outline" onClick={() => window.location.reload()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reload</Button>}
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Slow requests" icon={Clock} badge={<Badge variant="outline">{slow.length}</Badge>}>
-          {error && !data ? <EmptyState icon={Clock} title="Backend offline" description="Start the dashboard server." /> :
-            slow.length === 0 ? <EmptyState icon={Clock} title="No slow requests" description="Requests over 2 seconds appear here." /> : (
+      {/* L1: slow requests merged with latency buckets + max-slow */}
+      <Section title="Slow requests" icon={Clock} badge={<Badge variant="outline">{slow.length}</Badge>}>
+        {error && !data ? <EmptyState icon={Clock} title="Backend offline" description="Start the dashboard server." /> :
+          slow.length === 0 ? <EmptyState icon={Clock} title="No slow requests" description="Requests over 2 seconds appear here." /> : (
+            <div className="space-y-3">
               <SlowTable slow={slow} tz={tz} />
-            )}
-        </Section>
-
-        <Section title="Latency buckets" icon={BarChart4}>
-          {latBins.every(([, n]) => n === 0) ? (
-            <EmptyState icon={BarChart4} title="Nothing over 2s" description="Latency distribution of slow requests fills in as they occur." />
-          ) : (
-            <div className="space-y-1.5">
-              {latBins.map(([label, n]) => (
-                <div key={label} className="flex items-center gap-2 text-xs">
-                  <span className="w-14 text-muted-foreground">{label}</span>
-                  <div className="h-3 flex-1 rounded bg-muted"><div className="h-full rounded bg-amber-500/70" style={{ width: `${Math.min(100, (n / Math.max(1, ...latBins.map(b => b[1]))) * 100)}%` }} /></div>
-                  <span className="tabular-nums text-muted-foreground">{n}</span>
-                </div>
-              ))}
-              <p className="pt-1 text-[10px] text-muted-foreground">p95/p99 time-series requires per-request metric logging; volume buckets use the slow-request feed for now.</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <span className="text-muted-foreground">Latency</span>
+                {latBins.map(([label, n]) => (
+                  <span key={label} className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="tabular-nums font-medium">{fmtCompact(n)}</span>
+                  </span>
+                ))}
+                {maxSlowMs != null && (
+                  <span className="ml-auto text-muted-foreground">max <span className="tabular-nums font-medium text-amber-500">{fmtCompact(maxSlowMs)}ms</span></span>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">p95/p99 time-series requires per-request metric logging; volume buckets use the slow-request feed for now.</p>
             </div>
           )}
-        </Section>
-      </div>
+      </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title="Validation log" icon={ListChecks} badge={<Badge variant="outline">{validation.length}</Badge>}>
@@ -107,6 +113,7 @@ export function LogsPage() {
           )}
         </Section>
 
+        {/* L2: run history lives here (no duplicate on Management). */}
         <Section title="Ingestion run history" icon={History}>
           {!history ? <Skeleton className="h-32 w-full" /> : runRows.length === 0 ? (
             <EmptyState icon={History} title="No runs yet" description="Started/finished ingestion runs will be listed here." />
@@ -116,15 +123,18 @@ export function LogsPage() {
         </Section>
       </div>
 
+      {/* L3: cache as a single stat line */}
       <Section title="Cache & request counters" icon={DatabaseZap}>
         {!cache ? (
           <EmptyState icon={DatabaseZap} title="Cache telemetry unavailable" description="Cache counters appear once requests flow." />
         ) : (
-          <div className="grid grid-cols-2 gap-2 text-sm lg:grid-cols-4">
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Requests</div><div className="font-medium tabular-nums">{cache.requests?.toLocaleString() ?? '—'}</div></div>
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Enabled</div><div className="font-medium">{cache.enabled ? 'yes' : 'no'}</div></div>
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Host</div><div className="font-medium">{cache.host ?? '—'}</div></div>
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Max slow ms</div><div className="font-medium tabular-nums">{data?.slow?.length ? `${Math.max(...data.slow.map(s => s.ms ?? 0))}ms` : '—'}</div></div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Requests</span>
+            <span className="tabular-nums font-medium">{fmtCompact(cache.requests)}</span>
+            <span className="text-muted-foreground">Enabled</span>
+            <span className="font-medium">{cache.enabled ? 'yes' : 'no'}</span>
+            <span className="text-muted-foreground">Host</span>
+            <span className="max-w-56 truncate font-medium">{cache.host ?? '—'}</span>
           </div>
         )}
       </Section>
@@ -208,7 +218,7 @@ function RunHistoryTable({ rows, tz }: { rows: RunRow[]; tz: Tz }) {
       header: 'Processed',
       sortFn: 'basic',
       meta: { align: 'right' },
-      cell: ({ row }) => <span className="tabular-nums">{row.original.job.processed?.toLocaleString() ?? '—'}</span>,
+      cell: ({ row }) => <span className="tabular-nums">{fmtCompact(row.original.job.processed)}</span>,
     }),
     runHelper.accessor(r => r.job.saved ?? 0, {
       id: 'saved',
@@ -217,7 +227,7 @@ function RunHistoryTable({ rows, tz }: { rows: RunRow[]; tz: Tz }) {
       meta: { align: 'right' },
       cell: ({ row }) => (
         <span className="tabular-nums">
-          {row.original.job.saved?.toLocaleString() ?? '—'}/{row.original.job.skipped?.toLocaleString() ?? '—'}
+          {fmtCompact(row.original.job.saved)}/{fmtCompact(row.original.job.skipped)}
         </span>
       ),
     }),
@@ -265,7 +275,7 @@ function SlowTable({ slow, tz }: { slow: SlowEntry[]; tz: Tz }) {
       sortFn: 'basic',
       sortDescFirst: true,
       meta: { align: 'right' },
-      cell: ({ row }) => <span className="tabular-nums text-amber-500">{row.original.ms}ms</span>,
+      cell: ({ row }) => <span className="tabular-nums text-amber-500">{fmtCompact(row.original.ms)}ms</span>,
     }),
     slowHelper.accessor('method', {
       id: 'method',

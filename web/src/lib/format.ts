@@ -6,6 +6,12 @@ export function fmt(n?: number | null): string {
   return n.toLocaleString()
 }
 
+/** Compact thousand/million notation, e.g. 18.3K / 1.2M (G4). */
+export function fmtCompact(n?: number | null): string {
+  if (n === undefined || n === null || Number.isNaN(n)) return '—'
+  return n.toLocaleString('en', { notation: 'compact', maximumFractionDigits: 1 })
+}
+
 export function ago(ts?: number | string): string {
   if (!ts) return '—'
   const t = typeof ts === 'string' ? Date.parse(ts) / 1000 : ts

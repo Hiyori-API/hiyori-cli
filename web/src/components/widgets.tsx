@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Area, AreaChart, Cell, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from 'cn'
@@ -11,20 +10,18 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
 } as const
 
-/** D6 — pulses green/red briefly when the underlying value changes. */
+/** Pulses green briefly when the underlying value changes. */
 export function ChangePulse({ value, className, pulse = true }: { value: string; className?: string; pulse?: boolean }) {
   const prev = useRef(value)
-  const [flash, setFlash] = useState<'up' | 'down' | null>(null)
+  const [flash, setFlash] = useState<boolean>(false)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!pulse || prev.current === value) return
-    const changed = prev.current !== value
     prev.current = value
-    if (!changed) return
-    setFlash('up')
+    setFlash(true)
     if (flashTimer.current) clearTimeout(flashTimer.current)
-    flashTimer.current = setTimeout(() => setFlash(null), 700)
+    flashTimer.current = setTimeout(() => setFlash(false), 700)
     return () => {
       if (flashTimer.current) clearTimeout(flashTimer.current)
     }
@@ -34,7 +31,7 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
     <span
       className={cn(
         'tabular-nums transition-colors duration-300',
-        flash === 'up' && 'text-emerald-400',
+        flash && 'text-emerald-400',
         className,
       )}
     >
@@ -43,39 +40,13 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
   )
 }
 
-export function Sparkline({ data, color, id = 's', height = 24 }: { data: { t: number; v: number }[]; color: string; id?: string; height?: number }) {
-  if (!data.length) {
-    return <div style={{ height }} className="w-full rounded bg-muted/40" />
-  }
-  const rows = data.map((d, i) => ({ i, v: d.v }))
-  return (
-    <div style={{ height }} className="w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={rows} margin={{ top: 1, right: 0, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={false} labelFormatter={() => ''} formatter={(v: unknown) => [String(v), '']} />
-          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${id})`} dot={false} isAnimationActive={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
 export function KpiCard({
-  label, value, icon: Icon, sub, spark, color = '#4fb3ff', id, loading,
+  label, value, icon: Icon, sub, loading,
 }: {
   label: string
   value: string
   icon: LucideIcon
   sub?: string
-  spark?: { t: number; v: number }[]
-  color?: string
-  id?: string
   loading?: boolean
 }) {
   return (
@@ -97,38 +68,8 @@ export function KpiCard({
             <Icon className="h-4 w-4" />
           </div>
         </div>
-        {spark && <div className="mt-3"><Sparkline data={spark} color={color} id={id ?? label} /></div>}
       </CardContent>
     </Card>
-  )
-}
-
-/** Radial gauge (health meter) built on RadialBarChart. */
-export function RadialGauge({ value, max = 100, label, sub, color = '#3fd06a', size = 110 }: {
-  value: number
-  max?: number
-  label: string
-  sub?: string
-  color?: string
-  size?: number
-}) {
-  const pct = Math.max(0, Math.min(max, value))
-  const data = [{ name: label, value: pct }]
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div style={{ width: size, height: size }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <RadialBarChart data={data} innerRadius="72%" outerRadius="100%" startAngle={225} endAngle={-45} cx="50%" cy="50%">
-            <RadialBar dataKey="value" cornerRadius={size / 2} fill={color} background={{ fill: 'var(--muted)' }} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={false} formatter={(v: unknown) => [`${Math.round(Number(v))}%`, label]} />
-          </RadialBarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="text-center">
-        <div className="text-lg leading-none font-semibold tabular-nums">{pct.toFixed(0)}<span className="text-xs text-muted-foreground">%</span></div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{label}{sub ? ` · ${sub}` : ''}</div>
-      </div>
-    </div>
   )
 }
 
@@ -180,4 +121,4 @@ export function StatusDot({ ok, pulse }: { ok: boolean; pulse?: boolean }) {
   )
 }
 
-export { TOOLTIP_STYLE, Cell }
+export { TOOLTIP_STYLE }

@@ -1,26 +1,25 @@
 /**
  * Column defs + cell renderers for the Explorer DataTable.
  *
- * Handles: inline editing of scalar fields, numeric inline bars, lazy image
- * thumbnails, expandable reference accordions, clickable links, favorites
- * (pin) toggle, source dots, row actions with hover-reveal, and the
- * mono/id toggle.
+ * Handles numeric inline bars, lazy image thumbnails, expandable reference
+ * accordions, clickable links, favorites (pin) toggle, source dots and the
+ * row actions ⋮ menu (inspect / diff / pin / copy / delete). Editing lives in
+ * the detail sheet, not in cells.
  */
 
 import { safeCopy } from '../../lib/explorer/clipboard'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
-import { Code2, Copy, ExternalLink, GitCompareArrows, ListFilter, MoreHorizontal, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Code2, Copy, ExternalLink, GitCompareArrows, ListFilter, MoreHorizontal, Pin, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import type { ExploreRow } from '@/lib/api'
 import type { DataTableFeatures } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  brandOf, describeField, externalUrl, isImageUrl, isMissing, isScalar, linkUrl, longestImage,
+  brandOf, describeField, externalUrl, isImageUrl, isMissing, linkUrl, longestImage,
   refsOf, sourceCollection, stringId, titleOf, type Brand,
 } from '@/lib/explorer/doc-utils'
 
@@ -35,8 +34,6 @@ const BAR_FIELDS = new Set([
 /** id-ish columns rendered mono when the mono toggle is on. */
 const ID_LIKE = /(^id$|^_id$|_id$|reference_ids|mal_|al_|k_|url|site)/i
 
-export interface EditingTarget { id: string; key: string }
-
 export interface ColumnCtx {
   docs: ExploreRow[]
   favs: ReadonlySet<string>
@@ -45,10 +42,6 @@ export interface ColumnCtx {
   onToggleFav: (id: string) => void
   onOpenDoc: (d: ExploreRow) => void
   onOpenRef: (src: string, id: string) => void
-  editing: EditingTarget | null
-  onStartEdit: (d: ExploreRow, key: string) => void
-  onCommitEdit: (id: string, key: string, value: string) => void
-  onCancelEdit: () => void
   diffPair: ExploreRow[]
   onToggleDiff: (d: ExploreRow) => void
   showSource: boolean
@@ -70,11 +63,6 @@ function rowSource(d: ExploreRow, collection: string): Brand | null {
     if (sh === 'mal') return brandOf('myanimelist')
   }
   return direct
-}
-
-function stringifyScalar(v: unknown): string {
-  if (v === null || v === undefined) return ''
-  return String(v)
 }
 
 function prettyPreview(v: unknown, cap = 300): string {
@@ -190,37 +178,6 @@ function LinksList({ v, mono }: { v: unknown; mono: boolean }) {
   )
 }
 
-function InlineEditCell({ initial, onCommit, onCancel, mono }: {
-  initial: unknown
-  onCommit: (v: string) => void
-  onCancel: () => void
-  mono: boolean
-}) {
-  const [val, setVal] = useState(stringifyScalar(initial))
-  const inputRef = useRef<HTMLInputElement>(null)
-  const done = useRef(false)
-  useEffect(() => { inputRef.current?.focus() }, [])
-  const commit = () => {
-    if (done.current) return
-    done.current = true
-    onCommit(val)
-  }
-  return (
-    <Input
-      ref={inputRef}
-      value={val}
-      onChange={e => setVal(e.target.value)}
-      onKeyDown={e => {
-        if (e.key === 'Enter') { e.preventDefault(); commit() }
-        else if (e.key === 'Escape') { done.current = true; onCancel() }
-      }}
-      onBlur={commit}
-      className={cn('cell-edit-input h-7 text-xs', mono && 'font-mono')}
-      aria-label="Edit value"
-    />
-  )
-}
-
 function FieldHeader({ f }: { f: string }) {
   const desc = describeField(f)
   if (!desc) return <span>{f}</span>
@@ -277,18 +234,6 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
     },
     cell: ({ row }) => {
       const d = row.original
-      const id = stringId(d)
-      if (ctx.editing && ctx.editing.id === id && ctx.editing.key === c) {
-        return (
-          <InlineEditCell
-            initial={d[c]}
-            mono={ctx.mono && ID_LIKE.test(c)}
-            onCommit={v => ctx.onCommitEdit(id, c, v)}
-            onCancel={ctx.onCancelEdit}
-          />
-        )
-      }
-      const editable = isScalar(d[c])
       const srcDot = c === 'title' && ctx.showSource ? rowSource(d, ctx.collection) : null
       return (
         <div className="group/cell flex items-center gap-1">
@@ -301,17 +246,6 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
             )}
             {c !== 'title' && <CellInner v={d[c]} field={c} ctx={ctx} />}
           </span>
-          {editable && !isMissing(d[c]) && (
-            <button
-              type="button"
-              className="row-reveal shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground"
-              title={`Edit ${c}`}
-              aria-label={`Edit ${c}`}
-              onClick={e => { e.stopPropagation(); ctx.onStartEdit(d, c) }}
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
         </div>
       )
     },
@@ -338,12 +272,6 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
           </span>
           <Button size="icon-xs" variant="ghost" title={fav ? 'Unpin' : 'Pin row'} aria-label={fav ? 'Unpin row' : 'Pin row'} onClick={e => { e.stopPropagation(); ctx.onToggleFav(id) }}>
             <Pin className={`h-3 w-3 ${fav ? 'text-primary' : 'text-muted-foreground'}`} />
-          </Button>
-          <Button size="icon-xs" variant="ghost" title="Inspect" aria-label={`Inspect row ${id}`} onClick={e => { e.stopPropagation(); ctx.onOpenDoc(d) }}>
-            <ListFilter className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="icon-xs" variant="ghost" title="Toggle diff" aria-label={`Toggle diff row ${id}`} disabled={diffFull} onClick={e => { e.stopPropagation(); toggleDiff() }}>
-            <GitCompareArrows className={`h-3.5 w-3.5 ${inDiff ? 'text-primary' : ''}`} />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label={`Row actions for ${id}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>} />
