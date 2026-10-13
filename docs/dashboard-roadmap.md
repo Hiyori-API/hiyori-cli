@@ -1,3 +1,13 @@
+# Hiyori CLI — Docs
+
+| Doc | Status | Purpose |
+|---|---|---|
+| **dashboard-roadmap.md** (this file) | **Living tracker** | Feature progress for the dashboard, explorer, combiner and manga work, plus engineering notes |
+| [explorer-ux-plan.md](explorer-ux-plan.md) | Plan — largely shipped | Explorer UX overhaul + TanStack DataTable checklist |
+| [live-dashboard-plan.md](live-dashboard-plan.md) | **Shipped — superseded** | Original live-dashboard plan; folded into this roadmap and the readme's [Live dashboard](../readme.md#live-dashboard) section |
+
+---
+
 # Dashboard Roadmap (tracked)
 
 Selected items (43) with status. Built = committed.
@@ -52,6 +62,32 @@ Selected items (43) with status. Built = committed.
 Confidence filters explore, threshold-sensitivity curve, weightage explorer,
 benchmark runners, kiosk mode, multi-dashboard/team, timezone selector, cb
 manual override, top-n slow, completion countdown, work-queue, group-by source.
+
+## Live dashboard — plan → shipped (docs/live-dashboard-plan.md superseded)
+
+The original plan (`docs/live-dashboard-plan.md`) is fully implemented and its
+details now live in the readme's **Live dashboard** section and the sections
+below. What shipped, including where it diverged from the plan:
+
+- **Single-process server** — `dashboard:serve` starts `php -S` on
+  `public/index.php`; the same process serves the SPA, the JSON API, the SSE
+  stream and `/metrics`. No Node server, Redis or extra infrastructure.
+- **Polling default, SSE opt-in** — `/api/status` polling is the default;
+  `realtime` mode (Settings pref + top-bar **Live/Live off** toggle) pushes
+  snapshots over `/api/events` with 15s heartbeat. *Divergence:* originally
+  planned as 3s polling with hand-rolled canvas sparklines in a single
+  `dashboard.html`; the frontend shipped as a **React 19 + shadcn/ui SPA**
+  (Vite, TanStack DataTable/Virtual, Recharts).
+- **Telemetry files over log parsing** — `storage/state/ingest-<source>.json`,
+  `validation-log.jsonl`, `slow-requests.jsonl`, `combine-latest.json`,
+  `audit.jsonl`, `ui.json`; written atomically by `src/Service/Telemetry.php`.
+- **Reused services** — the dashboard is a view over `HealthCheck`,
+  `MetricsCollector`, `Validator` and `RateLimiter`; no duplicated logic.
+- **Endpoint growth** — from the planned 8 endpoints to the full set listed in
+  the readme (adds `/api/explore*`, `/api/env`, `/api/settings`, `/api/meta`,
+  `/api/histogram`, `/api/backups`, `/api/restore`).
+- **Auth** — optional `DASHBOARD_TOKEN` (`?token=` or `X-Dashboard-Token`
+  header), local-only bind by default (`127.0.0.1`).
 
 ## Dashboard v2 — One Dashboard + dedicated pages (2026-10)
 
