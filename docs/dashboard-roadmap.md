@@ -436,3 +436,18 @@ numeric ranges continue to honour the resulting filter unchanged.
 building, the one-hour throttle window (`due()`), webhook payload contract,
 Markdown escaping + secret redaction, and email message assembly/leak checks.
 `tests/Unit/ExploreQueryTest.php` gains raw-regex + fallback coverage.
+
+## Combiner performance (2026-10)
+
+- Symptom: metadata_fuzzy combine ~4-6 rec/s; `organized` had only `_id` → every
+  candidate/ref lookup was a full collection scan per source record.
+- Fix: 26 indexes created via mongosh (recipe below) — candidate compound
+  `{type,status,year}` + `{title}` + `reference_ids.{al,mal,k}` on
+  organized/organized_manga, and `reference_ids.*` on all six source tables.
+  Benefits the running anime rebuild immediately; critical for the manga pass
+  (38k base).
+- Note: metadata_fuzzy is intrinsically the priciest strategy (per-record score
+  over ≤100 candidates); relational_fuzzy ≈1.7× faster but ~1.6× fewer merges.
+  Recipe (mongosh): createIndex({type:1,status:1,year:1},{name:"cand"}) on
+  organized + organized_manga; createIndex({"reference_ids.<sh>"=>1}) per
+  shorthand per table.
