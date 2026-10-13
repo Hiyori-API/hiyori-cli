@@ -1,0 +1,180 @@
+/* Explorer-specific table chrome. Scoped under .explorer-grid so it never
+   leaks into other pages. */
+
+/* ---- zebra rows (default on, toggleable via .zebra class) ---- */
+.explorer-grid.zebra tbody tr:nth-child(even) td {
+  background-color: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+.explorer-grid.zebra tbody tr:nth-child(even) td:first-child,
+.explorer-grid.zebra tbody tr:nth-child(even) td:nth-child(2) {
+  background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
+}
+
+/* ---- sticky-left fallback: checkbox col + first data col (title).
+   The checkbox column is fixed width (w-8 = 32px) so offsets are stable
+   even with resizable columns. Used until the DataTable supports
+   meta.stickyLeft (teammate's additive prop). ---- */
+/* pinning now via DataTable stickyLeft/stickySelection */
+.explorer-grid.pin-cols-disabled thead th:first-child,
+.explorer-grid.pin-cols-disabled tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background-color: var(--background);
+  box-shadow: 1px 0 0 var(--border);
+}
+.explorer-grid.pin-cols-disabled thead th:nth-child(2),
+.explorer-grid.pin-cols-disabled tbody td:nth-child(2) {
+  position: sticky;
+  left: 32px;
+  z-index: 11;
+  background-color: var(--background);
+  box-shadow: 1px 0 0 var(--border);
+}
+.explorer-grid.pin-cols tbody tr:hover td:first-child,
+.explorer-grid.pin-cols tbody tr:hover td:nth-child(2) {
+  background-color: var(--muted);
+}
+.explorer-grid.pin-cols.zebra tbody tr:nth-child(even) td:first-child,
+.explorer-grid.pin-cols.zebra tbody tr:nth-child(even) td:nth-child(2) {
+  background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
+}
+.explorer-grid.pin-cols.zebra tbody tr:hover td:first-child,
+.explorer-grid.pin-cols.zebra tbody tr:hover td:nth-child(2) {
+  background-color: color-mix(in oklab, var(--muted) 75%, var(--background));
+}
+
+/* ---- active row focus ring (keyboard nav) ---- */
+.explorer-grid tbody tr.explorer-row-active td {
+  background-color: color-mix(in oklab, var(--ring) 16%, transparent) !important;
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+.explorer-grid tbody tr.explorer-row-active td:first-child,
+.explorer-grid tbody tr.explorer-row-active td:nth-child(2) {
+  background-color: color-mix(in oklab, var(--ring) 16%, var(--background)) !important;
+}
+
+/* ---- hover-reveal row actions ---- */
+.explorer-grid .row-reveal {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+.explorer-grid tbody tr:hover .row-reveal,
+.explorer-grid tbody tr:focus-within .row-reveal,
+.explorer-grid tbody tr.explorer-row-active .row-reveal {
+  opacity: 1;
+}
+
+/* ---- tiny inline bar for numeric columns ---- */
+.num-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 70px;
+}
+.num-bar-track {
+  display: inline-block;
+  width: 34px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.num-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+/* ---- reference accordion ---- */
+.ref-acc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+.ref-chip:hover {
+  color: var(--foreground);
+  border-color: var(--ring);
+}
+
+/* ---- source dot column ---- */
+.src-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+
+/* ---- lazy image thumb ---- */
+.cell-thumb {
+  display: inline-block;
+  width: 26px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+  background: var(--muted);
+}
+
+/* ---- brand letter chips for collections ---- */
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  flex-shrink: 0;
+}
+
+/* ---- sticky bulk bar ---- */
+.bulk-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--popover) 88%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
+}
+
+/* ---- inline edit input in cells ---- */
+.cell-edit-input {
+  min-width: 90px;
+}
+
+/* focus-ring for keyboard-driven collection tabs */
+.collection-tabs:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
