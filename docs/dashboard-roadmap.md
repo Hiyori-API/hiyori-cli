@@ -215,3 +215,135 @@ triple-linked, duplicate `al_manga` keys). The **final** strategy result
   while ingestion Telemetry (src/) correctly wrote the repo's storage/. All 16
   occurrences fixed to dirname(__DIR__); stray dirs migrated into the repo;
   added a /storage/backups/*.gz download route (backups were never servable).
+
+## Explorer backend wave (2026-10)
+
+Backend support for the Explorer page (collection browser): facets, numeric
+ranges, single/bulk edits, undoable deletes, CSV import and per-field
+missingness. All endpoints are JSON, token-protected by the existing
+`DASHBOARD_TOKEN` check (query `?token=` or `X-Dashboard-Token`), and every
+mutating call is written to `storage/state/audit.jsonl` via `auditAppend`.
+Filter/facet/CSV logic lives in `src/Service/Explorer.php` (DB-less, unit
+tested in `tests/Unit/ExploreQueryTest.php`).
+
+### Regression restored: /api/histogram
+
+`GET /api/histogram?collection=organized` (the route had been dropped from
+`public/index.php`; the handler survived). 10 bins, width 10, combining the
+`score` + `confidence` fields.
+
+```json
+{ "histogram": { "0": 0, "10": 0, "...": 0, "90": 6385 },
+  "bins": [0,10,20,30,40,50,60,70,80,90],
+  "collection": "organized", "timestamp": "2026-10-13T00:22:41+00:00" }
+```
+
+`bins` are the bin lower bounds; `histogram` is keyed by the same lower
+bounds. `?collection=` defaults to `organized`; an invalid name → 400.
+
+### GET /api/explore (extended)
+
+Existing params unchanged (`collection`, `page`, `per`, `q`, `sort`, `dir`,
+`filter`). Two additions:
+
+- **`facets`** — comma list, e.g. `?facets=format,status`. Response gains:
+
+  ```json
+  "facets": { "format": [ { "v": "TV", "n": 3970 }, { "v": "movie", "n": 1829 } ],
+              "status": [ { "v": "finished", "n": 10737 } ] }
+  ```
+
+  One aggregation per field (not per doc), top 12 string values, count
+  descending, empty values skipped, honours the active `q`/`filter`/ranges.
+  Invalid field names are skipped.
+
+- **numeric ranges** — `episodes_min` / `episodes_max` (on `episodes`) and
+  `year_min` / `year_max` (on `year` **or** `start_date.year`, whichever the
+  collection carries). Non-numeric values are ignored. Applied into the same
+  Mongo filter as search/filter (wrapped in `$and` when needed).
+
+### POST /api/explore/update
+
+Body `{collection, id, field, value}` → sets one scalar field via `$set`;
+`value: null` unsets the field. `field` must match `[A-Za-z0-9_.]+` (dots
+allowed, e.g. `start_date.year`) and may not be `_id`. `id` is coerced to an
+`ObjectId` when it looks like a 24-hex string, otherwise matched as a string.
+
+```json
+{ "collection": "organized", "id": "6acd…e9cd", "field": "status",
+  "matched": 1, "modified": 1, "timestamp": "…" }
+```
+
+Audit action: `explore.update`.
+
+### POST /api/explore/bulk
+
+Body `{collection, ids: [], action: 'set'|'delete'|'delete_soft', key?, value?}`.
+
+- `set` — `updateMany` `$set` (or `$unset` when `value: null`) of `key` over
+  `ids`. → `{action, collection, affected, matched, modified, timestamp}`
+  (`affected` = matched count). Audit: `explore.bulk.set`.
+- `delete` — **first** copies the docs to `explore_undo_<collection>` with
+  `_deletedAt` + `_batch` (both `time()`), then `deleteMany`. →
+  `{action, collection, affected, snapshotted, batch, timestamp}` (`affected`
+  = deleted count). Audit: `explore.bulk.delete`.
+- `delete_soft` — same snapshot, but keeps a copy **in place** by flagging the
+  docs with `_deletedAt` instead of removing them. →
+  `{action, collection, affected, snapshotted, batch, timestamp}`
+  (`affected` = flagged count). Audit: `explore.bulk.delete_soft`.
+
+`ids` is capped at 10 000; empty → 400.
+
+### GET/POST /api/explore/undo
+
+- `GET ?collection=` → recent batches, newest first (max 20):
+
+  ```json
+  { "collection": "organized",
+    "batches": [ { "batch": 1791851008, "count": 2, "time": 1791851008,
+                   "seconds_ago": 0 } ], "timestamp": "…" }
+  ```
+
+  Lets the UI offer “Undo last delete (n docs, 4m ago)”.
+
+- `POST {collection, batch?}` → restores the most recent (or given) batch
+  from `explore_undo_<collection>` back into the collection (bulk upsert, so
+  hard-deleted docs are re-inserted and soft-deleted docs are un-flagged),
+  then removes the batch from undo.
+
+  ```json
+  { "collection": "organized", "batch": 1791851008,
+    "restored": 2, "removed": 2, "timestamp": "…" }
+  ```
+
+  Audit: `explore.undo`.
+
+### POST /api/explore/import
+
+Body `{collection, csv, keyField: '_id'}` → parses CSV (quoted fields, `""`
+escapes, CRLF/LF, embedded newlines) and upserts each row via `bulkWrite`
+(`updateOne` + `upsert`), keyed by `keyField`. Capped at 10 000 data rows.
+When `keyField` is `_id`, 24-hex values are coerced to `ObjectId`. Cell values
+are imported as strings.
+
+```json
+{ "collection": "organized", "imported": 5, "updated": 0, "matched": 0,
+  "rows": 5, "skipped": 0, "timestamp": "…" }
+```
+
+`imported` = upserted (new), `updated` = modified, `skipped` = rows missing
+the key. Audit: `explore.import`.
+
+### GET /api/meta (extended)
+
+Existing `count`/`fields` kept; `fields` is now capped at 24. Each collection
+also gains `missing` — null/missing counts for those fields, computed in one
+`$ifNull`+`$group` aggregation per collection:
+
+```json
+{ "collections": { "organized": {
+    "count": 10770,
+    "fields": ["_id", "title", "…"],
+    "missing": { "episodes": 25, "chapters": 10770, "volumes": 10770 } } },
+  "timestamp": "…" }
+```
