@@ -35,7 +35,8 @@ final class CombinerCommand extends Command
             ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to metadata_fuzzy (benchmark winner; tuned weights)')
             ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
-            ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized');
+            ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
+            ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -48,6 +49,19 @@ final class CombinerCommand extends Command
 
         $base = $input->getArgument('base');
         $strategy = $input->getOption('strategy') ?? MetadataFuzzyStrategy::class;
+
+        // Pre-flight: migrations must be applied before the combiner touches data.
+        $pending = $this->hiyori->getMigrator()->pending();
+        if ($pending !== [] && !$input->getOption('skip-migrations')) {
+            $output->writeln('<error>The database has pending migrations. Run `php hiyori migrate` first:</error>');
+            foreach ($pending as $v => $name) {
+                $output->writeln(sprintf('  v%s: %s', $v, $name));
+            }
+            $output->writeln('<comment>Or force with: combine ... --skip-migrations</comment>');
+            $this->release();
+
+            return Command::FAILURE;
+        }
 
         $config = ['collection' => (string) $input->getOption('into')];
         if ($input->getOption('threshold') !== null) {

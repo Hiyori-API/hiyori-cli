@@ -42,9 +42,9 @@ final class DashboardCommand extends Command
             $repo = dirname(__DIR__, 2);
             $unitPath = getenv('HOME') . '/.config/systemd/user/' . $unit;
             if (!is_dir(dirname($unitPath))) {
-                @mkdir(dirname($unitPath), 0777, true);
+                @mkdir(dirname($unitPath), 0o777, true);
             }
-            $contents = "[Unit]\nDescription=Hiyori dashboard (php -S, " . $host . ':' . $port . ")\nAfter=network.target\n\n[Service]\nWorkingDirectory=" . $repo . "\nEnvironment=PHP_CLI_SERVER_WORKERS=6\n" . ($token !== '' ? "Environment=DASHBOARD_TOKEN=" . $token . "\n" : "") . "ExecStart=" . PHP_BINARY . " -S " . $host . ':' . $port . " public/index.php\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n";
+            $contents = "[Unit]\nDescription=Hiyori dashboard (php -S, " . $host . ':' . $port . ")\nAfter=network.target\n\n[Service]\nWorkingDirectory=" . $repo . "\nEnvironment=PHP_CLI_SERVER_WORKERS=6\n" . ($token !== '' ? 'Environment=DASHBOARD_TOKEN=' . $token . "\n" : '') . 'ExecStart=' . PHP_BINARY . ' -S ' . $host . ':' . $port . " public/index.php\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n";
             @file_put_contents($unitPath, $contents);
             $io->success('Wrote ' . $unitPath);
             $io->writeln('');

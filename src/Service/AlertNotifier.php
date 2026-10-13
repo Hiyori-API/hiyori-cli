@@ -233,10 +233,10 @@ final class AlertNotifier
      */
     public static function emailHeaders(string $from): string
     {
-        return "From: " . self::address($from) . "\r\n"
+        return 'From: ' . self::address($from) . "\r\n"
             . "MIME-Version: 1.0\r\n"
             . 'Content-Type: text/plain; charset=UTF-8' . "\r\n"
-            . "Content-Transfer-Encoding: 8bit";
+            . 'Content-Transfer-Encoding: 8bit';
     }
 
     /**
