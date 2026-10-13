@@ -12,6 +12,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use Hiyori\Service\Database;
+use Hiyori\Service\Explorer;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
 use Hiyori\Service\RateLimiter;
@@ -521,7 +522,7 @@ function backupsList(): array
     return array_map(static fn ($f) => ['file' => basename($f), 'mtime' => filemtime($f), 'size' => filesize($f)], $files);
 }
 
-function histogram(MongoClient $client): array
+function histogram(MongoClient $client, string $collection = 'organized'): array
 {
     $db = $client->selectDatabase('hiyori');
     $bins = [];
@@ -531,7 +532,7 @@ function histogram(MongoClient $client): array
                 ['$match' => [$field => ['$exists' => true]]],
                 ['$group' => ['_id' => ['$floor' => ['$multiply' => [['$divide' => ['$' . $field, 10]], 1.0]]], 'n' => ['$sum' => 1]]],
             ];
-            foreach ($db->selectCollection('organized')->aggregate($pipeline)->toArray() as $r) {
+            foreach ($db->selectCollection($collection)->aggregate($pipeline)->toArray() as $r) {
                 $bin = (int) ($r['_id'] ?? -1);
                 if ($bin >= 0 && $bin <= 10) {
                     $bins[min(9, $bin) * 10] = (int) ($bins[min(9, $bin) * 10] ?? 0) + (int) ($r['n'] ?? 0);
@@ -550,60 +551,51 @@ function histogram(MongoClient $client): array
     return $out;
 }
 
+function exploreCollection(MongoClient $client, string $collection): \MongoDB\Collection
+{
+    return $client->selectDatabase('hiyori')->selectCollection($collection);
+}
+
+function readJsonBody(): array
+{
+    return json_decode((string) file_get_contents('php://input'), true) ?: [];
+}
+
+function facetValues(\MongoDB\Collection $coll, string $field, array $mongoFilter): array
+{
+    $out = [];
+    try {
+        foreach ($coll->aggregate(Explorer::facetPipeline($field, $mongoFilter)) as $r) {
+            $v = $r['_id'] ?? null;
+            if ($v === null || $v === '') {
+                continue;
+            }
+            $out[] = ['v' => (string) $v, 'n' => (int) ($r['n'] ?? 0)];
+        }
+    } catch (\Throwable $e) {
+        // field may not exist on this collection — return an empty facet
+    }
+
+    return $out;
+}
+
 function explore(MongoClient $client, array $q): array
 {
-    $collection = (string) ($q['collection'] ?? 'anilist');
-    if (!preg_match('/^[A-Za-z0-9_-]+$/', $collection)) {
+    $collection = Explorer::collectionName((string) ($q['collection'] ?? 'anilist'));
+    if ($collection === '') {
         return ['error' => 'bad collection'];
     }
     $page = max(1, (int) ($q['page'] ?? 1));
     $per = min(100, max(1, (int) ($q['per'] ?? 25)));
-    $search = trim((string) ($q['q'] ?? ''));
     $sort = (string) ($q['sort'] ?? '');
     $dir = (strtolower((string) ($q['dir'] ?? 'asc')) === 'desc') ? -1 : 1;
-    $filter = (string) ($q['filter'] ?? '');
 
-    $coll = $client->selectDatabase('hiyori')->selectCollection($collection);
-    $mongoFilter = [];
-    if ($search !== '') {
-        $rx = new \MongoDB\BSON\Regex(preg_quote($search, '/'), 'i');
-        $or = [
-            ['title' => $rx],
-            ['title.romaji' => $rx],
-            ['title.english' => $rx],
-            ['title.native' => $rx],
-            ['synonyms' => $rx],
-            ['_id' => $rx],
-        ];
-        foreach (['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'adb', 'cr', 'nf', 'sb', 'ttv', 'tx', 'b', 'fm', 'yt', 'tvt', 'ap', 't'] as $sh) {
-            $or[] = ['reference_ids.' . $sh => $rx];
-        }
-        $mongoFilter['$or'] = $or;
-    }
-    switch ($filter) {
-        case 'no_mal':
-            $mongoFilter['reference_ids.mal'] = ['$exists' => false];
-            break;
-        case 'no_al':
-            $mongoFilter['reference_ids.al'] = ['$exists' => false];
-            break;
-        case 'no_k':
-            $mongoFilter['reference_ids.k'] = ['$exists' => false];
-            break;
-        case 'has_mal':
-            $mongoFilter['reference_ids.mal'] = ['$exists' => true];
-            break;
-        case 'no_refs':
-            $mongoFilter = ['reference_ids' => ['$exists' => false]];
-            break;
-        case 'empty_title':
-            $mongoFilter['title'] = ['$in' => [null, '', []]];
-            break;
-    }
+    $coll = exploreCollection($client, $collection);
+    $mongoFilter = Explorer::buildFilter($q);
 
     $total = $coll->countDocuments($mongoFilter);
     $opts = ['skip' => ($page - 1) * $per, 'limit' => $per];
-    if ($sort !== '' && preg_match('/^[A-Za-z0-9_.]+$/', $sort)) {
+    if ($sort !== '' && Explorer::fieldPath($sort) !== '') {
         $opts['sort'] = [$sort => $dir];
     }
     $rows = [];
@@ -612,7 +604,7 @@ function explore(MongoClient $client, array $q): array
     }
     $fields = $rows !== [] ? array_keys($rows[0]) : [];
 
-    return [
+    $out = [
         'collection' => $collection,
         'page' => $page,
         'per' => $per,
@@ -620,10 +612,303 @@ function explore(MongoClient $client, array $q): array
         'docs' => $rows,
         'fields' => $fields,
     ];
+
+    // Optional distinct-value facets: ?facets=format,status → one aggregation
+    // per field, top 12 string values, empty values skipped.
+    $facetsParam = trim((string) ($q['facets'] ?? ''));
+    if ($facetsParam !== '') {
+        $facets = [];
+        foreach (array_unique(array_filter(array_map('trim', explode(',', $facetsParam)))) as $f) {
+            if (Explorer::fieldPath($f) === '') {
+                continue;
+            }
+            $facets[$f] = facetValues($coll, $f, $mongoFilter);
+        }
+        $out['facets'] = $facets;
+    }
+
+    return $out;
+}
+
+function metaMissingCounts(\MongoDB\Collection $coll, array $fields): array
+{
+    $fields = array_values(array_filter(array_slice($fields, 0, 24), static fn ($f): bool => Explorer::fieldPath((string) $f) !== ''));
+    if ($fields === []) {
+        return [];
+    }
+    $group = ['_id' => null];
+    foreach ($fields as $f) {
+        $group['n_' . str_replace('.', '__', $f)] = [
+            '$sum' => ['$cond' => [['$eq' => [['$ifNull' => ['$' . $f, null]], null]], 1, 0]],
+        ];
+    }
+    $row = $coll->aggregate([['$group' => $group]])->toArray()[0] ?? null;
+    if ($row === null) {
+        return [];
+    }
+    $missing = [];
+    foreach ($fields as $f) {
+        $key = 'n_' . str_replace('.', '__', $f);
+        $missing[$f] = (int) ($row[$key] ?? 0);
+    }
+
+    return $missing;
 }
 
 if ($path === '/api/explore') {
     sendJson(explore($client, $_GET));
+}
+
+// Restored regression: 10-bin score/confidence histogram (bin width 10 over
+// 0..100), collection-selectable via ?collection= (default "organized").
+if ($path === '/api/histogram') {
+    $collection = Explorer::collectionName((string) ($_GET['collection'] ?? 'organized'));
+    if ($collection === '') {
+        sendJson(['error' => 'bad collection'], 400);
+    }
+    sendJson([
+        'histogram' => histogram($client, $collection),
+        'bins' => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        'collection' => $collection,
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/explore/update') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    $body = readJsonBody();
+    $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
+    $id = (string) ($body['id'] ?? '');
+    $field = Explorer::fieldPath((string) ($body['field'] ?? ''));
+    if ($collection === '' || $id === '' || $field === '') {
+        sendJson(['error' => 'collection, id and field are required'], 400);
+    }
+    if ($field === '_id') {
+        sendJson(['error' => 'field cannot be _id'], 400);
+    }
+    $coll = exploreCollection($client, $collection);
+    $filter = ['_id' => Explorer::docIdValue($id)];
+    if (array_key_exists('value', $body) && $body['value'] === null) {
+        $res = $coll->updateOne($filter, ['$unset' => [$field => '']]);
+    } else {
+        $value = $body['value'] ?? null;
+        if (!is_scalar($value)) {
+            sendJson(['error' => 'value must be a scalar'], 400);
+        }
+        $res = $coll->updateOne($filter, ['$set' => [$field => $value]]);
+    }
+    auditAppend('explore.update', ['collection' => $collection, 'id' => $id, 'field' => $field, 'matched' => $res->getMatchedCount()]);
+    sendJson([
+        'collection' => $collection,
+        'id' => $id,
+        'field' => $field,
+        'matched' => $res->getMatchedCount(),
+        'modified' => $res->getModifiedCount(),
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/explore/bulk') {
+    $body = readJsonBody();
+    $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
+    $action = (string) ($body['action'] ?? '');
+    if ($collection === '' || !in_array($action, ['set', 'delete', 'delete_soft'], true)) {
+        sendJson(['error' => 'collection and action (set|delete|delete_soft) are required'], 400);
+    }
+    $ids = array_values(array_filter(array_map('strval', (array) ($body['ids'] ?? []))));
+    if ($ids === [] || count($ids) > Explorer::MAX_IMPORT_ROWS) {
+        sendJson(['error' => 'ids required (1..10000)'], 400);
+    }
+    $coll = exploreCollection($client, $collection);
+    $idFilter = ['_id' => ['$in' => array_map([Explorer::class, 'docIdValue'], $ids)]];
+
+    if ($action === 'set') {
+        $key = Explorer::fieldPath((string) ($body['key'] ?? ''));
+        if ($key === '' || $key === '_id') {
+            sendJson(['error' => 'bad key'], 400);
+        }
+        $value = $body['value'] ?? null;
+        if ($value === null) {
+            $res = $coll->updateMany($idFilter, ['$unset' => [$key => '']]);
+        } else {
+            if (!is_scalar($value)) {
+                sendJson(['error' => 'value must be a scalar'], 400);
+            }
+            $res = $coll->updateMany($idFilter, ['$set' => [$key => $value]]);
+        }
+        auditAppend('explore.bulk.set', ['collection' => $collection, 'ids' => count($ids), 'key' => $key]);
+        sendJson([
+            'action' => $action,
+            'collection' => $collection,
+            'affected' => $res->getMatchedCount(),
+            'matched' => $res->getMatchedCount(),
+            'modified' => $res->getModifiedCount(),
+            'timestamp' => date('c'),
+        ]);
+    }
+
+    // delete / delete_soft: snapshot the docs to explore_undo_<collection>
+    // first (with _deletedAt + _batch) so the batch can be restored later.
+    $batch = time();
+    $snapshot = [];
+    foreach ($coll->find($idFilter, ['limit' => Explorer::MAX_IMPORT_ROWS]) as $doc) {
+        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->getArrayCopy() : (array) $doc;
+        $arr['_deletedAt'] = $batch;
+        $arr['_batch'] = $batch;
+        $snapshot[] = $arr;
+    }
+    if ($snapshot !== []) {
+        exploreCollection($client, 'explore_undo_' . $collection)->insertMany($snapshot, ['ordered' => false]);
+    }
+
+    if ($action === 'delete') {
+        $res = $coll->deleteMany($idFilter);
+        auditAppend('explore.bulk.delete', ['collection' => $collection, 'ids' => count($ids), 'deleted' => $res->getDeletedCount(), 'batch' => $batch]);
+        sendJson([
+            'action' => $action,
+            'collection' => $collection,
+            'affected' => $res->getDeletedCount(),
+            'snapshotted' => count($snapshot),
+            'batch' => $batch,
+            'timestamp' => date('c'),
+        ]);
+    }
+
+    // delete_soft: keep a copy flagged in place, don't remove the docs.
+    $res = $coll->updateMany($idFilter, ['$set' => ['_deletedAt' => $batch]]);
+    auditAppend('explore.bulk.delete_soft', ['collection' => $collection, 'ids' => count($ids), 'flagged' => $res->getMatchedCount(), 'batch' => $batch]);
+    sendJson([
+        'action' => $action,
+        'collection' => $collection,
+        'affected' => $res->getMatchedCount(),
+        'snapshotted' => count($snapshot),
+        'batch' => $batch,
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/explore/undo') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // GET /api/explore/undo?collection=x → recent batches (count, time)
+        $collection = Explorer::collectionName((string) ($_GET['collection'] ?? ''));
+        if ($collection === '') {
+            sendJson(['error' => 'bad collection'], 400);
+        }
+        $undo = exploreCollection($client, 'explore_undo_' . $collection);
+        $batches = [];
+        foreach ($undo->aggregate([
+            ['$group' => ['_id' => '$_batch', 'count' => ['$sum' => 1], 'time' => ['$max' => '$_deletedAt']]],
+            ['$sort' => ['time' => -1]],
+            ['$limit' => 20],
+        ]) as $r) {
+            $ts = (int) ($r['time'] ?? 0);
+            $batches[] = [
+                'batch' => (int) ($r['_id'] ?? 0),
+                'count' => (int) ($r['count'] ?? 0),
+                'time' => $ts,
+                'seconds_ago' => $ts > 0 ? time() - $ts : null,
+            ];
+        }
+        sendJson(['collection' => $collection, 'batches' => $batches, 'timestamp' => date('c')]);
+    }
+
+    // POST /api/explore/undo {collection, batch?} → restore the most recent
+    // (or the given) batch from explore_undo_<collection> back into it.
+    $body = readJsonBody();
+    $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
+    if ($collection === '') {
+        sendJson(['error' => 'bad collection'], 400);
+    }
+    $undo = exploreCollection($client, 'explore_undo_' . $collection);
+    $batch = isset($body['batch']) ? (int) $body['batch'] : 0;
+    if ($batch > 0) {
+        $filter = ['_batch' => $batch];
+    } else {
+        $latest = $undo->findOne([], ['sort' => ['_deletedAt' => -1]]);
+        if ($latest === null) {
+            sendJson(['collection' => $collection, 'restored' => 0, 'batch' => null, 'timestamp' => date('c')]);
+        }
+        $batch = (int) ($latest['_batch'] ?? 0);
+        $filter = ['_batch' => $batch];
+    }
+    $docs = $undo->find($filter)->toArray();
+    if ($docs === []) {
+        sendJson(['collection' => $collection, 'restored' => 0, 'batch' => $batch, 'timestamp' => date('c')]);
+    }
+    $ops = [];
+    foreach ($docs as $doc) {
+        if (count($ops) >= Explorer::MAX_IMPORT_ROWS) {
+            break;
+        }
+        $arr = $doc instanceof \MongoDB\Model\BSONDocument ? $doc->getArrayCopy() : (array) $doc;
+        $id = $arr['_id'] ?? null;
+        if ($id === null) {
+            continue;
+        }
+        unset($arr['_id'], $arr['_deletedAt'], $arr['_batch']);
+        $ops[] = ['updateOne' => [
+            ['_id' => $id],
+            ['$set' => $arr, '$unset' => ['_deletedAt' => '']],
+            ['upsert' => true],
+        ]];
+    }
+    $res = exploreCollection($client, $collection)->bulkWrite($ops, ['ordered' => false]);
+    $restored = $res->getUpsertedCount() + $res->getModifiedCount();
+    $removed = $undo->deleteMany(['_batch' => $batch])->getDeletedCount();
+    auditAppend('explore.undo', ['collection' => $collection, 'batch' => $batch, 'restored' => $restored]);
+    sendJson([
+        'collection' => $collection,
+        'batch' => $batch,
+        'restored' => $restored,
+        'removed' => $removed,
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/explore/import') {
+    $body = readJsonBody();
+    $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
+    $csv = (string) ($body['csv'] ?? '');
+    $keyField = Explorer::fieldPath((string) ($body['keyField'] ?? '_id')) ?: '_id';
+    if ($collection === '' || $csv === '') {
+        sendJson(['error' => 'collection and csv are required'], 400);
+    }
+    $rows = Explorer::parseCsv($csv);
+    if ($rows === []) {
+        sendJson(['error' => 'no data rows in csv'], 400);
+    }
+    $coll = exploreCollection($client, $collection);
+    $ops = [];
+    $skipped = 0;
+    foreach ($rows as $row) {
+        $key = $row[$keyField] ?? null;
+        if ($key === null || $key === '') {
+            ++$skipped;
+            continue;
+        }
+        $filter = $keyField === '_id' ? ['_id' => Explorer::docIdValue((string) $key)] : [$keyField => $key];
+        unset($row[$keyField]);
+        $ops[] = ['updateOne' => [$filter, ['$set' => $row], ['upsert' => true]]];
+        if (count($ops) >= Explorer::MAX_IMPORT_ROWS) {
+            break;
+        }
+    }
+    if ($ops === []) {
+        sendJson(['error' => 'no upsertable rows (keyField missing or empty)'], 400);
+    }
+    $res = $coll->bulkWrite($ops, ['ordered' => false]);
+    auditAppend('explore.import', ['collection' => $collection, 'keyField' => $keyField, 'rows' => count($ops), 'upserted' => $res->getUpsertedCount(), 'modified' => $res->getModifiedCount()]);
+    sendJson([
+        'collection' => $collection,
+        'imported' => $res->getUpsertedCount(),
+        'updated' => $res->getModifiedCount(),
+        'matched' => $res->getMatchedCount(),
+        'rows' => count($ops),
+        'skipped' => $skipped,
+        'timestamp' => date('c'),
+    ]);
 }
 
 if ($path === '/api/meta') {
@@ -631,10 +916,13 @@ if ($path === '/api/meta') {
     $db = $client->selectDatabase('hiyori');
     foreach ($db->listCollections() as $c) {
         $name = $c->getName();
-        $doc = $db->selectCollection($name)->findOne();
+        $coll = $db->selectCollection($name);
+        $doc = $coll->findOne();
+        $fields = $doc ? array_keys(json_decode(json_encode($doc), true)) : [];
         $cols[$name] = [
-            'count' => $db->selectCollection($name)->countDocuments(),
-            'fields' => $doc ? array_keys(json_decode(json_encode($doc), true)) : [],
+            'count' => $coll->countDocuments(),
+            'fields' => array_slice($fields, 0, 24),
+            'missing' => metaMissingCounts($coll, $fields),
         ];
     }
     sendJson(['collections' => $cols, 'timestamp' => date('c')]);
