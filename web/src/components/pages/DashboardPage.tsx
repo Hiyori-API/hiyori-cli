@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { COLORS } from '../charts'
@@ -213,7 +214,8 @@ export function DashboardPage() {
                       <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="mt-2 max-h-40 space-y-1 overflow-auto text-sm">
+                  <ScrollArea className="mt-2 max-h-40">
+                    <div className="space-y-1 text-sm">
                     {dataset.length === 0 && <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />}
                     {dataset.map(e => (
                       <div key={e.name} className="flex items-center justify-between">
@@ -221,7 +223,8 @@ export function DashboardPage() {
                         <span className="tabular-nums">{fmt(e.value)}</span>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </CardContent>
               </Card>
             )}

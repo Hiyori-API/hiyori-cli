@@ -27,7 +27,8 @@ const Ctx = createContext<StatusCtx>({ data: null, error: null, intervalMs: 3000
  */
 export function StatusProvider({ children }: { children: ReactNode }) {
   const { settings, update } = useSettings()
-  const realtime = settings.prefs?.realtime === true
+  // Realtime (SSE) is the default; users can turn it off in the header/Settings.
+  const realtime = settings.prefs?.realtime !== false
   const refreshMs = settings.prefs?.refresh ?? 3000
 
   // Battery saver: slow the poll when on battery < 20% and not charging.
