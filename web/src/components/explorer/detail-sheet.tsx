@@ -6,6 +6,7 @@
  * JSON view. Footer carries copy / edit / delete actions.
  */
 
+import { safeCopy } from '../../lib/explorer/clipboard'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Copy, ExternalLink, Pencil as PencilIcon, Trash2 as TrashIcon, X } from 'lucide-react'
 import { cn } from 'cn'
@@ -41,7 +42,7 @@ function CopyBtn({ get }: { get: () => string }) {
       aria-label="Copy value"
       onClick={e => {
         e.stopPropagation()
-        void navigator.clipboard.writeText(get())
+        void safeCopy(get())
       }}
     >
       <Copy className="h-3 w-3" />
@@ -312,7 +313,7 @@ export function DetailSheet({ doc, collection, collections, onOpenChange, onOpen
         </Tabs>
         <SheetFooter className="border-t pt-3">
           <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(JSON.stringify(d, null, 2)) }}>
+            <Button size="sm" variant="outline" onClick={() => { void safeCopy(JSON.stringify(d, null, 2)) }}>
               <Copy className="mr-1.5 h-3.5 w-3.5" />Copy JSON
             </Button>
             <Button size="sm" variant="outline" onClick={onEdit}>

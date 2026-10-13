@@ -7,6 +7,7 @@
  * mono/id toggle.
  */
 
+import { safeCopy } from '../../lib/explorer/clipboard'
 import { useEffect, useRef, useState } from 'react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { Code2, Copy, ExternalLink, GitCompareArrows, ListFilter, MoreHorizontal, Pencil, Pin, Trash2 } from 'lucide-react'
@@ -328,8 +329,8 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
       const diffFull = ctx.diffPair.length >= 2 && !inDiff
       const fav = ctx.favs.has(id)
       const toggleDiff = () => ctx.onToggleDiff(d)
-      const copyId = () => { void navigator.clipboard.writeText(id); toast('copied id') }
-      const copyJson = () => { void navigator.clipboard.writeText(JSON.stringify(d, null, 2)); toast('copied json') }
+      const copyId = () => { void safeCopy(id); toast('copied id') }
+      const copyJson = () => { void safeCopy(JSON.stringify(d, null, 2)); toast('copied json') }
       return (
         <div data-column-actions className="flex items-center justify-end gap-0.5">
           <span className="mr-1 hidden max-w-[80px] truncate text-[10px] text-muted-foreground sm:inline">

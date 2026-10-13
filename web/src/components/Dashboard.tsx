@@ -15,6 +15,7 @@ import { QualityPage } from './pages/QualityPage'
 import { LogsPage } from './pages/LogsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AlertToasts } from './alert-toast'
+import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
@@ -96,7 +97,7 @@ export function Dashboard() {
           </header>
           <main className="flex-1 p-6">
             {view === 'dashboard' && <DashboardPage />}
-            {view === 'explorer' && <ExplorerPage />}
+            {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
             {view === 'management' && <ManagementPage />}
             {view === 'quality' && <QualityPage />}
             {view === 'logs' && <LogsPage />}
