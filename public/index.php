@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/export-helpers.php';
 
 use Hiyori\Service\AlertNotifier;
 use Hiyori\Service\Database;
@@ -341,6 +342,419 @@ function scheduleView(Telemetry $telemetry): array
         'next_in' => $last ? max(0, $last + $interval - time()) : null,
         'method' => $s['method'] ?? 'systemd-timer (see schedule --install)',
     ];
+}
+
+
+// ===== Export / publish API (per-entry JSON + Hiyori IDs) =====
+function exportStateFile(): string
+{
+    $class = 'Hiyori\\Service\\ExportConfig';
+    if (class_exists($class) && method_exists($class, 'statePath')) {
+        try {
+            $path = $class::statePath();
+            if (is_string($path) && $path !== '') {
+                return $path;
+            }
+        } catch (\Throwable $e) {
+            // fall back to the conventional path
+        }
+    }
+
+    return dirname(__DIR__) . '/storage/state/export.json';
+}
+
+/** @return array<string, mixed>|null */
+function exportReadJsonFile(string $file): ?array
+{
+    if (!is_file($file)) {
+        return null;
+    }
+    $decoded = json_decode((string) file_get_contents($file), true);
+
+    return is_array($decoded) ? $decoded : null;
+}
+
+/**
+ * Bootstrap export template (`hiyori.export.json`). Prefers the tracked path
+ * published by `ExportConfig`, probing the conventional locations otherwise.
+ *
+ * @return array<string, mixed>|null
+ */
+function exportTemplate(): ?array
+{
+    $candidates = [];
+    $class = 'Hiyori\\Service\\ExportConfig';
+    if (class_exists($class) && method_exists($class, 'trackedPath')) {
+        try {
+            $path = $class::trackedPath();
+            if (is_string($path) && $path !== '') {
+                $candidates[] = $path;
+            }
+        } catch (\Throwable $e) {
+            // fall back to the conventional paths
+        }
+    }
+    $candidates[] = dirname(__DIR__) . '/hiyori.export.json';
+    $candidates[] = dirname(__DIR__) . '/config/hiyori.export.json';
+
+    foreach (array_unique($candidates) as $file) {
+        $value = exportReadJsonFile($file);
+        if ($value !== null) {
+            return $value;
+        }
+    }
+
+    return null;
+}
+
+/** @return array<string, mixed> */
+function exportState(): array
+{
+    return exportReadJsonFile(exportStateFile()) ?? [];
+}
+
+/** @param array<string, mixed> $state */
+function exportSaveState(array $state): void
+{
+    $dir = dirname(exportStateFile());
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+    file_put_contents(
+        exportStateFile(),
+        json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    );
+}
+
+/**
+ * Effective export config: `ExportConfig::load()` when the service is present,
+ * otherwise template + state merged by hand, then any per-request override on
+ * top. Never throws — a missing service degrades to the file-based config.
+ *
+ * @param array<string, mixed> $override
+ * @return array<string, mixed>
+ */
+function exportEffectiveConfig(array $override = []): array
+{
+    $config = [];
+    $class = 'Hiyori\\Service\\ExportConfig';
+    if (class_exists($class) && method_exists($class, 'load')) {
+        try {
+            $loaded = $class::load(exportStateFile());
+            if (is_array($loaded)) {
+                $config = $loaded;
+            }
+        } catch (\Throwable $e) {
+            $config = [];
+        }
+    }
+    if ($config === []) {
+        $config = hiyoriExportMergeDeep(exportTemplate() ?? [], exportState());
+    }
+    if ($override !== []) {
+        $config = hiyoriExportMergeDeep($config, $override);
+    }
+
+    return $config;
+}
+
+/**
+ * Effective config shaped for the API/UI: canonical keys plus a
+ * `filename_pattern` mirror (the Publish page reads that alias).
+ *
+ * @param array<string, mixed> $override
+ * @return array<string, mixed>
+ */
+function exportApiConfig(array $override = []): array
+{
+    $config = exportEffectiveConfig($override);
+    if (!array_key_exists('filename_pattern', $config) && isset($config['filename']) && is_string($config['filename'])) {
+        $config['filename_pattern'] = $config['filename'];
+    }
+
+    return $config;
+}
+
+/**
+ * Build a per-request config override from `?config=<json>` plus dotted query
+ * keys such as `include.tags=1` or `entities.manga=0`.
+ *
+ * @param array<string, mixed> $query
+ * @return array<string, mixed>
+ */
+function exportQueryOverrides(array $query): array
+{
+    $override = [];
+
+    if (isset($query['config']) && is_string($query['config']) && trim($query['config']) !== '') {
+        $decoded = json_decode($query['config'], true);
+        if (!is_array($decoded)) {
+            sendJson(['error' => 'config query parameter must be a JSON object'], 400);
+        }
+        $override = hiyoriExportMergeDeep($override, $decoded);
+    }
+
+    $reserved = ['token' => true, 'config' => true, 'kind' => true];
+    foreach ($query as $key => $value) {
+        if (!is_string($key) || isset($reserved[$key]) || !str_contains($key, '.')) {
+            continue;
+        }
+        exportSetNested($override, $key, exportCoerceQueryValue($value));
+    }
+
+    return $override;
+}
+
+/** @param array<string, mixed> $target */
+function exportSetNested(array &$target, string $path, mixed $value): void
+{
+    $parts = array_values(array_filter(explode('.', $path), static fn (string $part): bool => $part !== ''));
+    if ($parts === []) {
+        return;
+    }
+    $cursor = &$target;
+    $last = count($parts) - 1;
+    foreach ($parts as $index => $part) {
+        if ($index === $last) {
+            $cursor[$part] = $value;
+
+            return;
+        }
+        if (!isset($cursor[$part]) || !is_array($cursor[$part])) {
+            $cursor[$part] = [];
+        }
+        $cursor = &$cursor[$part];
+    }
+}
+
+function exportCoerceQueryValue(mixed $value): mixed
+{
+    if (!is_string($value)) {
+        return $value;
+    }
+    $lower = strtolower($value);
+    if (in_array($lower, ['1', 'true', 'yes', 'on'], true)) {
+        return true;
+    }
+    if (in_array($lower, ['0', 'false', 'no', 'off'], true)) {
+        return false;
+    }
+    if (is_numeric($value)) {
+        return $value + 0;
+    }
+
+    return $value;
+}
+
+/** Accept the Publish UI's `filename_pattern` alias for the canonical `filename`. */
+function exportNormalizeAliases(array $config): array
+{
+    if (!array_key_exists('filename', $config) && isset($config['filename_pattern'])) {
+        $config['filename'] = $config['filename_pattern'];
+    }
+
+    return $config;
+}
+
+function exportRequireService(): void
+{
+    if (!class_exists('Hiyori\\Service\\Exporter')) {
+        sendJson([
+            'error' => 'exporter unavailable',
+            'detail' => 'Hiyori\\Service\\Exporter is not installed; the export endpoints are disabled',
+        ], 503);
+    }
+}
+
+function exportCombineRunning(): bool
+{
+    if (!function_exists('exec')) {
+        return false;
+    }
+    $out = [];
+    $code = 1;
+    // The `[p]hp` bracket trick stops pgrep matching its own command line.
+    @exec('pgrep -f ' . escapeshellarg('[p]hp hiyori combine') . ' 2>/dev/null', $out, $code);
+
+    return $code === 0 && $out !== [];
+}
+
+/** @param array<string, mixed> $written */
+function exportFileCount(mixed $files, array $written): int
+{
+    if (is_int($files)) {
+        return $files;
+    }
+    if (is_array($files)) {
+        return count($files);
+    }
+
+    return count($written);
+}
+
+if ($path === '/api/export-config') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = readJsonBody();
+
+        if (($body['reset'] ?? false) === true) {
+            @unlink(exportStateFile());
+            auditAppend('export.config', ['reset' => true]);
+            sendJson(['reset' => true, 'config' => exportApiConfig(), 'state' => []]);
+        }
+
+        $incoming = $body['config'] ?? null;
+        if (!is_array($incoming)) {
+            $incoming = array_diff_key($body, ['reset' => true]);
+        }
+        $incoming = exportNormalizeAliases($incoming);
+        if ($incoming === []) {
+            sendJson(['error' => 'config object required'], 400);
+        }
+
+        $errors = hiyoriExportConfigErrors($incoming, hiyoriExportProfiles());
+        if ($errors !== []) {
+            sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
+        }
+
+        $state = hiyoriExportMergeDeep(exportState(), $incoming);
+        exportSaveState($state);
+        auditAppend('export.config', ['keys' => array_keys($incoming)]);
+
+        sendJson(['config' => exportApiConfig(), 'state' => $state]);
+    }
+
+    sendJson([
+        'config' => exportApiConfig(),
+        'template' => exportTemplate(),
+        'state' => exportState(),
+        'timestamp' => date('c'),
+    ]);
+}
+
+if ($path === '/api/export/preview') {
+    exportRequireService();
+    $kind = (string) ($_GET['kind'] ?? 'anime');
+    if (!in_array($kind, ['anime', 'manga'], true)) {
+        sendJson(['error' => 'kind must be anime or manga'], 400);
+    }
+    $config = exportEffectiveConfig(exportQueryOverrides($_GET));
+    try {
+        $result = (new \Hiyori\Service\Exporter($client))->preview($config, $kind);
+    } catch (\Throwable $e) {
+        sendJson(['error' => 'export preview failed', 'detail' => $e->getMessage()], 500);
+    }
+    $out = is_array($result) ? $result : [];
+    $out['entry'] = $out['entry'] ?? null;
+    $out['rendered'] = $out['rendered'] ?? $out['json'] ?? null;
+    $out['kind'] = $out['kind'] ?? $kind;
+    if (!isset($out['profile']) && isset($config['profile'])) {
+        $out['profile'] = $config['profile'];
+    }
+
+    sendJson($out);
+}
+
+if ($path === '/api/export/dry-run') {
+    exportRequireService();
+    $config = exportEffectiveConfig(exportQueryOverrides($_GET));
+    try {
+        $result = (new \Hiyori\Service\Exporter($client))->dryRun($config);
+    } catch (\Throwable $e) {
+        sendJson(['error' => 'export dry-run failed', 'detail' => $e->getMessage()], 500);
+    }
+    $out = is_array($result) ? $result : [];
+    $out += ['files' => 0, 'byKind' => [], 'sampleFilenames' => [], 'bytesEstimate' => 0];
+    $byKind = is_array($out['byKind']) ? $out['byKind'] : [];
+    $samples = is_array($out['sampleFilenames']) ? $out['sampleFilenames'] : [];
+    $out += [
+        'by_kind' => $byKind,
+        'counts' => $byKind,
+        'samples' => $samples,
+        'sample_files' => $samples,
+        'bytes' => $out['bytesEstimate'],
+        'size' => $out['bytesEstimate'],
+    ];
+
+    sendJson($out);
+}
+
+if ($path === '/api/export/run') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    exportRequireService();
+    if (exportCombineRunning()) {
+        sendJson([
+            'error' => 'combine in progress',
+            'detail' => 'refusing to write a publish dump while `php hiyori combine` is running',
+        ], 409);
+    }
+
+    $body = readJsonBody();
+    $override = $body['config'] ?? array_diff_key($body, ['reset' => true]);
+    $override = is_array($override) ? exportNormalizeAliases($override) : [];
+    if ($override !== []) {
+        $errors = hiyoriExportConfigErrors($override, hiyoriExportProfiles());
+        if ($errors !== []) {
+            sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
+        }
+    }
+
+    $config = exportEffectiveConfig($override);
+    try {
+        $result = (new \Hiyori\Service\Exporter($client))->write($config);
+    } catch (\Throwable $e) {
+        auditAppend('export.run', ['ok' => false, 'error' => $e->getMessage()]);
+        sendJson(['error' => 'export run failed', 'detail' => $e->getMessage()], 500);
+    }
+
+    $out = is_array($result) ? $result : [];
+    $written = is_array($out['written'] ?? null) ? $out['written'] : [];
+    $changelog = is_array($out['changelog'] ?? null) ? $out['changelog'] : [];
+    auditAppend('export.run', [
+        'dir' => $out['dir'] ?? null,
+        'files' => exportFileCount($out['files'] ?? null, $written),
+        'rows' => $out['rows'] ?? null,
+    ]);
+
+    $out += ['dir' => null, 'written' => [], 'files' => 0, 'rows' => 0, 'changelog' => null];
+    $out += ['deltas' => [
+        'added' => (int) ($changelog['added'] ?? 0),
+        'changed' => (int) ($changelog['updated'] ?? 0),
+        'removed' => (int) ($changelog['removed'] ?? 0),
+    ]];
+
+    sendJson($out);
+}
+
+// Lookup a single entry by its stable global hiyori_id (organized + manga).
+if (preg_match('#^/api/(entries|anime|manga)/(\d+)$#', $path, $m) === 1) {
+    $scope = $m[1];
+    $id = (int) $m[2];
+    $targets = match ($scope) {
+        'anime' => ['anime' => 'organized'],
+        'manga' => ['manga' => 'organized_manga'],
+        default => ['anime' => 'organized', 'manga' => 'organized_manga'],
+    };
+    $db = $client->selectDatabase('hiyori');
+    $entry = null;
+    $kind = null;
+    foreach ($targets as $candidateKind => $collection) {
+        try {
+            $doc = $db->selectCollection($collection)->findOne(['hiyori_id' => $id]);
+        } catch (\Throwable $e) {
+            $doc = null;
+        }
+        if ($doc !== null) {
+            $entry = json_decode(json_encode($doc), true);
+            $kind = $candidateKind;
+            break;
+        }
+    }
+    if ($entry === null) {
+        sendJson(['error' => 'entry not found', 'hiyori_id' => $id], 404);
+    }
+    sendJson(['entry' => $entry, 'kind' => $kind]);
 }
 
 if ($path === '/api/counts') {
