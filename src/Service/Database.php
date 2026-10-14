@@ -3,6 +3,7 @@
 namespace Hiyori\Service;
 
 use Hiyori\Models\Common\Base as AnimeBaseModel;
+use Hiyori\Service\Migrator;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
 use MongoDB\Client;
@@ -16,11 +17,15 @@ class Database
 
     private Validator $validator;
 
+    private ?Migrator $migrator = null;
+
     public function __construct(
         private Serializer $serializer,
-        ?Validator $validator = null
+        ?Validator $validator = null,
+        ?Migrator $migrator = null
     ) {
         $this->validator = $validator ?? new Validator();
+        $this->migrator = $migrator;
         $this->connect();
     }
 
@@ -116,6 +121,24 @@ class Database
     public function validatePayload(array $payload): array
     {
         return $this->validator->validatePayload($payload);
+    }
+
+    /**
+     * Allocate a stable Hiyori ID for a new organized entry.
+     * Reuses existing ID if the reference set is already known.
+     *
+     * @param string $kind          'anime' or 'manga'
+     * @param array<string, string> $refs   Reference map (e.g., ['al' => '1', 'mal' => '1'])
+     * @param string $slug          Title slug
+     * @param string $legacyId      Previous MongoDB _id (optional)
+     * @return int                   The allocated hiyori_id
+     */
+    public function allocateHiyoriId(string $kind, array $refs, string $slug, string $legacyId = ''): int
+    {
+        if ($this->migrator === null) {
+            throw new \RuntimeException('Migrator not available — cannot allocate hiyori_id');
+        }
+        return $this->migrator->allocateId($kind, $refs, $slug, $legacyId);
     }
 
     public function mergeIntoOrganized(
