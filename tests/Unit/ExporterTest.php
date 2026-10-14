@@ -137,7 +137,6 @@ final class ExporterTest extends TestCase
             'images',
             'links',
             'references',
-            'legacy_id',
         ], array_keys($entry));
 
         $this->assertSame(1, $entry['hiyori_id']);
@@ -145,7 +144,6 @@ final class ExporterTest extends TestCase
         $this->assertSame('anime', $entry['kind']);
         $this->assertSame(26, $entry['episodes']);
         $this->assertArrayNotHasKey('chapters', $entry);
-        $this->assertSame('6acd5cefeb712a640837e101', $entry['legacy_id']);
         $this->assertSame('Cowboy Bebop', $entry['titles']['default']);
         $this->assertSame('カウボーイビバップ', $entry['titles']['native']);
     }

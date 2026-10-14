@@ -91,9 +91,5 @@
             "description": "Named external links (site/source -> URL).",
             "additionalProperties": {"type": ["string", "null"]}
         },
-        "legacy_id": {
-            "type": ["string", "integer", "null"],
-            "description": "Pre-hiyori_id identifier (the old _id / source id) kept for traceability and id recovery."
-        }
     }
 }
