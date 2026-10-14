@@ -16,3 +16,7 @@ storage/logs/daily-*
 .env.bak
 
 storage/logs/*.out
+
+storage/publish/
+storage/repo-*/
+storage/*.tar.gz
