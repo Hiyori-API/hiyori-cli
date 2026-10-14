@@ -1,0 +1,27 @@
+{
+  "profile": "per-entry-json",
+  "subdir": "data",
+  "filename": "{hiyori_id}-{slug}",
+  "fields": [],
+  "entities": {
+    "anime": true,
+    "manga": true
+  },
+  "include": {
+    "titles": true,
+    "synonyms": true,
+    "references": true,
+    "links": true,
+    "tags": false,
+    "genres": false,
+    "synopsis": false,
+    "score": false,
+    "studios": false
+  },
+  "index": true,
+  "pretty": true,
+  "bundle": true,
+  "combiner": {
+    "auto_export": null
+  }
+}
