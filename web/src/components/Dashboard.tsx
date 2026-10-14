@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
+import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal, Upload } from 'lucide-react'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -15,9 +15,10 @@ const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ defa
 const ManagementPage = lazy(() => import('./pages/ManagementPage').then(m => ({ default: m.ManagementPage })))
 const QualityPage = lazy(() => import('./pages/QualityPage').then(m => ({ default: m.QualityPage })))
 const LogsPage = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })))
+const PublishPage = lazy(() => import('./pages/PublishPage').then(m => ({ default: m.PublishPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
-type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'settings'
+type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'publish' | 'settings'
 
 const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard; desc: string }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
@@ -25,6 +26,7 @@ const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard; desc: 
   { id: 'management', label: 'Management', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups' },
   { id: 'quality', label: 'Quality & Analysis', icon: GitMerge, desc: 'Coverage, benchmarks, sampler' },
   { id: 'logs', label: 'Logs', icon: ScrollText, desc: 'Slow requests, validation, runs' },
+  { id: 'publish', label: 'Publish', icon: Upload, desc: 'Export & publish dump' },
   { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
 ]
 
@@ -82,6 +84,16 @@ function StatusChip() {
 export function Dashboard() {
   const [view, setView] = useState<View>('dashboard')
   const nav = NAV.find(n => n.id === view) ?? NAV[0]
+
+  // Cross-page navigation (e.g. Settings → "Open Publish page") without a router.
+  useEffect(() => {
+    const onNavigate = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail
+      if (NAV.some(n => n.id === detail)) setView(detail as View)
+    }
+    window.addEventListener('hiyori:navigate', onNavigate)
+    return () => window.removeEventListener('hiyori:navigate', onNavigate)
+  }, [])
 
   return (
     <StatusProvider>
@@ -150,6 +162,7 @@ export function Dashboard() {
               {view === 'management' && <ManagementPage />}
               {view === 'quality' && <QualityPage />}
               {view === 'logs' && <LogsPage />}
+              {view === 'publish' && <ErrorBoundary label="Publish"><PublishPage /></ErrorBoundary>}
               {view === 'settings' && <SettingsPage />}
             </Suspense>
           </main>

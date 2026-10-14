@@ -353,3 +353,186 @@ export async function fetchBenchmarkManga(): Promise<{ benchmark?: BenchmarkRow[
   const r = await fetch('/api/benchmark-manga')
   return r.json() as Promise<{ benchmark?: BenchmarkRow[]; source?: string }>
 }
+
+// ---- Export & Publish ----
+
+/** Package-layout profiles offered by the publish pipeline. */
+export type ExportProfile = 'per-entry-json' | 'bulk-jsonl' | 'tables-csv'
+export type ExportKind = 'anime' | 'manga'
+
+export const EXPORT_PROFILES: Array<{ value: ExportProfile; label: string; hint: string }> = [
+  { value: 'per-entry-json', label: 'Per-entry JSON', hint: 'one pretty file per entity — data/<kind>/<hiyori_id>-<slug>.json' },
+  { value: 'bulk-jsonl', label: 'Bulk JSONL', hint: 'one JSON object per line under data/<kind>.jsonl' },
+  { value: 'tables-csv', label: 'Tables CSV', hint: 'normalized anime.csv / manga.csv + lookup tables' },
+]
+
+/**
+ * Field inclusion flags. `tags` / `genres` / `synopsis` / `score` are part of
+ * schema v2 and are not populated yet — the UI renders them disabled.
+ */
+export interface ExportFieldFlags {
+  titles?: boolean
+  synonyms?: boolean
+  references?: boolean
+  links?: boolean
+  /** schema v2 — not populated yet */
+  tags?: boolean
+  /** schema v2 — not populated yet */
+  genres?: boolean
+  /** schema v2 — not populated yet */
+  synopsis?: boolean
+  /** schema v2 — not populated yet */
+  score?: boolean
+  [k: string]: boolean | undefined
+}
+
+export interface ExportEntityFlags {
+  anime?: boolean
+  manga?: boolean
+  [k: string]: boolean | undefined
+}
+
+export interface ExportConfig {
+  profile?: ExportProfile | string
+  entities?: ExportEntityFlags
+  /** Filename template; must contain `{hiyori_id}`. Default `{hiyori_id}-{slug}`. */
+  filename_pattern?: string
+  fields?: ExportFieldFlags
+  /** Write a sorted index file alongside the data. */
+  index?: boolean
+  /** Pretty-print JSON output. */
+  pretty?: boolean
+  /** Emit a single bundle/archive instead of loose files. */
+  bundle?: boolean
+  /** Optional sub-directory under the publish root. */
+  subdir?: string
+  [k: string]: unknown
+}
+
+/** Server-side view of the export pipeline (lock state, last run, storage root). */
+export interface ExportState {
+  combine_running?: boolean
+  export_running?: boolean
+  last_dir?: string
+  last_run?: string
+  storage?: string
+  [k: string]: unknown
+}
+
+export interface ExportConfigResponse {
+  config?: ExportConfig
+  template?: ExportConfig
+  state?: ExportState
+  error?: string
+}
+
+export interface ExportPreviewResponse {
+  kind?: string
+  profile?: string
+  entry?: Record<string, unknown> | null
+  json?: Record<string, unknown> | null
+  text?: string
+  error?: string
+  [k: string]: unknown
+}
+
+export interface ExportDryRunResponse {
+  files?: number
+  by_kind?: Record<string, number>
+  counts?: Record<string, number>
+  samples?: string[]
+  sample_files?: string[]
+  bytes?: number
+  size?: number
+  dir?: string
+  error?: string
+  [k: string]: unknown
+}
+
+export interface ExportChangelogDeltas {
+  added?: number
+  changed?: number
+  removed?: number
+  [k: string]: unknown
+}
+
+export interface ExportRunResponse {
+  dir?: string
+  files?: number
+  by_kind?: Record<string, number>
+  counts?: Record<string, number>
+  bytes?: number
+  changelog?: ExportChangelogDeltas
+  deltas?: ExportChangelogDeltas
+  error?: string
+  [k: string]: unknown
+}
+
+/**
+ * HTTP error carrying the response status so callers can special-case the
+ * endpoints that are still being built (404 → "backend not ready") and the
+ * export lock (409 → a combine run is in progress). `status === 0` means the
+ * request never reached the server.
+ */
+export class ExportApiError extends Error {
+  readonly status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ExportApiError'
+    this.status = status
+  }
+}
+
+async function exportRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  let r: Response
+  try {
+    r = await fetch(url, init)
+  } catch (e) {
+    throw new ExportApiError(0, `network error: ${String(e)}`)
+  }
+  if (!r.ok) {
+    let detail = ''
+    try {
+      const body = (await r.json()) as { error?: string; message?: string }
+      detail = body.error ?? body.message ?? ''
+    } catch { /* non-JSON body (e.g. plain 404) */ }
+    throw new ExportApiError(r.status, detail || `${url} → HTTP ${r.status}`)
+  }
+  return r.json() as Promise<T>
+}
+
+/** GET /api/export-config → {config, template, state}. */
+export function fetchExportConfig(): Promise<ExportConfigResponse> {
+  return exportRequest<ExportConfigResponse>('/api/export-config')
+}
+
+/** POST /api/export-config — persist a config patch, or `{ reset: true }` to restore the template. */
+export function saveExportConfig(patch: { config?: ExportConfig; reset?: boolean }): Promise<ExportConfigResponse> {
+  return exportRequest<ExportConfigResponse>('/api/export-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+/** POST /api/export-config {reset} — restore the server template. */
+export function resetExportConfig(): Promise<ExportConfigResponse> {
+  return saveExportConfig({ reset: true })
+}
+
+/** GET /api/export/preview?kind=&profile= — one rendered sample entry. */
+export function previewExport(kind: ExportKind, profile?: string): Promise<ExportPreviewResponse> {
+  const qs = new URLSearchParams({ kind })
+  if (profile) qs.set('profile', profile)
+  return exportRequest<ExportPreviewResponse>(`/api/export/preview?${qs.toString()}`)
+}
+
+/** GET /api/export/dry-run — file counts + sample filenames without writing. */
+export function dryRunExport(): Promise<ExportDryRunResponse> {
+  return exportRequest<ExportDryRunResponse>('/api/export/dry-run')
+}
+
+/** POST /api/export/run — write the dump to storage/publish. 409 while a combine runs. */
+export function runExport(): Promise<ExportRunResponse> {
+  return exportRequest<ExportRunResponse>('/api/export/run', { method: 'POST' })
+}
