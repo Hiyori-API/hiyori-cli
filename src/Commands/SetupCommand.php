@@ -72,6 +72,16 @@ final class SetupCommand extends Command
         $io->writeln('  2. php hiyori combine anilist');
         $io->writeln('  3. php hiyori dashboard:serve   (or: php hiyori dashboard:serve --install)');
         $io->writeln('  4. php hiyori schedule --install  (optional ingest scheduler)');
+        $io->writeln('');
+        $io->writeln('Publish (optional):');
+        $io->writeln('  - configure GITHUB_REPO / GITHUB_TOKEN in .env');
+        $io->writeln('  - php hiyori publish --dry-run  (validate the full dump locally)');
+        $io->writeln('  - php hiyori publish           (only after `php hiyori migrate` is clean)');
+        if (trim((string) ($_ENV['GITHUB_TOKEN'] ?? '')) === '') {
+            $io->writeln('  ! GITHUB_TOKEN not set yet — publish will stop before pushing');
+        } else {
+            $io->writeln('  ✓ GITHUB_TOKEN present in env');
+        }
 
         return Command::SUCCESS;
     }
