@@ -34,7 +34,7 @@ class Database
         return $this->validator;
     }
 
-    public function connect(Client $client = null)
+    public function connect(?Client $client = null)
     {
         $this->client = $client ?? new Client($_ENV['MONGODB_URL']);
     }

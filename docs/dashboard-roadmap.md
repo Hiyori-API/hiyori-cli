@@ -26,7 +26,7 @@ Selected items (43) with status. Built = committed.
 - [x] Coverage matrix (/api/coverage + matrix panel)
 - [x] Missing refs view (coverage matrix cell percentages)
 - [x] Uptime/history health (health history client-side)
-- [ ] Failure retry UI — next
+- [x] Failure retry UI (Management page → retry queue + run-now)
 - [x] Slow-request profile (latency p95 client-side)
 - [x] Strategy benchmark charts (/api/benchmark seeded + bar chart)
 - [x] Merge sampler (/api/sample + agree/disagree)
@@ -36,8 +36,8 @@ Selected items (43) with status. Built = committed.
 - [x] Scheduler view (/api/schedule + card)
 - [x] Pipeline DAG view (Ingest→Validate→Combine→Export)
 - [x] Manga support in UI (dataset doughnut + split note)
-- [ ] Job diff view — next
-- [ ] Docs (readme section done); screenshots — optional
+- [x] Job diff view (Explorer → two-doc diff + row drawer)
+- [x] Docs (readme section done)
 
 ## Batch 2 (17 selected)
 - [x] Job controls (pause/resume via control files)
@@ -57,6 +57,24 @@ Selected items (43) with status. Built = committed.
 - [x] Trend deltas (client-side)
 - [x] Tab-aware polling (pause when hidden)
 - [x] Tests (unit + opt-in API) & docs (readme live-dashboard section)
+
+## Batch 3 — Export / Publish / IDs (2026-10, all shipped)
+- [x] **Hiyori IDs** — migration v3, global sequence, `_hiyori_ids` registry, unique index, `hiyori-id` CLI (report/verify/backfill)
+- [x] **Per-entry JSON dump** — `data/<kind>/<hiyori_id>-<slug>.json` + `manifest.json` (sha256 + content_hash), `index/lookup.json`, `data/*.jsonl`, `data/tables/*.csv`, `CHANGELOG.md`, `schema/hiyori.schema.json`, bundle `.tar.gz`
+- [x] **Merged references** — single `references` object per source with `{id, url?}`; no separate `links` map; `legacy_id` removed
+- [x] **Schema-v2 toggles** — `tags`, `genres`, `synopsis`, `score`, `studios` as opt-in (off by default)
+- [x] **Export profiles** — `per-entry-json` (default) / `bulk-jsonl` / `tables-csv`; configurable via `hiyori.export.json` + dashboard overrides
+- [x] **Publish CLI** — `php hiyori publish` / `php hiyori db:push`; dry-run, profile selection, `--repo`, `--branch`, `--no-manga`, `--no-gzip`
+- [x] **Publish Dashboard page** — config form (profile/entities/filename/fields/include), live preview, dry-run, run export (409-aware), guarded CLI-copy publish button
+- [x] **Settings → Export & Publish** — mirrored profile selector, link to Publish page
+- [x] **Read-only `/output/` browser** — http://localhost:8080/output/ for reviewing the latest dump
+- [x] **CI Publish workflow** — `.github/workflows/publish.yml` (tag push / manual dispatch → setup → migrate → combine → publish)
+- [x] **Combiner auto-ID allocation** — all 3 strategies call `Database::allocateHiyoriId()` before merge; reuse existing ID from registry
+
+## Not selected (roadmap backstop)
+Confidence filters explore, threshold-sensitivity curve, weightage explorer,
+benchmark runners, kiosk mode, multi-dashboard/team, timezone selector, cb
+manual override, top-n slow, completion countdown, work-queue, group-by source.
 
 ## Not selected (roadmap backstop)
 Confidence filters explore, threshold-sensitivity curve, weightage explorer,

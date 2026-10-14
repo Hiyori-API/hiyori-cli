@@ -9,7 +9,7 @@ class Serializer
     private \JMS\Serializer\Serializer $serializer;
 
     public function __construct(
-        \JMS\Serializer\Serializer $serializer = null
+        ?\JMS\Serializer\Serializer $serializer = null
     ) {
         $this->serializer = $serializer ?? SerializerBuilder::create()->build();
     }
