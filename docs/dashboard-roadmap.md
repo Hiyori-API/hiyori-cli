@@ -451,3 +451,169 @@ Markdown escaping + secret redaction, and email message assembly/leak checks.
   Recipe (mongosh): createIndex({type:1,status:1,year:1},{name:"cand"}) on
   organized + organized_manga; createIndex({"reference_ids.<sh>"=>1}) per
   shorthand per table.
+
+## Relational publish — per-entry JSON + Hiyori IDs (2026-10)
+
+A second publish shape alongside the relational CSVs: the exporter writes **one
+JSON file per entry** keyed by a stable, global `hiyori_id`, plus a manifest,
+a lookup index, CSV views and a changelog. The dashboard's export API drives it
+without a git push (the push stays the job of `php hiyori publish`).
+
+### Hiyori ID allocation rules
+
+- **Global + immutable.** A single monotonic sequence is shared by anime
+  (`organized`) and manga (`organized_manga`); an id is allocated once and never
+  reused or renumbered. `GET /api/entries/{id}` is therefore unambiguous.
+- **Migration v3** (`allocate_hiyori_ids`) on `php hiyori migrate`, or the
+  idempotent backfill `php hiyori hiyori-id --backfill`. Only docs missing
+  `hiyori_id` are touched; `php hiyori hiyori-id --verify` cross-checks docs
+  against the registry (exit 1 on drift).
+- **Reuse on merge.** A later merge of another source *into* an entry reuses the
+  id recorded for the entry's **reference set** (or its `legacy_id`) instead of
+  allocating a new one — `Migrator::allocateId()` / `findRegistryId()`.
+- **Registry** `_hiyori_ids` (one row per id: `hiyori_id`, `kind`, `refs`,
+  `slug`, `legacy_id`, `allocated_at`); `_counters` (`_id: "hiyori_id"`) hands
+  out blocks. Unique index on `hiyori_id` and on `kind + slug`; non-unique
+  indexes on each `refs.<shorthand>`.
+- **Slugs** — `normalizeSlug()` lowercases, collapses non-alphanumerics to `-`,
+  trims, caps at 120 chars, empty → `untitled`; per-kind unique with `-2`, `-3`
+  suffixes. See [schema/README.md](../schema/README.md).
+
+### Dump layout
+
+```
+<dump>/manifest.json
+      index/lookup.json                              # hiyori_id -> {kind, slug, path}
+      data/<kind>/<hiyori_id>-<slug>.json            # one entry, schema-validated
+      tables/*.csv                                   # flat views
+      CHANGELOG.md                                   # added/removed/changed
+```
+
+`schema/hiyori.schema.json` is the draft 2020-12 JSON Schema for a per-entry
+file (required `hiyori_id`, `slug`, `kind`, `title`, `references`).
+
+### Filename scheme
+
+The `filename` pattern must contain `{hiyori_id}` (the API rejects patterns
+without it, plus `..`/leading `/`/`\`). Supported placeholders include
+`{hiyori_id}` and `{slug}`; the default is `{hiyori_id}-{slug}`. The Publish UI
+posts the pattern as `filename_pattern`; the API normalises that alias to
+`filename` on write and mirrors it back on read.
+
+### Profiles
+
+`profile` selects a named preset that `\Hiyori\Service\ExportConfig` resolves
+into the effective config (`layout`, `format`, `entities`, `filename`, `fields`,
+`include`, `index`, `pretty`, `bundle`, `subdir`, `write_entries`). The API
+validates `profile` against `ExportConfig::profileNames()` (the `PROFILES`
+keys), falling back to the router's built-in list:
+
+| profile | intent |
+|---|---|
+| `per-entry-json` (default) | one pretty file per entity — `data/<kind>/<hiyori_id>-<slug>.json` — plus manifest/lookup/CSV/changelog |
+| `bulk-jsonl` | one JSON object per line under `data/<kind>.jsonl` |
+| `tables-csv` | normalized `data/tables/anime.csv` / `manga.csv` + lookup tables |
+
+### State overrides
+
+Overrides live in `storage/state/export.json` (gitignored) and are merged
+**key-wise** deeper-into objects (`entities`, `include`) over the
+`hiyori.export.json` template; request-level overrides layer on top. Effective
+config = `ExportConfig::load(storage/state/export.json)` (falling back to
+template ⊕ state) ⊕ request override.
+
+### API endpoints
+
+All endpoints are JSON and token-protected by the existing `DASHBOARD_TOKEN`
+check (`?token=` / `X-Dashboard-Token`). Mutations append to
+`storage/state/audit.jsonl`.
+
+| method | path | notes |
+|---|---|---|
+| GET | `/api/export-config` | `{config, template, state, timestamp}` |
+| POST | `/api/export-config` | `{config:{…}}` (or top-level keys) validated + key-merged into state; `{reset:true}` clears overrides |
+| GET | `/api/export/preview` | `?kind=anime\|manga` + overrides → `{entry, rendered, kind}` |
+| GET | `/api/export/dry-run` | overrides → `{files, byKind{anime,manga}, sampleFilenames[], bytesEstimate}` |
+| POST | `/api/export/run` | `Exporter::write` → `{dir, written, files, rows, changelog}` (no git push) |
+| GET | `/api/entries/{id}` | `{entry, kind}` across anime + manga; 404 when absent |
+| GET | `/api/anime/{id}` · `/api/manga/{id}` | kind-scoped variants of the above |
+
+Overrides are passed per request with `?config=<json>` (a JSON object) and/or
+dotted query keys such as `include.tags=1`, `entities.manga=0`,
+`profile=compact`.
+
+Audit actions: `export.config`, `export.run`.
+
+```json
+// GET /api/export/preview?kind=anime&include.tags=1
+{ "entry": { "hiyori_id": 42, "slug": "fullmetal-alchemist-brotherhood", "kind": "anime", "…": "…" },
+  "rendered": "…", "kind": "anime" }
+
+// POST /api/export-config { "config": { "profile": "compact", "include": { "tags": true } } }
+{ "config": { "profile": "compact", "…": "…" }, "state": { "profile": "compact" } }
+
+// POST /api/export/run
+{ "dir": "storage/publish/hiyori-relational-20261014-120000",
+  "written": { "…": 0 }, "files": 23212, "rows": 23212, "changelog": "…" }
+```
+
+### Failure modes
+
+- `\Hiyori\Service\Exporter` missing → `503 {"error":"exporter unavailable"}`.
+- `\Hiyori\Service\ExportConfig` missing → the router falls back to
+  template ⊕ state, so GET `/api/export-config` still answers.
+- Combine running (`pgrep -f "php hiyori combine"` matches) → POST
+  `/api/export/run` returns `409 {"error":"combine in progress"}` so a dump is
+  never written mid-merge.
+- Invalid config → `400 {"error":"invalid export config","errors":[…]}`.
+
+Unit coverage for the pure helpers (filename-pattern + shape validation,
+key-wise merge) lives in `tests/Unit/ExportHelpersTest.php`.
+
+## Hiyori IDs — stable global identifiers (2026-10)
+
+Each entry in `organized` (anime) and `organized_manga` (manga) carries a
+`hiyori_id`: a **global** (not per-kind), monotonically increasing integer that
+is allocated **once** and never re-used or shifted. A later rebuild that
+re-inserts a doc, or a merge that folds a new source INTO an existing entry,
+must reuse the already-allocated id rather than hand out a new one.
+
+**Allocation.** `Migrator` migration v3 `allocate_hiyori_ids` streams every doc
+missing `hiyori_id`, assigns ids sequentially from the `_counters` counter and
+pushes `{hiyori_id, slug}` onto the doc, then creates the unique index
+`hiyori_id_1` (`{hiyori_id: 1}`, `unique: true`) on each collection. It is
+idempotent (re-running finds nothing missing) and fails loudly if a duplicate id
+is detected. The counter alone is not authoritative: `Migrator::allocateId()`
+recovers an existing id for a known reference set so the combiner can call it
+for new/merged entries without shifting anything.
+
+**Registry.** `_hiyori_ids` persists every allocation so ids are reproducible
+across a full rebuild (keyed by the entry's reference set / legacy id):
+
+```json
+{
+  "_id": ObjectId("..."),
+  "hiyori_id": 1,
+  "kind": "anime",                     // 'anime' | 'manga'
+  "refs": { "al": "1", "mal": "1", "k": "1", "ap": "B00R2KO8ZE" },
+  "slug": "cowboy-bebop",
+  "legacy_id": "6acd5cefeb712a640837e101",
+  "allocated_at": ISODate("...")
+}
+```
+
+The next id lives in `_counters` as `{ "_id": "hiyori_id", "next": <int> }`.
+Registry indexes: unique `hiyori_id_1`, unique `kind_slug_1` (`{kind, slug}`),
+and a non-unique `refs_<shorthand>_1` per reference shorthand.
+
+**Slug.** Title-normalized: lowercase, every run of non-alphanumerics → `-`,
+collapsed and trimmed, capped at 120 chars (`untitled` when empty). Duplicates
+within a kind are suffixed `-2`, `-3`, … (`Migrator::normalizeSlug()` /
+`Migrator::uniqueSlug()`).
+
+**Command.** `php hiyori hiyori-id` (alias `ids`) reports counts
+(allocated/missing per collection, next id, registry size, duplicate count).
+`--backfill` runs allocation without recording the migration, and `--verify`
+checks that every doc has an id, ids are unique, docs and registry agree in both
+directions, and slugs are unique per kind (prints up to 20 problems; non-zero
+exit on failure). `--json` emits machine-readable output.
