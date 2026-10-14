@@ -1,12 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, Clock, Copy, Download, KeyRound, Moon, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
+import { Check, Clock, Copy, Download, KeyRound, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { fetchMeta, fetchSettings, postSettings, type UiSettings } from '@/lib/api'
+import {
+  EXPORT_PROFILES, fetchExportConfig, fetchMeta, fetchSettings, postSettings, saveExportConfig,
+  type ExportConfig, type UiSettings,
+} from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { fmtCompact } from '@/lib/format'
 import { EmptyState } from '../empty'
@@ -48,9 +53,17 @@ export function SettingsPage() {
   const [meta, setMeta] = useState<Record<string, { count?: number }>>({})
   const [webhook, setWebhook] = useState('')
   const [newToken, setNewToken] = useState<string | null>(null)
+  const [exportConfig, setExportConfig] = useState<ExportConfig | null>(null)
+  const [exportApi, setExportApi] = useState<'checking' | 'ready' | 'missing'>('checking')
 
   useEffect(() => { void fetchSettings().then(r => { setEnv(r.env ?? {}); setWebhook(r.env?.webhook ?? '') }) }, [])
   useEffect(() => { void fetchMeta().then(m => setMeta(m.collections ?? {})) }, [])
+  // Shares the export config with the Publish page (GET/POST /api/export-config).
+  useEffect(() => {
+    void fetchExportConfig()
+      .then(r => { setExportConfig(r.config ?? r.template ?? {}); setExportApi('ready') })
+      .catch(() => setExportApi('missing'))
+  }, [])
 
   const prefs = settings.prefs ?? {}
   const [refreshLocal, setRefreshLocal] = useState<number>(prefs.refresh ?? 3000)
@@ -122,6 +135,17 @@ export function SettingsPage() {
     toast('settings reset')
     refresh()
   }
+
+  // Export & Publish: mirror the dump profile and jump to the Publish page.
+  const exportProfile = typeof exportConfig?.profile === 'string' && exportConfig.profile ? exportConfig.profile : 'per-entry-json'
+  const saveExportProfile = (v: string) => {
+    const next: ExportConfig = { ...(exportConfig ?? {}), profile: v }
+    setExportConfig(next)
+    void saveExportConfig({ config: next })
+      .then(() => { setExportApi('ready'); toast.success('export profile saved') })
+      .catch(() => toast.error('export profile not saved — backend not ready'))
+  }
+  const openPublish = () => window.dispatchEvent(new CustomEvent('hiyori:navigate', { detail: 'publish' }))
 
   return (
     <div className="space-y-4">
@@ -271,6 +295,32 @@ export function SettingsPage() {
           </div>
         </Section>
       </div>
+
+      {/* Export & Publish shortcut — mirrors the Publish page's profile selector. */}
+      <Section
+        title="Export & Publish"
+        icon={PackageOpen}
+        badge={exportApi === 'missing' ? <Badge variant="outline">backend not ready</Badge> : undefined}
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm">Dump profile</div>
+              <div className="text-xs text-muted-foreground">Shared with the Publish page's export config (GET/POST /api/export-config).</div>
+            </div>
+            <Select value={exportProfile} onValueChange={v => saveExportProfile(v ?? 'per-entry-json')}>
+              <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EXPORT_PROFILES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={openPublish}><Upload className="mr-1.5 h-3.5 w-3.5" />Open Publish page</Button>
+            {exportApi === 'missing' && <span className="text-[10px] text-muted-foreground">Export API not reachable — the profile is kept locally.</span>}
+          </div>
+        </div>
+      </Section>
 
       {/* S2: Environment manager under a collapsible Advanced section */}
       <Section title="Advanced" icon={Settings2} defaultOpen={false}>
