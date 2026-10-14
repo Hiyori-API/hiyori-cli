@@ -2,7 +2,7 @@
 
 [![PHP](https://img.shields.io/badge/PHP-8.3-blue.svg?style=flat)](https://www.php.net/) [![Discord Server](https://img.shields.io/discord/460491088004907029.svg?style=flat&logo=discord)](http://discord.jikan.moe)
 
-[![CI](https://github.com/Hiyori-API/hiyori-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Hiyori-API/hiyori-cli/actions/workflows/ci.yml) [![Tests](https://img.shields.io/badge/unit-100%20tests%20%2F%20235%20assertions-blue)]() [![PHPStan](https://img.shields.io/badge/PHPStan-level%205-purple.svg)]() [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
+[![CI](https://github.com/Hiyori-API/hiyori-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Hiyori-API/hiyori-cli/actions/workflows/ci.yml) [![Tests](https://img.shields.io/badge/unit-166%20tests%20%2F%20480%20assertions-blue)]() [![PHPStan](https://img.shields.io/badge/PHPStan-level%205-purple.svg)]() [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
 Hiyori CLI builds and maintains [HiyoriDB](https://github.com/Hiyori-API/HiyoriDB) — a relational anime & manga database. It ingests from **AniList, Kitsu and MyAnimeList** (anime and manga), merges everything into a normalized schema, and ships a live React dashboard for exploring, managing and analyzing the result.
 
@@ -81,14 +81,16 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `sweep` | Clean up orphaned, duplicate or incomplete entries |
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
 | `references` | Return all unique reference IDs from the combined DB |
-| `export` | Export data from sources or the combined DB (JSON/JSONL/CSV) |
+| `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
 | `restore <archive>` | Restore the database from an archive with `mongorestore` |
 | `schedule` | Run ingestion on a schedule (systemd timers / cron) |
 | `health` | Health check for services and dependencies |
 | `metrics` | Expose Prometheus metrics |
 | `dashboard:serve` | Serve the live dashboard (UI + API + SSE + `/metrics`) |
+| `publish` / `db:push` | Build relational dump and push to HiyoriDB repository |
 | `completion` | Dump a shell completion script |
+| `hiyori-id` / `ids` | Report / backfill / verify Hiyori IDs (`--verify`, `--backfill`, `--json`) |
 
 ### Ingestion
 
@@ -130,6 +132,8 @@ php hiyori combine {base} [--strategy {strategy}]
 | `--threshold`, `-t` | `metadata_fuzzy` score threshold, 0–100 (default: `70`) |
 | `--weights`, `-w` | `metadata_fuzzy` field weights as JSON, e.g. `{"title":25,"tags":20}` |
 | `--into` | Collection to merge into (e.g. `organized_manga`). Default: `organized` |
+| `--export` | After combine, run exporter with profile (`per-entry-json`, `bulk-jsonl`, `tables-csv`, or `none`). Default: `combiner.auto_export` config value |
+| `--skip-migrations` | Bypass the pending-migration gate (not recommended) |
 
 #### Available strategies
 
@@ -168,7 +172,11 @@ php hiyori references [--source mal] [--json]
 php hiyori weightage myanimelist anilist [--sample 1000] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
-php hiyori export [organized|myanimelist|anilist|kitsu] [--format json|jsonl|csv] [--output file] [--fields title,type,status] [--limit 100] [--pretty]
+# Export combined DB with the configured profile (default per-entry-json)
+php hiyori export [--profile per-entry-json|bulk-jsonl|tables-csv] [--dry-run] [--preview manga]
+
+# Export a raw source as JSON/JSONL/CSV (legacy format)
+php hiyori export organized|myanimelist|anilist|kitsu [--format json|jsonl|csv] [--output file] [--fields title,type,status] [--limit 100] [--pretty]
 
 # Back up / restore the database (mongodump / mongorestore)
 php hiyori backup [--output storage/backups/hiyori-<ts>.gz] [--collections a,b,c] [--gzip]
