@@ -95,6 +95,35 @@ if (str_starts_with($path, '/assets/') || str_starts_with($path, '/vite.svg')) {
     }
 }
 
+// Read-only review browser for the dry-run dump under output/ (gitignored).
+if ($path === '/output' || $path === '/output/') {
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo "<!doctype html><meta charset=utf-8><title>output/ — hiyori dry-run</title><body style=\"font:13px/1.5 ui-monospace,monospace;max-width:960px;margin:24px auto;padding:0 16px\">";
+    echo '<h2>output/ — dry-run dump</h2><ul>';
+    foreach (glob(dirname(__DIR__) . '/output/*', GLOB_ONLYDIR) ?: [] as $d) {
+        echo '<li><a href="/output/' . basename($d) . '/\">' . basename($d) . '/</a></li>';
+    }
+    echo '<li><a href="/output/hiyoridb/README.md\">hiyoridb/README.md</a> (start here)</li>';
+    echo '<li><a href="/output/hiyoridb/CHANGELOG.md\">hiyoridb/CHANGELOG.md</a></li>';
+    echo '<li><a href="/output/hiyoridb/manifest.json\">hiyoridb/manifest.json</a></li>';
+    echo '<li><a href="/output/hiyoridb/export-config.json\">hiyoridb/export-config.json</a></li>';
+    echo '</ul></body>';
+    exit;
+}
+if (str_starts_with($path, '/output/')) {
+    $file = dirname(__DIR__) . $path;
+    if (is_file($file)) {
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        $mimes = ['json' => 'application/json', 'jsonl' => 'application/x-ndjson', 'csv' => 'text/csv', 'md' => 'text/markdown', 'sql' => 'text/plain', 'gz' => 'application/gzip'];
+        header('Content-Type: ' . ($mimes[$ext] ?? 'text/plain') . '; charset=utf-8');
+        header('Cache-Control: no-store');
+        readfile($file);
+        exit;
+    }
+    sendJson(['error' => 'not found', 'path' => $path], 404);
+}
+
 // Static assets (vendored libs) — safe allowlist of extensions.
 if (str_starts_with($path, '/vendor/')) {
     $file = __DIR__ . str_replace(['..', '//'], '', $path);
