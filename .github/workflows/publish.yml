@@ -1,0 +1,101 @@
+name: Publish to HiyoriDB
+
+# Trigger on version tags (e.g., v1.0.0, publish-2026-10-14) or manual dispatch
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'publish-*'
+      - 'v*.*.*'
+
+# Required permissions for the GITHUB_TOKEN to push to HiyoriDB repo
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Use a dedicated MongoDB service (or connect to external via MONGODB_URL secret)
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports: ['27017:27017']
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MONGODB_URL: mongodb://localhost:27017
+      APP_ENV: prod
+      APP_DEBUG: false
+      # These must be set as repository secrets in Hiyori-API/hiyori-cli:
+      # GITHUB_TOKEN: fine-grained PAT with Contents:Read/Write on Hiyori-API/HiyoriDB
+      # GITHUB_REPO: https://github.com/Hiyori-API/HiyoriDB.git (or owner/repo)
+      # MAL_CLIENT_ID, MAL_CLIENT_SECRET (if ingestion runs)
+
+    steps:
+      - name: Checkout HiyoriDB target repo (for push)
+        uses: actions/checkout@v4
+        with:
+          repository: Hiyori-API/HiyoriDB
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: hiyori-db-target
+          fetch-depth: 1
+
+      - name: Checkout hiyori-cli (this repo)
+        uses: actions/checkout@v4
+        path: hiyori-cli
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mongodb, mbstring, xml, curl, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: hiyori-cli/vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('hiyori-cli/composer.lock') }}
+
+      - name: Install Dependencies (hiyori-cli)
+        working-directory: hiyori-cli
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Verify env & MongoDB
+        working-directory: hiyori-cli
+        run: |
+          php -r "echo 'MONGODB_URL: ' . (getenv('MONGODB_URL') ?: 'MISSING') . PHP_EOL;"
+          php -r "echo 'GITHUB_TOKEN: ' . (getenv('GITHUB_TOKEN') ? 'SET' : 'MISSING') . PHP_EOL;"
+          php -r "echo 'GITHUB_REPO: ' . (getenv('GITHUB_REPO') ?: 'MISSING') . PHP_EOL;"
+          php -r "new MongoDB\Client(getenv('MONGODB_URL'))->selectDatabase('admin')->command(['ping'=>1]); echo 'MongoDB OK' . PHP_EOL;"
+
+      - name: Run migrations (setup)
+        working-directory: hiyori-cli
+        run: php hiyori migrate
+
+      - name: Combine (merge all sources into organized)
+        working-directory: hiyori-cli
+        run: |
+          php hiyori combine anilist --export=per-entry-json
+          php hiyori combine kitsu --into=organized_manga --export=per-entry-json
+
+      - name: Publish to HiyoriDB
+        working-directory: hiyori-cli
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
+        run: php hiyori publish --repo "$GITHUB_REPO" --branch master
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## ✅ Published to HiyoriDB" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ref: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

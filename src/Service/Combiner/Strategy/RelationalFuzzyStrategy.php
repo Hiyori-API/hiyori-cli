@@ -71,11 +71,26 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                             // doc's upsert key matches on later merges.
                             $entryArray['reference_ids'][$baseShorthand] = $baseId;
 
+                            $mergedEntry = Helper::mergeEntries($tableName, $entryArray, $matchEntry);
+
+                            // Ensure stable hiyori_id: reuse if refs already known, else allocate new.
+                            $kind = $collection === 'organized_manga' ? 'manga' : 'anime';
+                            $slug = \Hiyori\Service\Exporter::slugify((string) $mergedEntry->getTitle());
+                            $refs = $mergedEntry->getReferenceIds();
+                            try {
+                                $hiyoriId = $db->allocateHiyoriId($kind, $refs, $slug);
+                                $extra = ['hiyori_id' => $hiyoriId];
+                            } catch (\Throwable $e) {
+                                // Fallback: continue without hiyori_id
+                                $extra = [];
+                            }
+
                             $db->mergeIntoOrganized(
-                                Helper::mergeEntries($tableName, $entryArray, $matchEntry),
+                                $mergedEntry,
                                 $baseShorthand,
                                 $baseId,
                                 $collection,
+                                $extra,
                             );
 
                             $totalMerged++;

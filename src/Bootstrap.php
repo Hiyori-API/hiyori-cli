@@ -37,7 +37,10 @@ $container->register(\JMS\Serializer\Serializer::class)
     ->setPublic(true);
 
 $container->autowire(\Hiyori\Service\Logging::class);
-$container->autowire(\Hiyori\Service\Database::class);
+$container->autowire(\Hiyori\Service\Migrator::class)
+    ->setPublic(true);
+$container->autowire(\Hiyori\Service\Database::class)
+    ->setArguments([$container->get(\Hiyori\Service\Migrator::class)]);
 $container->autowire(\Hiyori\Service\ConsoleFactory::class)
     ->setFactory([\Hiyori\Service\ConsoleFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\SourceConfigurationFactory::class)
