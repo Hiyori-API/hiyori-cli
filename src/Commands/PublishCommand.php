@@ -2,7 +2,8 @@
 
 namespace Hiyori\Commands;
 
-use Hiyori\Service\Publisher;
+use Hiyori\Service\ExportConfig;
+use Hiyori\Service\Exporter;
 use MongoDB\Client;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -32,29 +33,47 @@ final class PublishCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $publisher = new Publisher(new Client($_ENV['MONGODB_URL']));
+
+        $config = ExportConfig::load();
+        $config = ExportConfig::merge($config, [
+            'entities' => ['manga' => !$input->getOption('no-manga') && (bool) ($config['entities']['manga'] ?? true)],
+            'bundle' => !$input->getOption('no-gzip'),
+        ]);
+
+        $exporter = new Exporter(new Client($_ENV['MONGODB_URL']));
+
+        if ($input->getOption('dry-run')) {
+            $estimate = $exporter->dryRun($config);
+            $io->writeln(sprintf(
+                'Dry run — profile %s: %d files (%d anime, %d manga), ~%d bytes',
+                $config['profile'],
+                $estimate['files'],
+                $estimate['byKind']['anime'],
+                $estimate['byKind']['manga'],
+                $estimate['bytesEstimate'],
+            ));
+            foreach ($estimate['sampleFilenames'] as $sample) {
+                $io->writeln('  ' . $sample);
+            }
+            $io->note('Dry run — no dump written, no push.');
+
+            return Command::SUCCESS;
+        }
 
         $io->writeln('Building relational dump…');
-        $result = $publisher->dump(!$input->getOption('no-gzip'), !$input->getOption('no-manga'));
+        $result = $exporter->write($config);
         ['written' => $written, 'rows' => $rows, 'dir' => $dir] = $result;
 
         $io->newLine();
         $io->writeln('Dump written:');
         foreach ($written as $file => $count) {
-            $io->writeln(sprintf('  %-22s %s', $file, $count . ($file === 'schema.sql' || $file === 'README.md' ? ' bytes' : ' rows')));
+            $unit = str_ends_with((string) $file, '.csv') ? ' rows' : ' bytes';
+            $io->writeln(sprintf('  %-34s %s', $file, $count . $unit));
         }
-        $io->writeln(sprintf('  %-22s %s', 'relational rows', (string) $rows));
+        $io->writeln(sprintf('  %-34s %s', 'relational rows', (string) $rows));
+        $io->writeln(sprintf('  %-34s +%d ~%d -%d', 'changelog', $result['changelog']['added'], $result['changelog']['updated'], $result['changelog']['removed']));
 
         $repo = $input->getOption('repo');
-        if ($input->getOption('dry-run')) {
-            $io->newLine();
-            $io->note(sprintf('Dry run — no push. Publish would commit %s/* to %s (%s).', $dir, $repo, $input->getOption('branch')));
-            $io->success('Dump ready at ' . $dir);
-
-            return Command::SUCCESS;
-        }
-
-        // Real publish: clone/copy -> commit -> push
         $publishDir = dirname($dir, 2) . '/repo-' . date('YmdHis');
         $ok = $this->gitPublish($repo, $input->getOption('branch'), $dir, $publishDir, (string) ($input->getOption('message') ?? ''));
         if (!$ok) {
@@ -75,7 +94,7 @@ final class PublishCommand extends Command
         @exec('git clone --depth 1 -b ' . escapeshellarg($branch) . ' ' . escapeshellarg($repo) . ' ' . escapeshellarg($cloneDir) . ' 2>&1', $o, $rc);
         if ($rc !== 0 && !is_dir($cloneDir . '/.git')) {
             // empty/remote-less repo fallback: init locally
-            @mkdir($cloneDir, 0777, true);
+            @mkdir($cloneDir, 0o777, true);
             exec('cd ' . escapeshellarg($cloneDir) . ' && git init -q');
         }
 
@@ -85,7 +104,7 @@ final class PublishCommand extends Command
         exec(
             'cd ' . escapeshellarg($cloneDir) . ' && git add -A && git -c user.name="hiyori-bot" -c user.email="hiyori@hikarino.local" commit -m ' . escapeshellarg($msg) . ' 2>&1',
             $o,
-            $rc
+            $rc,
         );
         if ($rc !== 0) {
             return false;

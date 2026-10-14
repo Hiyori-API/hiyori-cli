@@ -4,6 +4,8 @@ namespace Hiyori\Commands;
 
 use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
+use Hiyori\Service\ExportConfig;
+use Hiyori\Service\Exporter;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\LockableTrait;
@@ -36,6 +38,7 @@ final class CombinerCommand extends Command
             ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
+            ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
 
@@ -79,8 +82,44 @@ final class CombinerCommand extends Command
 
         $this->hiyori->combine($base, $strategy, $config);
 
+        $this->exportIfRequested($input, $output);
+
         $this->release();
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Optional post-combine export. No-op unless `--export <profile>` is set,
+     * or the effective config sets `combiner.auto_export`. `none` disables it.
+     */
+    private function exportIfRequested(InputInterface $input, OutputInterface $output): void
+    {
+        $profile = $input->getOption('export');
+        if ($profile === null && $input->hasParameterOption('--export')) {
+            // `--export` without a value means "use the default profile".
+            $profile = ExportConfig::DEFAULT_PROFILE;
+        }
+        if ($profile === null) {
+            $profile = ExportConfig::load()['combiner']['auto_export'] ?? null;
+        }
+        if (!is_string($profile) || $profile === '' || strtolower($profile) === 'none' || strtolower($profile) === 'no') {
+            return;
+        }
+
+        $config = ExportConfig::withProfile(ExportConfig::load(), $profile);
+        $exporter = new Exporter($this->hiyori->getDatabase()->getClient());
+        $result = $exporter->write($config);
+
+        $output->writeln(sprintf(
+            '<info>exported</info> %d files (%d rows) to %s [profile: %s] (+%d ~%d -%d)',
+            $result['files'],
+            $result['rows'],
+            $result['dir'],
+            $config['profile'],
+            $result['changelog']['added'],
+            $result['changelog']['updated'],
+            $result['changelog']['removed'],
+        ));
     }
 }
