@@ -13,6 +13,7 @@ final class MigratorTest extends TestCase
 
     public function testMigrationsRunIdempotentlyAndIndexesAreCreated(): void
     {
+        $_ENV['MONGODB_URL'] ??= $_SERVER['MONGODB_URL'] ?? 'mongodb://localhost:27017';
         $client = new Client($_ENV['MONGODB_URL']);
         $client->selectDatabase(self::DB)->drop();
 
@@ -45,8 +46,15 @@ final class MigratorTest extends TestCase
         }
         $this->assertContains('mg_ref_k_manga', $mangaNames);
 
+        $animeIndexes = $client->selectDatabase(self::DB)->selectCollection('organized')->listIndexes();
+        $animeNames = [];
+        foreach ($animeIndexes as $i) {
+            $animeNames[] = $i->getName();
+        }
+        $this->assertContains('hiyori_id_1', $animeNames);
+
         $log = $client->selectDatabase(self::DB)->selectCollection('_migrations')->countDocuments();
-        $this->assertSame(2, $log);
+        $this->assertSame(3, $log);
 
         $client->selectDatabase(self::DB)->drop();
     }

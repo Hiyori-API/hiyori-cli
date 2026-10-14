@@ -87,6 +87,7 @@ $app->addCommands([
     new \Hiyori\Commands\BackupCommand(),
     new \Hiyori\Commands\ValidateCommand($hiyori),
     new \Hiyori\Commands\RestoreCommand(),
+    new \Hiyori\Commands\HiyoriIdCommand($hiyori),
 ]);
 
 /**
