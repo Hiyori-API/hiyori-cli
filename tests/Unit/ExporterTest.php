@@ -135,7 +135,6 @@ final class ExporterTest extends TestCase
             'season',
             'year',
             'images',
-            'links',
             'references',
         ], array_keys($entry));
 
@@ -152,11 +151,8 @@ final class ExporterTest extends TestCase
     {
         $entry = Exporter::renderEntry($this->anime(), 'anime', ExportConfig::defaults());
 
-        $this->assertSame(['al' => '1', 'k' => '1', 'mal' => '1', 'zz' => '9'], $entry['references']);
-        $this->assertSame('https://anilist.co/anime/1', $entry['links']['al']);
-        $this->assertSame('https://myanimelist.net/anime/1', $entry['links']['mal']);
-        $this->assertSame('https://kitsu.io/anime/1', $entry['links']['k']);
-        $this->assertArrayNotHasKey('zz', $entry['links']);
+        $this->assertSame(['al' => ['id' => '1', 'url' => 'https://anilist.co/anime/1'], 'k' => ['id' => '1', 'url' => 'https://kitsu.io/anime/1'], 'mal' => ['id' => '1', 'url' => 'https://myanimelist.net/anime/1'], 'zz' => ['id' => '9']], $entry['references']);
+
     }
 
     public function testSchemaPointerReflectsDumpDepth(): void
@@ -194,8 +190,8 @@ final class ExporterTest extends TestCase
         $this->assertArrayNotHasKey('season', $entry);
         $this->assertSame(162, $entry['chapters']);
         $this->assertSame(18, $entry['volumes']);
-        $this->assertSame('https://anilist.co/manga/19', $entry['links']['al_manga']);
-        $this->assertSame('https://myanimelist.net/manga/1', $entry['links']['mal_manga']);
+        $this->assertSame('https://anilist.co/manga/19', $entry['references']['al_manga']['url']);
+        $this->assertSame('https://myanimelist.net/manga/1', $entry['references']['mal_manga']['url']);
     }
 
     public function testFieldsAllowlistKeepsIntegrityKeys(): void
@@ -216,7 +212,7 @@ final class ExporterTest extends TestCase
 
         $this->assertStringStartsWith("{\n  \"\$schema\"", $pretty);
         $this->assertStringContainsString("\n  \"hiyori_id\": 1,", $pretty);
-        $this->assertStringContainsString("\n  \"links\": {\n    \"al\": \"https://anilist.co/anime/1\"", $pretty);
+        $this->assertStringContainsString("\n  \"references\": {\n    \"al\": {\n      \"id\": \"1\",\n      \"url\": \"https://anilist.co/anime/1\"", $pretty);
         $this->assertStringNotContainsString("\n    \"\$schema\"", $pretty);
 
         $compact = Exporter::entryJson($entry, false);

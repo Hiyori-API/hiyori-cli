@@ -205,7 +205,7 @@ final class Exporter
                 $lookup[(string) $id] = [
                     'slug' => self::slugify($title),
                     'kind' => $kind,
-                    'refs' => is_array($entry['references'] ?? null) ? $entry['references'] : [],
+                    'refs' => self::referenceIds($doc),
                 ];
             }
 
@@ -348,13 +348,19 @@ final class Exporter
             $entry['images'] = $images;
         }
 
-        if ($toggles('links')) {
-            $links = self::links($doc);
-            $entry['links'] = $links === [] ? new \stdClass() : $links;
-        }
         if ($toggles('references')) {
             $references = self::referenceIds($doc);
-            $entry['references'] = $references === [] ? new \stdClass() : $references;
+            $urls = $toggles('links') ? self::links($doc) : [];
+            $merged = [];
+            foreach ($references as $source => $sourceId) {
+                $item = ['id' => $sourceId];
+                if (isset($urls[$source])) {
+                    $item['url'] = $urls[$source];
+                }
+                $merged[$source] = $item;
+            }
+            ksort($merged);
+            $entry['references'] = $merged === [] ? new \stdClass() : $merged;
         }
 
         $fields = $config['fields'];

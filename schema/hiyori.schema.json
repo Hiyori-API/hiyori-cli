@@ -82,14 +82,17 @@
         },
         "references": {
             "type": "object",
-            "description": "Source shorthand -> source id. Anime uses al/mal/k; manga uses al_manga/mal_manga/k_manga. Empty object when the entry carries no cross-references.",
+            "description": "Source shorthand -> merged {id, url?}. `url` is emitted only when a site link can be resolved; `id` is always present. Empty object when the entry carries no cross-references.",
             "propertyNames": {"type": "string"},
-            "additionalProperties": {"type": ["string", "integer"]}
-        },
-        "links": {
-            "type": "object",
-            "description": "Named external links (site/source -> URL).",
-            "additionalProperties": {"type": ["string", "null"]}
-        },
+            "additionalProperties": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                    "id": { "type": ["string", "integer"] },
+                    "url": { "type": "string", "format": "uri" }
+                },
+                "additionalProperties": false
+            }
+        }
     }
 }
