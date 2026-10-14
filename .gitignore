@@ -20,3 +20,5 @@ storage/logs/*.out
 storage/publish/
 storage/repo-*/
 storage/*.tar.gz
+
+output/
