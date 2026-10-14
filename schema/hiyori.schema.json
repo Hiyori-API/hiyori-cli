@@ -1,0 +1,99 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/Hiyori-API/HiyoriDB/blob/master/schema/hiyori.schema.json",
+    "title": "Hiyori per-entry document",
+    "description": "One anime or manga entry as written by the relational publish pipeline to data/<kind>/<hiyori_id>-<slug>.json and returned by GET /api/entries/{id}.",
+    "type": "object",
+    "required": ["hiyori_id", "slug", "kind", "title", "references"],
+    "additionalProperties": true,
+    "properties": {
+        "hiyori_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Stable, global, immutable id shared by anime and manga. Allocated once by migration v3 (allocate_hiyori_ids) / `php hiyori hiyori-id --backfill`, recorded in the _hiyori_ids registry."
+        },
+        "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "description": "URL-safe, deterministic slug of title. Unique within a kind (unique index kind+slug)."
+        },
+        "kind": {
+            "type": "string",
+            "enum": ["anime", "manga"]
+        },
+        "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Preferred display title."
+        },
+        "titles": {
+            "type": "object",
+            "description": "Normalized title variants; `default` is the display title, `romaji`/`english`/`native` are variants when known.",
+            "additionalProperties": true,
+            "properties": {
+                "default": {"type": "string"},
+                "romaji": {"type": "string"},
+                "english": {"type": "string"},
+                "native": {"type": "string"}
+            }
+        },
+        "synonyms": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "type": {
+            "type": "string",
+            "description": "Source format/type, e.g. TV, movie, OVA, manga, novel."
+        },
+        "episodes": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Anime episode count."
+        },
+        "chapters": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Manga chapter count."
+        },
+        "volumes": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Manga volume count."
+        },
+        "status": {
+            "type": "string",
+            "description": "Release status, e.g. finished, publishing, not_yet_published, on_hiatus, discontinued."
+        },
+        "season": {
+            "type": ["string", "null"],
+            "description": "Anime premiere season, e.g. spring/summer/fall/winter (anime only)."
+        },
+        "year": {
+            "type": ["integer", "null"],
+            "minimum": 1900,
+            "maximum": 2200
+        },
+        "images": {
+            "type": "array",
+            "items": {"type": "string", "format": "uri"},
+            "description": "Cover/artwork URLs, preferred image first."
+        },
+        "references": {
+            "type": "object",
+            "description": "Source shorthand -> source id. Anime uses al/mal/k; manga uses al_manga/mal_manga/k_manga. Empty object when the entry carries no cross-references.",
+            "propertyNames": {"type": "string"},
+            "additionalProperties": {"type": ["string", "integer"]}
+        },
+        "links": {
+            "type": "object",
+            "description": "Named external links (site/source -> URL).",
+            "additionalProperties": {"type": ["string", "null"]}
+        },
+        "legacy_id": {
+            "type": ["string", "integer", "null"],
+            "description": "Pre-hiyori_id identifier (the old _id / source id) kept for traceability and id recovery."
+        }
+    }
+}
