@@ -8,6 +8,7 @@ use Hiyori\Helper;
 use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\Ml\FeatureExtractor;
+use Hiyori\Service\Ml\LabelStore;
 use Hiyori\Service\SourceConfigurationFactory;
 use MongoDB\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,11 +21,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Export labelled candidate pairs as JSONL for ML training / benchmarking.
  *
- * Ground truth comes from the `organized` collection: a pair is positive when
- * a single organized document carries both the base entry's and the candidate's
- * reference ids. Negatives are candidate-chain entries that do not share an
- * organized document with the base, which keeps label noise low (a base entry
- * with no organized document at all is skipped unless `--all`).
+ * Ground truth is the `_labels` collection (human agree/disagree) when a pair
+ * has one, otherwise the `organized` collection: a pair is positive when a
+ * single organized document carries both the base entry's and the candidate's
+ * reference ids. Human labels win, which lets reviewers correct false merges
+ * (label 0 on an organized pair) and recover missed merges (label 1 on a pair
+ * the organized collection never joined). Negatives are candidate-chain
+ * entries that share no organized document with the base.
  */
 #[AsCommand(
     name: 'ml:export-pairs',
@@ -47,7 +50,7 @@ final class MlExportPairsCommand extends Command
             ->addOption('negatives', null, InputOption::VALUE_OPTIONAL, 'Max negatives per base entry', 3)
             ->addOption('collection', null, InputOption::VALUE_OPTIONAL, 'Ground-truth collection', 'organized')
             ->addOption('out', null, InputOption::VALUE_OPTIONAL, 'Output JSONL path (default: storage/ml/pairs-<ts>.jsonl)', '')
-            ->addOption('all', null, InputOption::VALUE_NONE, 'Also export negatives for base entries with no organized document')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'Also export negatives for base entries with no organized document and no human labels')
             ->addOption('sample', null, InputOption::VALUE_OPTIONAL, 'Sampling mode: random|first', 'random');
     }
 
@@ -86,12 +89,17 @@ final class MlExportPairsCommand extends Command
 
             return Command::FAILURE;
         }
+        $targetsByShorthand = [];
+        foreach ($targets as $target) {
+            $targetsByShorthand[$target->getShorthand()] = $target;
+        }
 
         $db = $this->hiyori->getDatabase();
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($base->getTable());
         /** @var Collection $organized */
         $organized = $db->getCollection($collectionName);
+        $labelStore = LabelStore::create($db);
         $extractor = new FeatureExtractor();
         $weights = MetadataFuzzyStrategy::normalizeWeights(MetadataFuzzyStrategy::DEFAULT_WEIGHTS);
 
@@ -118,6 +126,7 @@ final class MlExportPairsCommand extends Command
         $rows = 0;
         $positives = 0;
         $negatives = 0;
+        $humanLabels = 0;
         $sampled = 0;
         $skipped = 0;
 
@@ -132,14 +141,16 @@ final class MlExportPairsCommand extends Command
             }
             $sampled++;
 
+            $labels = $labelStore->forBase($baseShorthand, $baseId);
             $goldenRefs = $this->goldenReferences($organized, $baseShorthand, $baseArray['reference_ids'][$baseShorthand] ?? $baseId);
-            if ($goldenRefs === null && !$includeUnmerged) {
+            if ($goldenRefs === null && $labels === [] && !$includeUnmerged) {
                 $skipped++;
 
                 continue;
             }
             $goldenRefs ??= [];
 
+            $emitted = [];
             foreach ($targets as $target) {
                 $targetShorthand = $target->getShorthand();
                 $positiveId = isset($goldenRefs[$targetShorthand]) ? (string) $goldenRefs[$targetShorthand] : null;
@@ -147,9 +158,14 @@ final class MlExportPairsCommand extends Command
                 if ($positiveId !== null) {
                     $positive = $db->get($target->getTable(), $targetShorthand, $positiveId, true);
                     if (is_array($positive)) {
-                        $this->writeRow($handle, $extractor, $baseArray, $positive, 1, $baseShorthand, $baseId, $targetShorthand, $weights);
-                        $positives++;
+                        $key = $targetShorthand . ':' . $positiveId;
+                        $label = $labels[$key] ?? 1;
+                        $labelSource = isset($labels[$key]) ? 'human' : 'organized';
+                        $humanLabels += $labelSource === 'human' ? 1 : 0;
+                        $this->writeRow($handle, $extractor, $baseArray, $positive, $label, $baseShorthand, $baseId, $targetShorthand, $weights, $labelSource);
+                        $label === 1 ? $positives++ : $negatives++;
                         $rows++;
+                        $emitted[$key] = true;
                     }
                 }
 
@@ -163,13 +179,39 @@ final class MlExportPairsCommand extends Command
                     if ($candidateId === '' || $candidateId === $positiveId) {
                         continue;
                     }
-                    $this->writeRow($handle, $extractor, $baseArray, $candidate, 0, $baseShorthand, $baseId, $targetShorthand, $weights);
-                    $negatives++;
+                    $key = $targetShorthand . ':' . $candidateId;
+                    $label = $labels[$key] ?? 0;
+                    $labelSource = isset($labels[$key]) ? 'human' : 'organized';
+                    $humanLabels += $labelSource === 'human' ? 1 : 0;
+                    $this->writeRow($handle, $extractor, $baseArray, $candidate, $label, $baseShorthand, $baseId, $targetShorthand, $weights, $labelSource);
+                    $label === 1 ? $positives++ : $negatives++;
                     $rows++;
+                    $emitted[$key] = true;
                     if (++$written >= $maxNegatives) {
                         break;
                     }
                 }
+            }
+
+            // Emit human-labelled pairs that the organized ground truth misses
+            // (reviewer said "same" but the combiner never joined them).
+            foreach ($labels as $key => $label) {
+                if (isset($emitted[$key])) {
+                    continue;
+                }
+                [$targetShorthand, $candidateId] = array_pad(explode(':', $key, 2), 2, '');
+                if ($targetShorthand === '' || $candidateId === '' || !isset($targetsByShorthand[$targetShorthand])) {
+                    continue;
+                }
+                $target = $targetsByShorthand[$targetShorthand];
+                $candidate = $db->get($target->getTable(), $targetShorthand, $candidateId, true);
+                if (!is_array($candidate)) {
+                    continue;
+                }
+                $this->writeRow($handle, $extractor, $baseArray, $candidate, $label, $baseShorthand, $baseId, $targetShorthand, $weights, 'human');
+                $humanLabels++;
+                $label === 1 ? $positives++ : $negatives++;
+                $rows++;
             }
         }
 
@@ -183,13 +225,21 @@ final class MlExportPairsCommand extends Command
             'rows' => $rows,
             'positives' => $positives,
             'negatives' => $negatives,
+            'human_label_rows' => $humanLabels,
             'sampled' => $sampled,
             'skipped_unmerged' => $skipped,
             'created_at' => gmdate('c'),
         ];
         @file_put_contents($outPath . '.meta.json', json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        $io->success(\sprintf('Wrote %d rows (%d positives / %d negatives) to %s', $rows, $positives, $negatives, $outPath));
+        $io->success(\sprintf(
+            'Wrote %d rows (%d positives / %d negatives, %d from human labels) to %s',
+            $rows,
+            $positives,
+            $negatives,
+            $humanLabels,
+            $outPath,
+        ));
 
         return Command::SUCCESS;
     }
@@ -208,12 +258,14 @@ final class MlExportPairsCommand extends Command
         string $baseId,
         string $candidateShorthand,
         array $weights,
+        string $labelSource = 'organized',
     ): void {
         $features = $extractor->extract($base, $candidate);
         $row = [
             'base' => ['source' => $baseShorthand, 'id' => $baseId],
             'candidate' => ['source' => $candidateShorthand, 'id' => Helper::resolveReferenceId($candidate, $candidateShorthand)],
             'label' => $label,
+            'label_source' => $labelSource,
             'features' => $features,
             'vector' => array_values(array_map(static fn (string $f): float => $features[$f] ?? 0.0, FeatureExtractor::FEATURES)),
             'metadata_score' => round(MetadataFuzzyStrategy::calculateScore($base, $candidate, $weights), 2),

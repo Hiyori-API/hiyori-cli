@@ -723,7 +723,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [ ] Telemetry for token/cost spend (`llm_tokens`, `llm_cost_usd`)
 
 ### 4.4 Decision model / classifier
-- [ ] Human-in-the-loop label capture (`_labels`, extend `/api/sample` agree/disagree)
+- [x] Human-in-the-loop label capture (`_labels`; dashboard sampler agree/disagree → `POST /api/labels`; `labels` CLI; `ml:export-pairs` prefers human labels)
 - [ ] LLM bootstrap of training labels
 - [x] Train logistic regression (v2.0, pure PHP `ml:train`) / XGBoost (v2.1, pending) on feature JSONL
 - [ ] Calibration (isotonic/Platt) so `ml_score` maps to 0–100 threshold
@@ -762,5 +762,5 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [x] Fellegi–Sunter probabilistic strategy (configurable m/u; score + registration tests); m/u calibration from benchmark pairs still pending
 - [x] Semantic re-rank strategy aligned to `docs/ml-augmentation-design.md` (embeddings interface; LLM tie-break/`ml_*` fields still pending)
 - [x] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
-- [ ] Label capture via `/api/sample` agree/disagree for precision/recall tracking
+- [x] Label capture via `/api/sample` agree/disagree for precision/recall tracking (`_labels` + `labels` CLI + `/api/labels`)
 - [ ] Release gate: default switch still pending — `combine:benchmark` reports the F1 comparison; agree the margin + confirm duplicate organized keys = 0 first

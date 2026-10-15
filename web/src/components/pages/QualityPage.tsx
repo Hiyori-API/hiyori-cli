@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  downloadExport, fetchBenchmarkManga, fetchSample, type BenchmarkRow,
+  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
@@ -200,6 +200,17 @@ export function QualityPage() {
 
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
+  // Persist the human judgement as pair labels so `ml:export-pairs` can use it.
+  // A whole-record verdict maps to every cross-source reference pair in the doc.
+  const labelSample = (doc: Record<string, unknown>, label: 0 | 1) => {
+    const refs = (doc.reference_ids ?? {}) as Record<string, string>
+    const entries = Object.entries(refs).filter(([, v]) => v != null && String(v) !== '')
+    if (entries.length < 2) return
+    const [baseSource, baseId] = entries[0]
+    for (const [source, id] of entries.slice(1)) {
+      void postLabel({ base_source: baseSource, base_id: String(baseId), candidate_source: source, candidate_id: String(id), label })
+    }
+  }
   const reloadAnalysis = () => {
     setBenchKey(k => k + 1)
     void refreshFailures()
@@ -299,8 +310,8 @@ export function QualityPage() {
                     <div className="text-xs text-muted-foreground">refs: {Object.keys(((sampled as { reference_ids?: Record<string, string> }).reference_ids) ?? {}).join(', ') || 'none'}</div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" className="flex-1" onClick={() => { setFeed(f => ({ ...f, right: f.right + 1 })); draw(minConf) }}>Looks right</Button>
-                    <Button size="sm" className="flex-1" variant="destructive" onClick={() => { setFeed(f => ({ ...f, wrong: f.wrong + 1 })); draw(minConf) }}>Wrong</Button>
+                    <Button size="sm" className="flex-1" onClick={() => { setFeed(f => ({ ...f, right: f.right + 1 })); labelSample(sampled, 1); draw(minConf) }}>Looks right</Button>
+                    <Button size="sm" className="flex-1" variant="destructive" onClick={() => { setFeed(f => ({ ...f, wrong: f.wrong + 1 })); labelSample(sampled, 0); draw(minConf) }}>Wrong</Button>
                     <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
                   </div>
                   {(feed.right + feed.wrong) > 0 && (

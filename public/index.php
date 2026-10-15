@@ -17,6 +17,7 @@ use Hiyori\Service\Database;
 use Hiyori\Service\Explorer;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
+use Hiyori\Service\Ml\LabelStore;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\Telemetry;
 use Hiyori\Service\Validator;
@@ -99,7 +100,7 @@ if (str_starts_with($path, '/assets/') || str_starts_with($path, '/vite.svg')) {
 if ($path === '/output' || $path === '/output/') {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
-    echo "<!doctype html><meta charset=utf-8><title>output/ — hiyori dry-run</title><body style=\"font:13px/1.5 ui-monospace,monospace;max-width:960px;margin:24px auto;padding:0 16px\">";
+    echo '<!doctype html><meta charset=utf-8><title>output/ — hiyori dry-run</title><body style="font:13px/1.5 ui-monospace,monospace;max-width:960px;margin:24px auto;padding:0 16px">';
     echo '<h2>output/ — dry-run dump</h2><ul>';
     foreach (glob(dirname(__DIR__) . '/output/*', GLOB_ONLYDIR) ?: [] as $d) {
         echo '<li><a href="/output/' . basename($d) . '/\">' . basename($d) . '/</a></li>';
@@ -155,7 +156,6 @@ function collectionCounts(MongoClient $client): array
     return $out;
 }
 
-
 function dbStats(MongoClient $client): array
 {
     $db = $client->selectDatabase('hiyori');
@@ -199,7 +199,6 @@ function controls(string $source): array
 
     return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
 }
-
 
 function coverage(MongoClient $client): array
 {
@@ -373,7 +372,6 @@ function scheduleView(Telemetry $telemetry): array
     ];
 }
 
-
 // ===== Export / publish API (per-entry JSON + Hiyori IDs) =====
 function exportStateFile(): string
 {
@@ -447,7 +445,7 @@ function exportSaveState(array $state): void
 {
     $dir = dirname(exportStateFile());
     if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
+        mkdir($dir, 0o777, true);
     }
     file_put_contents(
         exportStateFile(),
@@ -673,9 +671,9 @@ if ($path === '/api/export/preview') {
         sendJson(['error' => 'export preview failed', 'detail' => $e->getMessage()], 500);
     }
     $out = is_array($result) ? $result : [];
-    $out['entry'] = $out['entry'] ?? null;
-    $out['rendered'] = $out['rendered'] ?? $out['json'] ?? null;
-    $out['kind'] = $out['kind'] ?? $kind;
+    $out['entry'] ??= null;
+    $out['rendered'] ??= $out['json'] ?? null;
+    $out['kind'] ??= $kind;
     if (!isset($out['profile']) && isset($config['profile'])) {
         $out['profile'] = $config['profile'];
     }
@@ -810,7 +808,7 @@ if ($path === '/api/backup') {
     if (($_GET['run'] ?? '') === '1') {
         $out = dirname(__DIR__) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
         if (!is_dir(dirname($out))) {
-            mkdir(dirname($out), 0777, true);
+            mkdir(dirname($out), 0o777, true);
         }
         $cmd = sprintf('mongodump --uri=%s --db=hiyori --gzip --archive=%s >/dev/null 2>&1 &', escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'), escapeshellarg($out));
         @exec($cmd);
@@ -877,6 +875,28 @@ if ($path === '/api/sample') {
     sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null, 'min' => $min]);
 }
 
+if ($path === '/api/labels') {
+    $store = LabelStore::create($database);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = readJsonBody();
+        $ok = $store->upsert([
+            'base_source' => (string) ($body['base_source'] ?? ''),
+            'base_id' => (string) ($body['base_id'] ?? ''),
+            'candidate_source' => (string) ($body['candidate_source'] ?? ''),
+            'candidate_id' => (string) ($body['candidate_id'] ?? ''),
+            'label' => (int) ($body['label'] ?? 0),
+            'source' => (string) ($body['source'] ?? 'human'),
+            'notes' => (string) ($body['notes'] ?? ''),
+            'features' => is_array($body['features'] ?? null) ? $body['features'] : null,
+        ]);
+        if (!$ok) {
+            sendJson(['error' => 'base_source, base_id, candidate_source and candidate_id are required'], 400);
+        }
+        sendJson(['ok' => true]);
+    }
+    sendJson(['labels' => $store->stats()]);
+}
+
 if ($path === '/api/jobsV2') {
     sendJson(['jobs' => $telemetry->allState(), 'timestamp' => date('c')]);
 }
@@ -934,12 +954,12 @@ if ($path === '/api/events') {
     exit;
 }
 
-
 // ===== Dashboard v2 endpoints =====
 function uiSettings(): array
 {
     $dir = dirname(__DIR__) . '/storage/state';
     $file = $dir . '/ui.json';
+
     return is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
 }
 
@@ -947,7 +967,7 @@ function saveUiSettings(array $s): void
 {
     $dir = dirname(__DIR__) . '/storage/state';
     if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
+        mkdir($dir, 0o777, true);
     }
     file_put_contents($dir . '/ui.json', json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
@@ -956,7 +976,7 @@ function auditAppend(string $action, array $detail = []): void
 {
     $dir = dirname(__DIR__) . '/storage/state';
     if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
+        mkdir($dir, 0o777, true);
     }
     file_put_contents($dir . '/audit.jsonl', json_encode([
         'ts' => date('c'),
@@ -1462,7 +1482,6 @@ if ($path === '/api/settings') {
     ]);
 }
 
-
 // ===== Environment helpers (.env read/write + sensitivity) =====
 function envFile(): string
 {
@@ -1544,7 +1563,7 @@ function writeEnvRaw(string $raw): void
     $file = envFile();
     $dir = dirname($file);
     if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
+        mkdir($dir, 0o777, true);
     }
     @copy($file, $file . '.bak');
     file_put_contents($file, rtrim($raw) . "\n");
@@ -1640,7 +1659,6 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }, array_keys($vars))]);
 }
 
-
 // Serve backup archives as downloads (they live under storage/backups).
 if (str_starts_with($path, '/storage/backups/')) {
     $file = dirname(__DIR__) . $path;
@@ -1653,7 +1671,6 @@ if (str_starts_with($path, '/storage/backups/')) {
     }
     sendJson(['error' => 'backup not found'], 404);
 }
-
 
 if ($path === '/api/benchmark-manga') {
     $rows = readBenchmarkLog(dirname(__DIR__) . '/storage/logs/strategy-benchmark-manga.log');
