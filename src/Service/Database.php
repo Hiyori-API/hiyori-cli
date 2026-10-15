@@ -29,6 +29,16 @@ class Database
         $this->connect();
     }
 
+    public function setMigrator(Migrator $migrator): void
+    {
+        $this->migrator = $migrator;
+    }
+
+    public function getMigrator(): ?Migrator
+    {
+        return $this->migrator;
+    }
+
     public function getValidator(): Validator
     {
         return $this->validator;
