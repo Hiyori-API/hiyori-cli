@@ -35,16 +35,17 @@ class Helper
      */
     public static function normalizeTitle(string $title, bool $stripEpisodeToken = true): string
     {
-        $title = preg_replace("/ \(([^)]*)\) /u", " \\1 ", $title) ?? $title;
-        $title = str_replace([":", "_", "-", "/", chr(92), "!", "?", ".", "…", "・" , chr(12463)], " ", $title);
-        $title = str_replace(" season ", " ", $title);
+        $title = preg_replace("/ \(([^)]*)\) /u", ' \\1 ', $title) ?? $title;
+        $title = str_replace([':', '_', '-', '/', chr(92), '!', '?', '.', '…', '・', chr(12463)], ' ', $title);
+        $title = str_replace(' season ', ' ', $title);
         if ($stripEpisodeToken) {
-            $title = preg_replace("/\b(ep|episode|ch)[p]?\s*\d+\b/iu", " ", $title) ?? $title;
+            $title = preg_replace("/\b(ep|episode|ch)[p]?\s*\d+\b/iu", ' ', $title) ?? $title;
         }
-        while (str_contains($title, "  ")) {
-            $title = str_replace("  ", " ", $title);
+        while (str_contains($title, '  ')) {
+            $title = str_replace('  ', ' ', $title);
         }
-        return trim(mb_strtolower($title, "UTF-8"));
+
+        return trim(mb_strtolower($title, 'UTF-8'));
     }
 
     /**
@@ -59,9 +60,10 @@ class Helper
         ksort($fields);
         $fmt = [];
         foreach ($fields as $k => $v) {
-            $fmt[] = $k . "=" . (is_array($v) ? implode(",", array_map("strval", $v)) : strval($v));
+            $fmt[] = $k . '=' . (is_array($v) ? implode(',', array_map('strval', $v)) : strval($v));
         }
-        return hash("sha256", implode("|", $fmt));
+
+        return hash('sha256', implode('|', $fmt));
     }
 
     /**
@@ -109,6 +111,29 @@ class Helper
         return str_ends_with($table, '_manga')
             ? MangaBase::merge($entry, $mergeEntry)
             : AnimeBase::merge($entry, $mergeEntry);
+    }
+
+    /**
+     * Symfony's `%estimated%` placeholder needs a known maximum. Ingestion
+     * sources without a reliable total (MAL ranking) pass 0 and need a format
+     * without ETA, otherwise ProgressBar throws before the first advance.
+     *
+     * @param string|null $configured PROGRESSBAR_FORMAT from the environment
+     */
+    public static function progressFormat(?string $configured, int $total): string
+    {
+        $format = $configured !== null && $configured !== ''
+            ? $configured
+            : '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%';
+
+        if ($total <= 0 && str_contains($format, '%estimated')) {
+            $format = trim(str_replace(' | ETA:%estimated:-6s%', '', $format));
+            if (str_contains($format, '%estimated')) {
+                $format = '%current%/%max% [%bar%] %percent:3s%% MEM:%memory:6s%';
+            }
+        }
+
+        return $format;
     }
 
     // https://stackoverflow.com/a/76375080
