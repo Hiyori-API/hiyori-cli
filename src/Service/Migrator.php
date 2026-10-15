@@ -34,6 +34,16 @@ final class Migrator
      */
     public const IDENTITY_REF_KEYS = ['mal', 'al', 'mal_manga', 'al_manga'];
 
+    /**
+     * Base ingest collection + its primary reference key for each combined
+     * collection. Used to decide which of two documents genuinely owns an
+     * identity key (the one whose base row declares it).
+     */
+    public const BASE_SOURCE = [
+        'organized' => ['collection' => 'anilist', 'key' => 'al'],
+        'organized_manga' => ['collection' => 'anilist_manga', 'key' => 'al_manga'],
+    ];
+
     public const KINDS = ['anime' => 'organized', 'manga' => 'organized_manga'];
 
     private const REGISTRY_COLLECTION = '_hiyori_ids';
@@ -542,8 +552,8 @@ final class Migrator
 
     /**
      * Resolve duplicate identity keys in place: for every primary key value
-     * held by more than one document, keep it on the document with the
-     * smallest `hiyori_id` and remove it from the others.
+     * held by more than one document, keep it on the genuine owner and
+     * remove it from the others.
      *
      * This is the release-gate unblocker for collisions that survive precise
      * matching (e.g. the same `mal` value assigned to two source rows during
@@ -553,12 +563,38 @@ final class Migrator
      *
      * @return array{collection: string, primary_keys: list<string>, duplicate_keys: int, resolved: int, dry_run: bool, keys: list<array{source: string, key: string, keep: int, dropped: list<int>}>}
      */
-    public function stripDuplicateIdentityKeys(string $collectionName, array $primaryKeys = ['mal', 'al'], bool $dryRun = false, int $maxKeys = 50): array
+    public function stripDuplicateIdentityKeys(string $collectionName, array $primaryKeys = ['mal', 'al'], bool $dryRun = false, int $maxKeys = 50, ?string $baseCollection = null, ?string $baseKey = null): array
     {
         $collection = $this->collection($collectionName);
         $primary = array_fill_keys(array_map('strtolower', $primaryKeys), true);
 
-        /** @var array<string, array<string, list<array{doc_id: mixed, hiyori_id: int}>>> $holders */
+        // Cache of base-row reference ids keyed by the document's base value,
+        // so the corroboration lookup runs once per work, not per key.
+        /** @var array<string, array<string, string>> $baseRefCache */
+        $baseRefCache = [];
+        $baseRefs = function (string $baseValue) use (&$baseRefCache, $baseCollection, $baseKey): array {
+            if ($baseValue === '' || $baseCollection === null || $baseKey === null) {
+                return [];
+            }
+            if (isset($baseRefCache[$baseValue])) {
+                return $baseRefCache[$baseValue];
+            }
+
+            $row = $this->collection($baseCollection)->findOne(
+                ['reference_ids.' . $baseKey => $baseValue],
+                ['projection' => ['reference_ids' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']],
+            );
+            $refs = [];
+            if (is_array($row) && is_array($row['reference_ids'] ?? null)) {
+                foreach ($row['reference_ids'] as $key => $value) {
+                    $refs[strtolower((string) $key)] = (string) $value;
+                }
+            }
+
+            return $baseRefCache[$baseValue] = $refs;
+        };
+
+        /** @var array<string, array<string, list<array{doc_id: mixed, hiyori_id: int, base_value: string}>>> $holders */
         $holders = [];
         $options = [
             'projection' => ['hiyori_id' => 1, 'reference_ids' => 1],
@@ -579,12 +615,22 @@ final class Migrator
             }
 
             $id = (int) ($row['hiyori_id'] ?? 0);
+            $baseValue = '';
+            if ($baseKey !== null) {
+                foreach ($refs as $refKey => $refValue) {
+                    if (strtolower((string) $refKey) === strtolower($baseKey)) {
+                        $baseValue = (string) $refValue;
+                        break;
+                    }
+                }
+            }
+
             foreach ($refs as $source => $value) {
                 $source = strtolower((string) $source);
                 if (!isset($primary[$source]) || !is_string($value) || $value === '') {
                     continue;
                 }
-                $holders[$source][$value][] = ['doc_id' => $row['_id'], 'hiyori_id' => $id];
+                $holders[$source][$value][] = ['doc_id' => $row['_id'], 'hiyori_id' => $id, 'base_value' => $baseValue];
             }
         }
 
@@ -596,7 +642,19 @@ final class Migrator
                     continue;
                 }
 
-                usort($rows, static fn (array $a, array $b): int => $a['hiyori_id'] <=> $b['hiyori_id']);
+                // Prefer the document whose base row declares this identity
+                // key; otherwise fall back to the smallest hiyori_id. A false
+                // merge usually leaves the key on a document whose base row
+                // never mentions it, while the genuine owner's base row does.
+                usort($rows, function (array $a, array $b) use ($baseRefs, $source, $value): int {
+                    $corrA = ($baseRefs($a['base_value'])[$source] ?? null) === (string) $value;
+                    $corrB = ($baseRefs($b['base_value'])[$source] ?? null) === (string) $value;
+                    if ($corrA !== $corrB) {
+                        return $corrA ? -1 : 1;
+                    }
+
+                    return $a['hiyori_id'] <=> $b['hiyori_id'];
+                });
                 $keep = array_shift($rows);
                 $dropped = [];
                 foreach ($rows as $row) {

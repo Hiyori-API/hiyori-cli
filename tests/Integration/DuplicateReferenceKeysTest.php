@@ -88,6 +88,29 @@ final class DuplicateReferenceKeysTest extends TestCase
         $this->assertEqualsCanonicalizing([41, 42], $report['sources']['al']['examples'][0]['hiyori_ids']);
     }
 
+    public function testStripDuplicateIdentityKeysPrefersBaseCorroboratedOwner(): void
+    {
+        // Beelzebub (al=13067) wrongly carries Ikoku Meiro's mal; only Ikoku
+        // Meiro's own anilist row declares mal=10832.
+        $this->client->selectDatabase(self::DB)->selectCollection('anilist')->insertMany([
+            ['title' => 'Beelzebub', 'reference_ids' => ['al' => '13067']],
+            ['title' => 'Ikoku Meiro', 'reference_ids' => ['al' => '10832', 'mal' => '10832']],
+        ]);
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
+            ['title' => 'Beelzebub', 'reference_ids' => ['al' => '13067', 'mal' => '10832'], 'hiyori_id' => 6631],
+            ['title' => 'Ikoku Meiro', 'reference_ids' => ['al' => '10832', 'mal' => '10832'], 'hiyori_id' => 10933],
+        ]);
+
+        $report = $this->migrator()->stripDuplicateIdentityKeys('organized', ['mal', 'al'], false, 50, 'anilist', 'al');
+        $this->assertSame(1, $report['resolved']);
+        $this->assertSame(10933, $report['keys'][0]['keep']);
+        $this->assertSame([6631], $report['keys'][0]['dropped']);
+
+        $loser = $this->client->selectDatabase(self::DB)->selectCollection('organized')
+            ->findOne(['hiyori_id' => 6631], ['typeMap' => ['root' => 'array', 'document' => 'array']]);
+        $this->assertArrayNotHasKey('mal', $loser['reference_ids']);
+    }
+
     public function testStripDuplicateIdentityKeysKeepsSmallestId(): void
     {
         $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([

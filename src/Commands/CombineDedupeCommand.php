@@ -29,6 +29,7 @@ final class CombineDedupeCommand extends Command
         $this
             ->addOption('collection', 'c', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Collection(s) to fix (default: every combined collection)')
             ->addOption('primary', null, InputOption::VALUE_OPTIONAL, 'Comma-separated identity keys that must stay unique', 'mal,al')
+            ->addOption('no-corroborate', null, InputOption::VALUE_NONE, 'Skip the base-source check and keep the key on the smallest id')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Report what would change without writing')
             ->addOption('json', 'j', InputOption::VALUE_NONE, 'Output as JSON');
     }
@@ -51,12 +52,20 @@ final class CombineDedupeCommand extends Command
             explode(',', (string) $input->getOption('primary')),
         )));
 
+        $corroborate = !$input->getOption('no-corroborate');
         $migrator = $this->hiyori->getMigrator();
 
         $reports = [];
         $total = 0;
         foreach ($collections as $collection) {
-            $report = $migrator->stripDuplicateIdentityKeys($collection, $primary, $dryRun);
+            $base = $corroborate ? (Migrator::BASE_SOURCE[$collection] ?? null) : null;
+            $report = $migrator->stripDuplicateIdentityKeys(
+                $collection,
+                $primary,
+                $dryRun,
+                baseCollection: $base['collection'] ?? null,
+                baseKey: $base['key'] ?? null,
+            );
             $reports[$collection] = $report;
             $total += (int) $report['resolved'];
         }
