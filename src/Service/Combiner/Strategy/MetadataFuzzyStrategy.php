@@ -28,6 +28,17 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     public const DEFAULT_TITLE_FLOOR = 0.30;
 
     /**
+     * Minimum length for a normalized title/synonym fragment to carry signal.
+     *
+     * `normalizeTitle()` strips everything outside `[a-z0-9]`, so a non-Latin
+     * title can collapse to a stray Latin character: "殺せんせーQ！" and
+     * "ポップQ" both normalize to "q". Treating such fragments as a synonym
+     * hit (0.9) merged unrelated works. Fragments shorter than this are
+     * ignored by the synonym/containment steps.
+     */
+    public const MIN_TITLE_FRAGMENT = 3;
+
+    /**
      * Default weights derived from the weightage study (field match rates
      * measured on ground-truth pairs, e.g. myanimelist vs anilist):
      *   status 100%, episodes 99%, type 98%, title 74%, season 57%, year 57%, tags ~0%
@@ -530,13 +541,13 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      *
      * @return list<string>
      */
-    private static function nonEmptyNormalizedTitles(string $title, array $synonyms): array
+    private static function nonEmptyNormalizedTitles(string $title, array $synonyms, int $minLength = 1): array
     {
         $titles = array_merge([$title], array_values(array_filter($synonyms, 'is_string')));
         $normalized = [];
         foreach ($titles as $candidate) {
             $value = self::normalizeTitle((string) $candidate);
-            if ($value !== '') {
+            if ($value !== '' && mb_strlen($value) >= $minLength) {
                 $normalized[] = $value;
             }
         }
@@ -552,7 +563,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         if ($t1 === '' && $t2 === '') {
             return 1.0;
         }
-        if ($t1 === $t2) {
+        // A one-character normalized title is virtually always a stripping
+        // artefact of a non-Latin script; leave it to the Unicode comparison.
+        if ($t1 === $t2 && mb_strlen($t1) >= 2) {
             return 1.0;
         }
 
@@ -567,15 +580,20 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         // entries are dropped first: sources routinely carry empty-string
         // synonyms, and `'' === ''` would otherwise make unrelated titles
         // look like a 0.9 synonym match.
-        $allSyn1 = self::nonEmptyNormalizedTitles($title1, $syn1);
-        $allSyn2 = self::nonEmptyNormalizedTitles($title2, $syn2);
+        $allSyn1 = self::nonEmptyNormalizedTitles($title1, $syn1, self::MIN_TITLE_FRAGMENT);
+        $allSyn2 = self::nonEmptyNormalizedTitles($title2, $syn2, self::MIN_TITLE_FRAGMENT);
         $inter = array_intersect($allSyn1, $allSyn2);
         if ($inter !== []) {
             return 0.9;
         }
 
-        // Containment (one title is a substring of the other)
-        if ($t1 !== '' && $t2 !== '' && (str_contains($t1, $t2) || str_contains($t2, $t1))) {
+        // Containment (one title is a substring of the other). Require enough
+        // signal on both sides so short artefacts cannot contain each other.
+        if (
+            mb_strlen($t1) >= self::MIN_TITLE_FRAGMENT
+            && mb_strlen($t2) >= self::MIN_TITLE_FRAGMENT
+            && (str_contains($t1, $t2) || str_contains($t2, $t1))
+        ) {
             return 0.75 + 0.15 * (min(strlen($t1), strlen($t2)) / max(strlen($t1), strlen($t2)));
         }
 

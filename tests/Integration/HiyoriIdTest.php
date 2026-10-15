@@ -110,6 +110,26 @@ final class HiyoriIdTest extends TestCase
         $this->assertTrue($verify['ok'], implode("\n", $verify['problems']));
     }
 
+    public function testFranchiseKeyOverlapDoesNotReuseIdentity(): void
+    {
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
+            ['title' => 'Trigun', 'reference_ids' => ['al' => '1', 'cr' => 'trigun'], 'type' => 'tv'],
+            ['title' => 'Trigun Stampede', 'reference_ids' => ['al' => '2', 'cr' => 'trigun'], 'type' => 'tv'],
+        ]);
+
+        $migrator = new Migrator(new Database(SerializerBuilder::create()->build()), self::DB);
+        $migrator->run();
+
+        // Sharing only a franchise/social key (`cr`) must not make a new entry
+        // reuse an existing identity; it gets a fresh id.
+        $id = $migrator->allocateId('anime', ['al' => '99', 'cr' => 'trigun'], 'trigun-badlands');
+        $this->assertSame(3, $id);
+
+        // Identity-key overlap still reuses the existing id.
+        $same = $migrator->allocateId('anime', ['al' => '2', 'cr' => 'whatever'], 'x');
+        $this->assertSame(2, $same);
+    }
+
     public function testBackfillRepairsDocsMissingSlugFromRegistry(): void
     {
         $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([

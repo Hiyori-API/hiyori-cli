@@ -143,6 +143,19 @@ final class MetadataFuzzyStrategyTest extends TestCase
         $this->assertSame(0.9, $sim);
     }
 
+    public function testShortStrippedFragmentDoesNotCountAsSynonym(): void
+    {
+        // "殺せんせーQ！" and "ポップQ" both normalize to the bare "q". That
+        // fragment must not be treated as a synonym hit between them.
+        $sim = MetadataFuzzyStrategy::titleSimilarity(
+            'Koro-sensei Q!',
+            'Pop in Q',
+            ['romaji' => 'Koro-sensei Q!', 'english' => null, 'native' => '殺せんせーQ！'],
+            ['Poppin Q', 'file(N):project PQ', 'ポップQ'],
+        );
+        $this->assertSame(0.0, $sim);
+    }
+
     public function testTitleGuardRejectsUnrelatedCandidateEvenWhenMetadataAgrees(): void
     {
         $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];

@@ -26,6 +26,14 @@ use MongoDB\Operation\FindOneAndUpdate;
 final class Migrator
 {
     /** Kind => organized collection that holds the entries. */
+    /**
+     * Reference keys that identify a single work. Franchise/social/streaming
+     * keys (`k`, `cr`, `t`, `tx`, `nf`, ...) legitimately repeat across many
+     * entries and must never be used to decide two documents are the same
+     * work — doing so handed unrelated entries the same `hiyori_id`.
+     */
+    public const IDENTITY_REF_KEYS = ['mal', 'al', 'mal_manga', 'al_manga'];
+
     public const KINDS = ['anime' => 'organized', 'manga' => 'organized_manga'];
 
     private const REGISTRY_COLLECTION = '_hiyori_ids';
@@ -680,6 +688,9 @@ final class Migrator
 
             if (!$hit && is_array($row['refs'] ?? null)) {
                 foreach ($refs as $source => $id) {
+                    if (!in_array(strtolower((string) $source), self::IDENTITY_REF_KEYS, true)) {
+                        continue;
+                    }
                     if (isset($row['refs'][$source]) && (string) $row['refs'][$source] === (string) $id) {
                         $hit = true;
                         break;
