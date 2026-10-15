@@ -26,6 +26,45 @@ class Helper
     }
 
     /**
+     * Canonical title normalisation shared by `metadata_fuzzy` and the graph- / ML-
+     * based strategies. Normalises separators, case, romaji punctuation, and
+     * collector-rendered episode counts so that titles that differ only in
+     * punctuation/ordering still match.
+     *
+     * @return string lowercase, space-collapsed title.
+     */
+    public static function normalizeTitle(string $title, bool $stripEpisodeToken = true): string
+    {
+        $title = preg_replace("/ \(([^)]*)\) /u", " \\1 ", $title) ?? $title;
+        $title = str_replace([":", "_", "-", "/", chr(92), "!", "?", ".", "…", "・" , chr(12463)], " ", $title);
+        $title = str_replace(" season ", " ", $title);
+        if ($stripEpisodeToken) {
+            $title = preg_replace("/\b(ep|episode|ch)[p]?\s*\d+\b/iu", " ", $title) ?? $title;
+        }
+        while (str_contains($title, "  ")) {
+            $title = str_replace("  ", " ", $title);
+        }
+        return trim(mb_strtolower($title, "UTF-8"));
+    }
+
+    /**
+     * SHA256 over the sorted "field->value" fingerprint of an entry. Used for
+     * idempotent re-runs / content-change detection so ingestion and ML caches
+     * don't recompute identical rows.
+     *
+     * @param array<string,mixed> $fields
+     */
+    public static function entryFingerprint(array $fields): string
+    {
+        ksort($fields);
+        $fmt = [];
+        foreach ($fields as $k => $v) {
+            $fmt[] = $k . "=" . (is_array($v) ? implode(",", array_map("strval", $v)) : strval($v));
+        }
+        return hash("sha256", implode("|", $fmt));
+    }
+
+    /**
      * Resolve the identifier a source entry should be keyed by in the merged
      * (organized) collection. Looks up the configured shorthand first, then
      * falls back to the canonical reference key.
