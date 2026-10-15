@@ -194,6 +194,24 @@ final class ReleaseCommand extends Command
             }
         }
 
+        // Optional archival sidecars.
+        if (is_dir($dumpDir . '/data/tables')) {
+            $tablesZip = $releaseDir . '/hiyori-db-' . $tag . '.tables.zip';
+            @exec('cd ' . escapeshellarg($dumpDir) . ' && zip -qr ' . escapeshellarg($tablesZip) . ' data/tables', $o, $rc);
+            if (is_file($tablesZip)) {
+                $assets['hiyori-db-' . $tag . '.tables.zip'] = (int) filesize($tablesZip);
+            }
+        }
+        if (is_file($dumpDir . '/schema.sql')) {
+            $schemaZip = $releaseDir . '/hiyori-db-' . $tag . '.schema.zip';
+            @exec('zip -qj ' . escapeshellarg($schemaZip) . ' ' . escapeshellarg($dumpDir . '/schema.sql'), $o, $rc);
+            if (is_file($schemaZip)) {
+                $assets['hiyori-db-' . $tag . '.schema.zip'] = (int) filesize($schemaZip);
+            }
+        }
+
+        $assets = $this->splitLargeAssets($releaseDir, $assets);
+
         $sums = '';
         ksort($assets);
         foreach ($assets as $name => $_) {
@@ -349,6 +367,39 @@ final class ReleaseCommand extends Command
             'content_hash' => $contentHash,
             'recorded_at' => date('c'),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+    }
+
+    /**
+     * Split assets above 1.9 GB so none exceeds the 2 GB release-asset cap.
+     *
+     * @param array<string, int> $assets
+     *
+     * @return array<string, int>
+     */
+    private function splitLargeAssets(string $releaseDir, array $assets): array
+    {
+        $limit = (int) floor(1.9 * 1024 * 1024 * 1024);
+        $out = [];
+        foreach ($assets as $name => $bytes) {
+            if ($bytes <= $limit) {
+                $out[$name] = $bytes;
+
+                continue;
+            }
+            @exec('split -b 1900M ' . escapeshellarg($releaseDir . '/' . $name) . ' ' . escapeshellarg($releaseDir . '/' . $name . '.part-'), $o, $rc);
+            $parts = glob($releaseDir . '/' . $name . '.part-*') ?: [];
+            if ($parts === []) {
+                $out[$name] = $bytes;
+
+                continue;
+            }
+            @unlink($releaseDir . '/' . $name);
+            foreach ($parts as $part) {
+                $out[basename($part)] = (int) filesize($part);
+            }
+        }
+
+        return $out;
     }
 
     private function archiveTest(string $archive): bool

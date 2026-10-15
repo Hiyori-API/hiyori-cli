@@ -660,8 +660,8 @@ release-tag policy.
 - [x] Build dump via `php hiyori export organized --profile per-entry-json` (or reuse `HIYORI_DUMP_DIR` from PHP)
 - [x] Verify manifest with `sha256sum -c` before any publish step (`--verify` equivalent)
 - [x] Produce single `hiyori-db-<tag>.tar.zst` (~9.6 MB today) with deterministic headers (`--sort=name`, `SOURCE_DATE_EPOCH`)
-- [x] Add optional sidecars: `*.anime.jsonl.zst`, `*.manga.jsonl.zst` (tables/schema sidecars pending)
-- [ ] Split any asset above 1.9 GB with `split -b 1900M … .part` and reject > 2 GB (release-asset cap)
+- [x] Add optional sidecars: `*.anime.jsonl.zst`, `*.manga.jsonl.zst`, `*.tables.zip`, `*.schema.zip`
+- [x] Split any asset above 1.9 GB with `split -b 1900M … .part` and reject > 2 GB (release-asset cap)
 - [x] Write `SHA256SUMS.txt` over every asset (including split parts)
 - [x] Implement `DRY_RUN=1` mode that stops after asset creation + verification (`release --dry-run`)
 - [x] Support gh-CLI-unavailable fallback: follow-up GitHub commands printed, pointer push attempted
