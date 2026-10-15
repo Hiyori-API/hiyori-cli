@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Tests\Unit;
 
 use Hiyori\Service\Combiner\Strategy\MetadataMlStrategy;
+use Hiyori\Service\Ml\EmbeddingService;
 use Hiyori\Service\Ml\FeatureExtractor;
 use Hiyori\Service\Ml\LogisticModel;
 use Hiyori\Service\Ml\LogisticRegressionTrainer;
@@ -129,6 +130,35 @@ final class MlLevel0Test extends TestCase
         $factory = StrategyConfigurationFactory::create()->setStrategy('metadata_ml');
         $this->assertInstanceOf(MetadataMlStrategy::class, $factory->get());
         $this->assertContains(MetadataMlStrategy::class, StrategyConfigurationFactory::AVAILABLE_STRATEGIES);
+    }
+
+    public function testEmbeddingCacheIsNamespacedByModelAndVersion(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'emb') . '.json';
+
+        $a = new EmbeddingService(64, null, $file, 'local-ngram', 'local-ngram-1');
+        $this->assertSame('local-ngram', $a->model());
+        $this->assertSame('local-ngram-1', $a->modelVersion());
+        $first = $a->embed('cowboy bebop');
+        $a->flush();
+
+        // Reload with the same model/version: the vector is reused.
+        $same = new EmbeddingService(64, null, $file, 'local-ngram', 'local-ngram-1');
+        $this->assertSame(1, $same->cachedCount());
+        $this->assertSame($first, $same->embed('cowboy bebop'));
+
+        // Different model or version: stale vectors are ignored, not mixed.
+        $this->assertSame(0, (new EmbeddingService(64, null, $file, 'other-model', 'local-ngram-1'))->cachedCount());
+        $this->assertSame(0, (new EmbeddingService(64, null, $file, 'local-ngram', 'local-ngram-2'))->cachedCount());
+
+        @unlink($file);
+    }
+
+    public function testLocalEmbeddingIsDeterministic(): void
+    {
+        $service = new EmbeddingService(32, null, tempnam(sys_get_temp_dir(), 'emb') . '.json');
+        $this->assertFalse($service->isExternal());
+        $this->assertSame($service->embed('Cowboy Bebop'), $service->embed('Cowboy Bebop'));
     }
 
     /**

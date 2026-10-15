@@ -21,6 +21,11 @@ use Hiyori\Helper;
  * The fallback is intentionally cheap: it is not a semantic model, but it is
  * stable, offline and good enough to rerank candidate pairs that already
  * passed the metadata prefilter.
+ *
+ * Cache keys are namespaced by `(model, model_version, sha1(text))` and the
+ * cache file records the model/version it was built with, so switching
+ * `ML_MODEL` (or the sidecar) invalidates stale vectors instead of silently
+ * mixing embeddings from two models.
  */
 final class EmbeddingService
 {
@@ -35,15 +40,41 @@ final class EmbeddingService
 
     private string $cacheFile;
 
+    private string $model;
+
+    private string $modelVersion;
+
     public function __construct(
         private int $dimensions = self::DEFAULT_DIMENSIONS,
         ?string $command = null,
         ?string $cacheFile = null,
+        ?string $model = null,
+        ?string $modelVersion = null,
     ) {
         $this->dimensions = max(16, $dimensions);
         $this->command = $command ?? (getenv('ML_EMBED_COMMAND') ?: null);
         $this->cacheFile = $cacheFile ?? dirname(__DIR__, 3) . '/storage/state/ml-embeddings.json';
+        $this->model = $model ?? (getenv('ML_MODEL') ?: ($this->isExternal()
+            ? 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+            : 'local-ngram'));
+        $this->modelVersion = $modelVersion ?? (getenv('ML_EMBED_VERSION') ?: ($this->isExternal() ? 'sidecar-1' : 'local-ngram-1'));
         $this->loadCache();
+    }
+
+    public function model(): string
+    {
+        return $this->model;
+    }
+
+    public function modelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    /** Number of vectors currently held in memory (after cache load). */
+    public function cachedCount(): int
+    {
+        return count($this->cache);
     }
 
     public function isExternal(): bool
@@ -90,7 +121,7 @@ final class EmbeddingService
      */
     public function embed(string $text): array
     {
-        $key = hash('sha1', $text);
+        $key = $this->cacheKey($text);
         if (isset($this->cache[$key])) {
             return $this->cache[$key];
         }
@@ -137,7 +168,11 @@ final class EmbeddingService
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
         }
-        @file_put_contents($this->cacheFile, json_encode($this->cache));
+        @file_put_contents($this->cacheFile, json_encode([
+            'model' => $this->model,
+            'version' => $this->modelVersion,
+            'vectors' => $this->cache,
+        ]));
         $this->cacheDirty = false;
     }
 
@@ -187,7 +222,7 @@ final class EmbeddingService
         if (!is_resource($process)) {
             return null;
         }
-        fwrite($pipes[0], json_encode(['text' => $text]) . "\n");
+        fwrite($pipes[0], json_encode(['text' => $text, 'model' => $this->model]) . "\n");
         fclose($pipes[0]);
         $stdout = stream_get_contents($pipes[1]);
         fclose($pipes[1]);
@@ -213,16 +248,34 @@ final class EmbeddingService
         return self::normalize($vector);
     }
 
+    private function cacheKey(string $text): string
+    {
+        return hash('sha1', $this->model . "\0" . $this->modelVersion . "\0" . $text);
+    }
+
     private function loadCache(): void
     {
         if (!is_file($this->cacheFile)) {
             return;
         }
         $decoded = json_decode((string) @file_get_contents($this->cacheFile), true);
-        if (is_array($decoded)) {
-            /** @var array<string, array<int, float>> $decoded */
-            $this->cache = array_filter($decoded, 'is_array');
+        if (!is_array($decoded) || !is_array($decoded['vectors'] ?? null)) {
+            return; // legacy/unrelated cache format — recompute
         }
+        $model = (string) ($decoded['model'] ?? '');
+        $version = (string) ($decoded['version'] ?? '');
+        if ($model !== $this->model || $version !== $this->modelVersion) {
+            return; // different model/version — vectors are not comparable
+        }
+        $vectors = [];
+        foreach ($decoded['vectors'] as $key => $vector) {
+            if (!is_array($vector)) {
+                continue;
+            }
+            // JSON turns 0.0 into int 0; re-cast so the in-memory type stays float.
+            $vectors[(string) $key] = array_map('floatval', array_values($vector));
+        }
+        $this->cache = $vectors;
     }
 
     /** @param array<int, float> $vector @return array<int, float> */
