@@ -114,6 +114,33 @@ class Helper
     }
 
     /**
+     * Unicode-safe canonical title used for the exact-match shortcut in the
+     * combiner. Applies NFKC (full-width folding, compatibility forms),
+     * lowercases, drops combining marks and collapses whitespace. Purely
+     * additive: callers keep their existing fuzzy path for non-exact matches.
+     */
+    public static function normalizeTitleUnicode(string $title): string
+    {
+        $title = trim($title);
+        if ($title === '') {
+            return '';
+        }
+
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($title, \Normalizer::FORM_KC);
+            if (is_string($normalized)) {
+                $title = $normalized;
+            }
+        }
+
+        $title = mb_strtolower($title, 'UTF-8');
+        $title = preg_replace('/\p{Mn}+/u', '', $title) ?? $title;
+        $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
+
+        return trim($title);
+    }
+
+    /**
      * Symfony's `%estimated%` placeholder needs a known maximum. Ingestion
      * sources without a reliable total (MAL ranking) pass 0 and need a format
      * without ETA, otherwise ProgressBar throws before the first advance.

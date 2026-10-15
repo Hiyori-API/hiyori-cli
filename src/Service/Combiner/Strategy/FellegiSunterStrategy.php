@@ -66,6 +66,9 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $cutoff = min(1.0, max(0.5, (float) ($strategy->getConfig('agreement_cutoff') ?? 0.85)));
         $threshold = (float) ($strategy->getConfig('threshold') ?? 60.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
+        $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
+        $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
+        $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -83,6 +86,9 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $totalMerged = 0;
         $scores = [];
         $mergedSources = [];
+        $candidatesExamined = 0;
+        $rejectedAnchor = 0;
+        $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
             $entryArray = \Hiyori\Helper::convertMongoResultToArray($entry);
@@ -92,7 +98,24 @@ final class FellegiSunterStrategy extends CombinerStrategy
                     continue;
                 }
 
-                $best = self::findBestMatch($db, $currentSource->getTable(), $entryArray, $m, $u, $cutoff, $threshold);
+                $examined = 0;
+                $rejected = 0;
+                $best = self::findBestMatch(
+                    $db,
+                    $currentSource->getTable(),
+                    $entryArray,
+                    $m,
+                    $u,
+                    $cutoff,
+                    $threshold,
+                    $anchorRejection,
+                    $anchorYearTolerance,
+                    $anchorEpisodes,
+                    $examined,
+                    $rejected,
+                );
+                $candidatesExamined += $examined;
+                $rejectedAnchor += $rejected;
                 if ($best === null) {
                     continue;
                 }
@@ -111,12 +134,15 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $progressBar->finish();
 
         $console->io()->info('Fellegi–Sunter merge complete. Merged: ' . $totalMerged);
-        (new Telemetry())->update('combine-latest', [
+        $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
             'merges' => $totalMerged,
             'threshold' => $threshold,
             'agreement_cutoff' => $cutoff,
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
+            'anchor_rejection' => $anchorRejection,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),
                 'min' => round(min($scores), 1),
@@ -124,6 +150,14 @@ final class FellegiSunterStrategy extends CombinerStrategy
             ] : null,
             'merged_sources' => $mergedSources,
             'completed_at' => date('c'),
+        ]);
+        $telemetry->append('combine-events', [
+            'strategy' => self::NAME,
+            'base' => $tableName,
+            'merges' => $totalMerged,
+            'threshold' => $threshold,
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
         ]);
     }
 
@@ -142,10 +176,24 @@ final class FellegiSunterStrategy extends CombinerStrategy
         array $u,
         float $cutoff,
         float $threshold,
+        bool $anchorRejection = true,
+        int $yearTolerance = 1,
+        bool $rejectEpisodes = false,
+        int &$examined = 0,
+        int &$rejected = 0,
     ): ?array {
         $bestScore = 0.0;
         $bestMatch = null;
-        foreach (MetadataFuzzyStrategy::candidates($db, $targetTable, $entry) as $candidate) {
+        $candidates = MetadataFuzzyStrategy::candidates($db, $targetTable, $entry);
+        $examined = count($candidates);
+        $rejected = 0;
+
+        foreach ($candidates as $candidate) {
+            if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entry, $candidate, $yearTolerance, $rejectEpisodes)) {
+                $rejected++;
+
+                continue;
+            }
             $score = self::score($entry, $candidate, $m, $u, $cutoff);
             if ($score > $bestScore && $score >= $threshold) {
                 $bestScore = $score;

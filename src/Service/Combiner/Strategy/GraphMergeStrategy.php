@@ -39,6 +39,9 @@ final class GraphMergeStrategy extends CombinerStrategy
         $mergeThreshold = (float) ($strategy->getConfig('threshold') ?? 70.0);
         $maxDepth = max(1, (int) ($strategy->getConfig('max_depth') ?? 4));
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
+        $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
+        $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
+        $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -64,7 +67,7 @@ final class GraphMergeStrategy extends CombinerStrategy
                 continue;
             }
 
-            $members = self::expandCluster($db, $source, $tableName, $entryArray, $weights, $linkThreshold, $maxDepth);
+            $members = self::expandCluster($db, $source, $tableName, $entryArray, $weights, $linkThreshold, $maxDepth, $anchorRejection, $anchorYearTolerance, $anchorEpisodes);
             if ($members === [] || $members[0]['score'] < $mergeThreshold) {
                 $progressBar->advance();
 
@@ -92,14 +95,23 @@ final class GraphMergeStrategy extends CombinerStrategy
 
         ksort($clusterSizes);
         $console->io()->info('Graph merge complete. Merged: ' . $totalMerged);
-        (new Telemetry())->update('combine-latest', [
+        $telemetry = new Telemetry();
+        $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
             'merges' => $totalMerged,
             'link_threshold' => $linkThreshold,
             'threshold' => $mergeThreshold,
             'cluster_sizes' => $clusterSizes,
+            'anchor_rejection' => $anchorRejection,
             'completed_at' => date('c'),
+        ]);
+        $telemetry->append('combine-events', [
+            'strategy' => self::NAME,
+            'base' => $tableName,
+            'merges' => $totalMerged,
+            'threshold' => $mergeThreshold,
+            'link_threshold' => $linkThreshold,
         ]);
     }
 
@@ -119,6 +131,9 @@ final class GraphMergeStrategy extends CombinerStrategy
         array $weights,
         float $linkThreshold,
         int $maxDepth,
+        bool $anchorRejection = true,
+        int $anchorYearTolerance = 1,
+        bool $anchorEpisodes = false,
     ): array {
         $visited = [$baseTable => true];
         $frontier = [['entry' => $baseEntry, 'depth' => 0]];
@@ -136,7 +151,7 @@ final class GraphMergeStrategy extends CombinerStrategy
                     continue;
                 }
 
-                $best = MetadataFuzzyStrategy::findBestMatch($db, $table, $node['entry'], $weights, $linkThreshold);
+                $best = MetadataFuzzyStrategy::findBestMatch($db, $table, $node['entry'], $weights, $linkThreshold, $anchorRejection, $anchorYearTolerance, $anchorEpisodes);
                 if ($best === null) {
                     continue;
                 }
