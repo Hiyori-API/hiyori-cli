@@ -7,6 +7,7 @@ namespace Hiyori\Commands;
 use Hiyori\Helper;
 use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
+use Hiyori\Service\Ml\BenchmarkEvaluator;
 use Hiyori\Service\Ml\FeatureExtractor;
 use Hiyori\Service\Ml\LabelStore;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -51,6 +52,7 @@ final class MlExportPairsCommand extends Command
             ->addOption('collection', null, InputOption::VALUE_OPTIONAL, 'Ground-truth collection', 'organized')
             ->addOption('out', null, InputOption::VALUE_OPTIONAL, 'Output JSONL path (default: storage/ml/pairs-<ts>.jsonl)', '')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Also export negatives for base entries with no organized document and no human labels')
+            ->addOption('holdout', null, InputOption::VALUE_OPTIONAL, 'Hold out this % of base entries (grouped, deterministic) into a -holdout file', 0)
             ->addOption('sample', null, InputOption::VALUE_OPTIONAL, 'Sampling mode: random|first', 'random');
     }
 
@@ -62,6 +64,7 @@ final class MlExportPairsCommand extends Command
         $maxNegatives = max(0, (int) $input->getOption('negatives'));
         $collectionName = (string) $input->getOption('collection');
         $includeUnmerged = (bool) $input->getOption('all');
+        $holdoutPercent = max(0, min(99, (int) $input->getOption('holdout')));
 
         $sources = SourceConfigurationFactory::create();
         if (!$sources->exists($baseName)) {
@@ -116,9 +119,19 @@ final class MlExportPairsCommand extends Command
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
         }
-        $handle = @fopen($outPath, 'wb');
-        if ($handle === false) {
-            $io->error('Cannot open output file: ' . $outPath);
+        $trainPath = $outPath;
+        $holdoutPath = null;
+        if ($holdoutPercent > 0) {
+            $extension = pathinfo($outPath, PATHINFO_EXTENSION);
+            $suffix = $extension !== '' ? '.' . $extension : '.jsonl';
+            $stem = $extension !== '' ? substr($outPath, 0, -(strlen($extension) + 1)) : $outPath;
+            $trainPath = $stem . '-train' . $suffix;
+            $holdoutPath = $stem . '-holdout' . $suffix;
+        }
+        $trainHandle = @fopen($trainPath, 'wb');
+        $holdoutHandle = $holdoutPath !== null ? @fopen($holdoutPath, 'wb') : null;
+        if ($trainHandle === false || ($holdoutPath !== null && $holdoutHandle === false)) {
+            $io->error('Cannot open output file(s).');
 
             return Command::FAILURE;
         }
@@ -129,6 +142,7 @@ final class MlExportPairsCommand extends Command
         $humanLabels = 0;
         $sampled = 0;
         $skipped = 0;
+        $bySide = ['train' => ['rows' => 0, 'positives' => 0, 'negatives' => 0], 'holdout' => ['rows' => 0, 'positives' => 0, 'negatives' => 0]];
 
         $io->section(\sprintf('Exporting pairs: base=%s targets=%s', $baseName, implode(',', array_keys($targets))));
         $io->text(\sprintf('Bases sampled: %d (limit %d of %d)', $limit, $limit, $total));
@@ -140,6 +154,9 @@ final class MlExportPairsCommand extends Command
                 continue;
             }
             $sampled++;
+
+            $side = BenchmarkEvaluator::split($baseShorthand . ':' . $baseId, $holdoutPercent);
+            $handle = $side === 'holdout' && $holdoutHandle !== null ? $holdoutHandle : $trainHandle;
 
             $labels = $labelStore->forBase($baseShorthand, $baseId);
             $goldenRefs = $this->goldenReferences($organized, $baseShorthand, $baseArray['reference_ids'][$baseShorthand] ?? $baseId);
@@ -163,8 +180,7 @@ final class MlExportPairsCommand extends Command
                         $labelSource = isset($labels[$key]) ? 'human' : 'organized';
                         $humanLabels += $labelSource === 'human' ? 1 : 0;
                         $this->writeRow($handle, $extractor, $baseArray, $positive, $label, $baseShorthand, $baseId, $targetShorthand, $weights, $labelSource);
-                        $label === 1 ? $positives++ : $negatives++;
-                        $rows++;
+                        $this->tally($bySide[$side], $label, $positives, $negatives, $rows);
                         $emitted[$key] = true;
                     }
                 }
@@ -184,8 +200,7 @@ final class MlExportPairsCommand extends Command
                     $labelSource = isset($labels[$key]) ? 'human' : 'organized';
                     $humanLabels += $labelSource === 'human' ? 1 : 0;
                     $this->writeRow($handle, $extractor, $baseArray, $candidate, $label, $baseShorthand, $baseId, $targetShorthand, $weights, $labelSource);
-                    $label === 1 ? $positives++ : $negatives++;
-                    $rows++;
+                    $this->tally($bySide[$side], $label, $positives, $negatives, $rows);
                     $emitted[$key] = true;
                     if (++$written >= $maxNegatives) {
                         break;
@@ -210,12 +225,14 @@ final class MlExportPairsCommand extends Command
                 }
                 $this->writeRow($handle, $extractor, $baseArray, $candidate, $label, $baseShorthand, $baseId, $targetShorthand, $weights, 'human');
                 $humanLabels++;
-                $label === 1 ? $positives++ : $negatives++;
-                $rows++;
+                $this->tally($bySide[$side], $label, $positives, $negatives, $rows);
             }
         }
 
-        fclose($handle);
+        fclose($trainHandle);
+        if ($holdoutHandle !== null) {
+            fclose($holdoutHandle);
+        }
 
         $meta = [
             'base' => $baseName,
@@ -228,9 +245,11 @@ final class MlExportPairsCommand extends Command
             'human_label_rows' => $humanLabels,
             'sampled' => $sampled,
             'skipped_unmerged' => $skipped,
+            'holdout_percent' => $holdoutPercent,
+            'by_side' => $bySide,
             'created_at' => gmdate('c'),
         ];
-        @file_put_contents($outPath . '.meta.json', json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @file_put_contents($trainPath . '.meta.json', json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $io->success(\sprintf(
             'Wrote %d rows (%d positives / %d negatives, %d from human labels) to %s',
@@ -238,10 +257,39 @@ final class MlExportPairsCommand extends Command
             $positives,
             $negatives,
             $humanLabels,
-            $outPath,
+            $trainPath,
         ));
+        if ($holdoutPath !== null) {
+            $io->text(\sprintf(
+                'Holdout %d%%: %d rows (%d pos / %d neg) → %s',
+                $holdoutPercent,
+                $bySide['holdout']['rows'],
+                $bySide['holdout']['positives'],
+                $bySide['holdout']['negatives'],
+                $holdoutPath,
+            ));
+            $io->text('Train on the -train file, benchmark with `combine:benchmark --in <holdout>` for an honest gate.');
+        }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Increment the totals and the per-split bucket.
+     *
+     * @param array{rows: int, positives: int, negatives: int} $side
+     */
+    private function tally(array &$side, int $label, int &$positives, int &$negatives, int &$rows): void
+    {
+        $rows++;
+        $side['rows']++;
+        if ($label === 1) {
+            $positives++;
+            $side['positives']++;
+        } else {
+            $negatives++;
+            $side['negatives']++;
+        }
     }
 
     /**

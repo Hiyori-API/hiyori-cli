@@ -52,4 +52,27 @@ final class BenchmarkEvaluatorTest extends TestCase
     {
         $this->assertNull(BenchmarkEvaluator::best([]));
     }
+
+    public function testSplitIsDeterministicAndGrouped(): void
+    {
+        $this->assertSame('train', BenchmarkEvaluator::split('mal:1', 0));
+        $this->assertSame('holdout', BenchmarkEvaluator::split('mal:1', 100));
+        $this->assertSame(
+            BenchmarkEvaluator::split('mal:42', 30),
+            BenchmarkEvaluator::split('mal:42', 30),
+        );
+    }
+
+    public function testSplitApproximatesRequestedProportion(): void
+    {
+        $holdout = 0;
+        for ($i = 0; $i < 2000; $i++) {
+            if (BenchmarkEvaluator::split('mal:' . $i, 25) === 'holdout') {
+                $holdout++;
+            }
+        }
+        $share = $holdout / 2000;
+        $this->assertGreaterThan(0.20, $share);
+        $this->assertLessThan(0.30, $share);
+    }
 }
