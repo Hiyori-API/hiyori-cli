@@ -746,7 +746,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [ ] Settings → Combine/ML config (model, sidecar path, caps, budget, enable toggle)
 
 ### 4.7 Validation
-- [~] Offline A/B benchmark vs `metadata_fuzzy` (coverage, F1, duplicate keys = 0) — holdout F1 done (+0.107 over fuzzy); duplicate-key gate shipped as `php hiyori combine:dupes` (`mal`/`al` are clean for current-schema docs). Pending: `organized`/`organized_manga` still hold 10,147 legacy array-shaped docs — **all 130 `mal` collisions are legacy**, so a clean rebuild is required before `duplicate keys = 0` holds end-to-end
+- [~] Offline A/B benchmark vs `metadata_fuzzy` (coverage, F1, duplicate keys = 0) — holdout F1 done (+0.107 over fuzzy); duplicate-key gate shipped as `php hiyori combine:dupes` (`mal`/`al` are clean for current-schema docs). Pending: `organized`/`organized_manga` still hold 10,147 legacy array-shaped docs — **all 130 `mal` collisions are legacy**, so a clean rebuild is required before `duplicate keys = 0` holds end-to-end. The gate now runs in `.github/workflows/publish.yml` after `combine` (fresh builds have no legacy docs)
 - [ ] Idempotency/content-hash regression test for re-runs
 - [~] Cost + latency documentation + shipping gate (F1 ≥ baseline +2 pts) — gate is now configurable: `combine:benchmark --margin 2 --strict` exits non-zero unless `metadata_ml` beats `metadata_fuzzy` by ≥2 F1 points (holdout run: +10.7 pts). Cost/latency write-up still pending
 

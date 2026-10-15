@@ -40,7 +40,7 @@
 | Publish command | `php hiyori publish` / `php hiyori db:push` |
 | Export engine | `Hiyori\Service\Exporter` (per-entry JSON, JSONL mirror, CSV tables, manifest) |
 | Checksums | `manifest.json`: per-file `sha256`/`bytes`/`rows`, plus top-level `content_hash` (sha256 over sorted `name\0sha256`) |
-| CI | `.github/workflows/publish.yml` (manual/tag trigger → migrate → combine → `php hiyori publish`) |
+| CI | `.github/workflows/publish.yml` (manual/tag trigger → migrate → combine → `combine:dupes` release gate → `php hiyori release`) |
 
 Measured dump (`output/hiyoridb`, 2026-10-14):
 

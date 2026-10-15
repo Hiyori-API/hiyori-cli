@@ -86,6 +86,17 @@ jobs:
           php hiyori combine anilist --export=per-entry-json
           php hiyori combine kitsu --into=organized_manga --export=per-entry-json
 
+      - name: Release gate (no duplicate identity keys)
+        # Fails the release if any combined collection repeats a `mal`/`al`
+        # key. Franchise keys (k/cr/t/nf/...) are reported but allowed.
+        working-directory: hiyori-cli
+        run: php hiyori combine:dupes --primary mal,al
+
+      # Optional F1 gate (needs a labelled hold-out pairs file; run manually):
+      #   php hiyori ml:export-pairs --holdout 30
+      #   php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
+      #   php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl --margin 2 --strict
+
       - name: Publish compressed Tier B release
         working-directory: hiyori-cli
         env:
