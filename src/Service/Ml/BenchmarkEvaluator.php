@@ -78,4 +78,39 @@ final class BenchmarkEvaluator
 
         return $best;
     }
+
+    /**
+     * Compare the ML scorer against the fuzzy baseline for the shipping gate.
+     *
+     * The gate passes when `metadata_ml` best F1 is at least the baseline F1
+     * plus `requiredMargin` (in F1 points, 0–1 scale). A margin of 0 keeps the
+     * original "must beat the baseline" semantics; the roadmap's shipping gate
+     * uses +0.02 (2 points).
+     *
+     * @return array{comparable: bool, passed: bool, margin: float|null, required_margin: float, baseline_f1: float|null, ml_f1: float|null}
+     */
+    public static function gate(?float $baselineF1, ?float $mlF1, float $requiredMargin = 0.0): array
+    {
+        if ($baselineF1 === null || $mlF1 === null) {
+            return [
+                'comparable' => false,
+                'passed' => false,
+                'margin' => null,
+                'required_margin' => $requiredMargin,
+                'baseline_f1' => $baselineF1,
+                'ml_f1' => $mlF1,
+            ];
+        }
+
+        $margin = $mlF1 - $baselineF1;
+
+        return [
+            'comparable' => true,
+            'passed' => $margin >= $requiredMargin,
+            'margin' => round($margin, 4),
+            'required_margin' => $requiredMargin,
+            'baseline_f1' => round($baselineF1, 4),
+            'ml_f1' => round($mlF1, 4),
+        ];
+    }
 }
