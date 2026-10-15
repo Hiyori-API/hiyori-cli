@@ -754,13 +754,13 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 ## Batch 4 — Combiner v2 (research/design, 2026-10-15)
 
 - [x] Research doc delivered: `docs/combiner-strategy-research.md` (baseline, failure modes, tuning grids 65/70/75/80, candidate improvements, three proposed strategies, scaffolds, rollout)
-- [ ] Baseline benchmark harness: gold-pair sampling via `weightage` + precision/recall/F1 at thresholds 65/70/75/80 (`tests/Benchmark/` or `scripts/benchmark-combiner-strategies.php`)
-- [ ] Metadata-fuzzy candidate improvements: Unicode-safe title normalization (`Helper::normalizeTitleUnicode`) + anchor-field rejection (`anchor_rejection`, `anchor_year_tolerance`)
+- [x] Baseline benchmark harness: `ml:export-pairs` gold-pair sampling + `combine:benchmark` threshold sweep (precision/recall/F1 at 60/65/70/75/80/85/90) with a `metadata_ml` vs `metadata_fuzzy` F1 gate report
+- [x] Metadata-fuzzy candidate improvements: Unicode-safe title normalization (`Helper::normalizeTitleUnicode`) + anchor-field rejection (`anchor_rejection`, `anchor_year_tolerance`, `anchor_episodes`)
 - [ ] Weight recalibration pass: 600+ labeled pairs (anime + manga), store `storage/state/weightage-*.json`, gate on precision/recall thresholds
-- [ ] Telemetry upgrade: `rejected_anchor`, `candidates_examined`, per-source counts, `combine-events.jsonl`, `combine-benchmark.jsonl` (additive only)
+- [x] Telemetry upgrade: `rejected_anchor`, `candidates_examined`, per-source counts, `combine-events.jsonl`, `combine-benchmark.jsonl` (additive only)
 - [x] Graph connected-components strategy + unit tests (transitive cluster expansion, link/merge thresholds, cluster telemetry)
 - [x] Fellegi–Sunter probabilistic strategy (configurable m/u; score + registration tests); m/u calibration from benchmark pairs still pending
 - [x] Semantic re-rank strategy aligned to `docs/ml-augmentation-design.md` (embeddings interface; LLM tie-break/`ml_*` fields still pending)
 - [x] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
 - [ ] Label capture via `/api/sample` agree/disagree for precision/recall tracking
-- [ ] Release gate: F1 ≥ baseline + agreed margin and duplicate organized keys = 0 before any default switch
+- [ ] Release gate: default switch still pending — `combine:benchmark` reports the F1 comparison; agree the margin + confirm duplicate organized keys = 0 first
