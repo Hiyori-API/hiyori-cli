@@ -16,6 +16,18 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     public const NAME = 'metadata_fuzzy';
 
     /**
+     * Minimum title similarity (0–1) required before a candidate may merge.
+     *
+     * Without this guard the weighted score can pass the threshold on
+     * non-identifying fields alone: `type`+`status`+`episodes`+`season`+`year`
+     * sum to 73.5, so two unrelated entries that share a year and episode count
+     * score above 70 with **zero** title overlap (observed: "Sonic X Season 2"
+     * merging with "Mai-Otome" and "Mushishi"). Set `title_floor` to 0 to
+     * disable the guard.
+     */
+    public const DEFAULT_TITLE_FLOOR = 0.30;
+
+    /**
      * Default weights derived from the weightage study (field match rates
      * measured on ground-truth pairs, e.g. myanimelist vs anilist):
      *   status 100%, episodes 99%, type 98%, title 74%, season 57%, year 57%, tags ~0%
@@ -47,6 +59,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
+        $titleFloor = (float) ($strategy->getConfig('title_floor') ?? self::DEFAULT_TITLE_FLOOR);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -65,6 +78,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
+        $rejectedTitle = 0;
         $telemetry = new \Hiyori\Service\Telemetry();
 
         foreach ($cursor as $id => $entry) {
@@ -92,9 +106,11 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $anchorRejection,
                     $anchorYearTolerance,
                     $anchorEpisodes,
+                    $titleFloor,
                 );
                 $candidatesExamined += $match['examined'];
                 $rejectedAnchor += $match['rejected_anchor'];
+                $rejectedTitle += $match['rejected_title'];
                 $bestMatch = $match['best'];
 
                 if ($bestMatch !== null) {
@@ -182,6 +198,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'threshold' => round($threshold, 1),
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
+            'rejected_title' => $rejectedTitle,
+            'title_floor' => $titleFloor,
             'merged_sources' => $mergedSources,
             'anchor_rejection' => $anchorRejection,
             'anchor_year_tolerance' => $anchorYearTolerance,
@@ -204,6 +222,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'threshold' => round($threshold, 1),
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
+            'rejected_title' => $rejectedTitle,
         ]);
     }
 
@@ -244,7 +263,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * @param list<array<string, mixed>> $candidates
      * @param array<string, float>       $weights
      *
-     * @return array{best: ?array<string, mixed>, examined: int, rejected_anchor: int}
+     * @return array{best: ?array<string, mixed>, examined: int, rejected_anchor: int, rejected_title: int}
      */
     public static function match(
         array $entry,
@@ -253,15 +272,23 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         float $threshold,
         bool $anchorRejection = true,
         int $yearTolerance = 1,
-        bool $rejectEpisodes = false
+        bool $rejectEpisodes = false,
+        float $titleFloor = self::DEFAULT_TITLE_FLOOR
     ): array {
         $bestScore = 0.0;
         $bestMatch = null;
         $rejected = 0;
+        $rejectedTitle = 0;
 
         foreach ($candidates as $candidateArray) {
             if ($anchorRejection && self::isAnchorRejected($entry, $candidateArray, $yearTolerance, $rejectEpisodes)) {
                 $rejected++;
+
+                continue;
+            }
+
+            if (self::isTitleRejected($entry, $candidateArray, $titleFloor)) {
+                $rejectedTitle++;
 
                 continue;
             }
@@ -277,7 +304,37 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $bestMatch['_score'] = $bestScore;
         }
 
-        return ['best' => $bestMatch, 'examined' => count($candidates), 'rejected_anchor' => $rejected];
+        return [
+            'best' => $bestMatch,
+            'examined' => count($candidates),
+            'rejected_anchor' => $rejected,
+            'rejected_title' => $rejectedTitle,
+        ];
+    }
+
+    /**
+     * Title guard used by {@see match()}: reject a candidate whose title
+     * similarity is below `$titleFloor` even if its weighted score passes.
+     *
+     * A floor of 0 disables the guard (legacy behaviour).
+     *
+     * @param array<string, mixed> $entry
+     * @param array<string, mixed> $candidate
+     */
+    public static function isTitleRejected(array $entry, array $candidate, float $titleFloor): bool
+    {
+        if ($titleFloor <= 0.0) {
+            return false;
+        }
+
+        $similarity = self::titleSimilarity(
+            (string) ($entry['title'] ?? ''),
+            (string) ($candidate['title'] ?? ''),
+            (array) ($entry['synonyms'] ?? []),
+            (array) ($candidate['synonyms'] ?? []),
+        );
+
+        return $similarity < $titleFloor;
     }
 
     /**
@@ -465,6 +522,28 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     /**
      * Title similarity: exact/normalized match, else synonym overlap, else token Jaccard.
      */
+    /**
+     * Normalized, non-empty titles for synonym comparison: the primary title
+     * plus every string synonym, blanks removed.
+     *
+     * @param array<int, mixed> $synonyms
+     *
+     * @return list<string>
+     */
+    private static function nonEmptyNormalizedTitles(string $title, array $synonyms): array
+    {
+        $titles = array_merge([$title], array_values(array_filter($synonyms, 'is_string')));
+        $normalized = [];
+        foreach ($titles as $candidate) {
+            $value = self::normalizeTitle((string) $candidate);
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
     public static function titleSimilarity(string $title1, string $title2, array $syn1, array $syn2): float
     {
         $t1 = self::normalizeTitle($title1);
@@ -484,9 +563,12 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             return 1.0;
         }
 
-        // Synonym overlap (either side contains the other's title)
-        $allSyn1 = array_map([self::class, 'normalizeTitle'], array_merge([$title1], array_values(array_filter($syn1, 'is_string'))));
-        $allSyn2 = array_map([self::class, 'normalizeTitle'], array_merge([$title2], array_values(array_filter($syn2, 'is_string'))));
+        // Synonym overlap (either side contains the other's title). Blank
+        // entries are dropped first: sources routinely carry empty-string
+        // synonyms, and `'' === ''` would otherwise make unrelated titles
+        // look like a 0.9 synonym match.
+        $allSyn1 = self::nonEmptyNormalizedTitles($title1, $syn1);
+        $allSyn2 = self::nonEmptyNormalizedTitles($title2, $syn2);
         $inter = array_intersect($allSyn1, $allSyn2);
         if ($inter !== []) {
             return 0.9;

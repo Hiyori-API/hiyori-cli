@@ -69,6 +69,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
+        $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -111,6 +112,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
                     $anchorRejection,
                     $anchorYearTolerance,
                     $anchorEpisodes,
+                    $titleFloor,
                     $examined,
                     $rejected,
                 );
@@ -179,6 +181,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
         bool $anchorRejection = true,
         int $yearTolerance = 1,
         bool $rejectEpisodes = false,
+        float $titleFloor = MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
         int &$examined = 0,
         int &$rejected = 0,
     ): ?array {
@@ -190,6 +193,11 @@ final class FellegiSunterStrategy extends CombinerStrategy
 
         foreach ($candidates as $candidate) {
             if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entry, $candidate, $yearTolerance, $rejectEpisodes)) {
+                $rejected++;
+
+                continue;
+            }
+            if (MetadataFuzzyStrategy::isTitleRejected($entry, $candidate, $titleFloor)) {
                 $rejected++;
 
                 continue;

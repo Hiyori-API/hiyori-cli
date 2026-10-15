@@ -43,6 +43,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
+        $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
 
         $embeddings = new EmbeddingService(
             (int) ($strategy->getConfig('embedding_dimensions') ?? 256),
@@ -67,6 +68,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $scores = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
+        $rejectedTitle = 0;
         $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
@@ -82,6 +84,12 @@ final class SemanticRerankStrategy extends CombinerStrategy
                     $candidatesExamined++;
                     if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entryArray, $candidate, $anchorYearTolerance, $anchorEpisodes)) {
                         $rejectedAnchor++;
+
+                        continue;
+                    }
+
+                    if (MetadataFuzzyStrategy::isTitleRejected($entryArray, $candidate, $titleFloor)) {
+                        $rejectedTitle++;
 
                         continue;
                     }
@@ -121,6 +129,8 @@ final class SemanticRerankStrategy extends CombinerStrategy
             'embedding_backend' => $embeddings->isExternal() ? 'sidecar' : 'local-ngram',
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
+            'rejected_title' => $rejectedTitle,
+            'title_floor' => $titleFloor,
             'anchor_rejection' => $anchorRejection,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),

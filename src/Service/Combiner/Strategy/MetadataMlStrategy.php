@@ -46,6 +46,7 @@ final class MetadataMlStrategy extends CombinerStrategy
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
+        $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
 
         $modelPath = (string) ($strategy->getConfig('ml_model') ?? ExportConfig::rootDir() . '/storage/state/ml-model.json');
         $model = LogisticModel::load($modelPath);
@@ -75,6 +76,7 @@ final class MetadataMlStrategy extends CombinerStrategy
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
+        $rejectedTitle = 0;
         $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
@@ -97,6 +99,12 @@ final class MetadataMlStrategy extends CombinerStrategy
                 foreach ($candidates as $candidate) {
                     if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entryArray, $candidate, $anchorYearTolerance, $anchorEpisodes)) {
                         $rejectedAnchor++;
+
+                        continue;
+                    }
+
+                    if (MetadataFuzzyStrategy::isTitleRejected($entryArray, $candidate, $titleFloor)) {
+                        $rejectedTitle++;
 
                         continue;
                     }
@@ -167,6 +175,8 @@ final class MetadataMlStrategy extends CombinerStrategy
             'ml_model_version' => $model->version(),
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
+            'rejected_title' => $rejectedTitle,
+            'title_floor' => $titleFloor,
             'merged_sources' => $mergedSources,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),
@@ -187,6 +197,7 @@ final class MetadataMlStrategy extends CombinerStrategy
             'ml_threshold' => $mlThreshold,
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
+            'rejected_title' => $rejectedTitle,
         ]);
     }
 }
