@@ -740,7 +740,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 ### 4.6 Dashboard
 - [ ] Explorer: opt-in `confidence`/`ml_score`/`ml_model`/`ml_model_version`/`ml_decision` columns
 - [ ] Quality page: metadata vs ML score histograms; `/api/histogram?field=`
-- [ ] Threshold suggestions (merge count + precision/recall/F1 when labels exist)
+- [x] Threshold suggestions — `combine:benchmark` stores the best threshold (predicted merges + precision/recall/F1) and `/api/benchmark` exposes it; the Quality page shows a "Suggested threshold" banner with the shipping-gate margin. Shown as a recommendation, never auto-applied
 - [ ] Rejection buffer review + promote-to-training
 - [ ] Model/version filter for A/B review
 - [ ] Settings → Combine/ML config (model, sidecar path, caps, budget, enable toggle)

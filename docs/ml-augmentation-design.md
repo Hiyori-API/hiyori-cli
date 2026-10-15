@@ -327,7 +327,7 @@ Content-hash idempotency rule: embeddings/vectors are recomputed when the hash o
 - **Explorer columns**: `confidence`, `ml_score`, `ml_model`, `ml_model_version`, `ml_decision` (opt-in, default hidden like tags/synopsis).
 - **Model + score columns**: show `ml_score` next to `confidence` in any document drawer and the merge sampler view.
 - **Score histograms**: `/api/histogram` generalized to take `?field=confidence|ml_score|score`; keep default `confidence`. Quality page renders two 10-bin charts (before/after ML) plus a cumulative-merges curve for threshold selection.
-- **Threshold suggestions**: for each candidate threshold, show expected merge count and (if labels exist) precision/recall/F1. Recommend but do not auto-apply; surface as a suggested value in Settings → Combine.
+- **Threshold suggestions**: for each candidate threshold, show expected merge count and (if labels exist) precision/recall/F1. Recommend but do not auto-apply. ✅ The benchmark report stores the best-F1 row and the dashboard surfaces it (`/api/benchmark.ml` → Quality page "Suggested threshold"); Settings → Combine surfacing is still open.
 - **Rejection buffer view**: paginated `pair_rejections` with filters; “agree/disagree” promotes to `_labels` (reuses `/api/sample` agree/disagree semantics).
 - **Model/version filter**: filter organized docs by `ml_model_version` for A/B review after a model swap.
 - **Config UI** (Settings → Combine/ML): model name, sidecar path, `MAX_LLM_PAIRS_PER_RUN`, `LLM_BUDGET_USD`, enable ML by default toggle. Backed by `.env` + `storage/state/ui.json` like rate limits.
