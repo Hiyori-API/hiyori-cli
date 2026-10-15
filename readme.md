@@ -85,6 +85,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `labels` | Add / inspect human pair labels (agree/disagree) that override the organized ground truth |
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
 | `combine:dupes` / `dupes` | Detect duplicate reference keys in combined collections (release gate: `mal`/`al` must stay unique) |
+| `combine:dedupe` / `dedupe` | Resolve duplicate identity keys in place (release-gate unblocker; keeps the key on its base-corroborated owner, never deletes documents) |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
@@ -208,6 +209,12 @@ php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model s
 # Reports every duplicated source key; franchise keys (k/cr/t/nf) are expected
 # to repeat.
 php hiyori combine:dupes [--collection organized] [--primary mal,al] [--json]
+
+# Unblock the gate when a source itself repeats an identity key (for example the
+# same `mal` value ingested on two AniList rows). The key is removed from the
+# losing document — the genuine owner is the one whose base row declares it —
+# so nothing is deleted and ids/coverage stay stable. Idempotent, --dry-run safe.
+php hiyori combine:dedupe [--collection organized] [--primary mal,al] [--dry-run] [--no-corroborate] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)
