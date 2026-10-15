@@ -110,6 +110,33 @@ final class HiyoriIdTest extends TestCase
         $this->assertTrue($verify['ok'], implode("\n", $verify['problems']));
     }
 
+    public function testBackfillRepairsDocsMissingSlugFromRegistry(): void
+    {
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
+            ['title' => 'Cowboy Bebop', 'reference_ids' => ['al' => '1'], 'type' => 'tv'],
+            ['title' => 'Trigun', 'reference_ids' => ['mal' => '5'], 'type' => 'tv'],
+        ]);
+
+        $migrator = new Migrator(new Database(SerializerBuilder::create()->build()), self::DB);
+        $migrator->run();
+
+        // Simulate an incremental combine: the id was stamped during the merge
+        // but the slug was not, so verify fails until the backfill repairs it.
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')
+            ->updateOne(['reference_ids.al' => '1'], ['$unset' => ['slug' => '']]);
+        $this->assertFalse($migrator->verifyHiyoriIds()['ok']);
+
+        $summary = $migrator->allocateHiyoriIds();
+        $this->assertSame(1, $summary['anime']['slugs_fixed']);
+
+        // Slug comes from the registry and verify passes again.
+        $doc = $this->client->selectDatabase(self::DB)->selectCollection('organized')
+            ->findOne(['reference_ids.al' => '1'], ['typeMap' => ['root' => 'array', 'document' => 'array']]);
+        $this->assertSame('cowboy-bebop', $doc['slug']);
+        $verify = $migrator->verifyHiyoriIds();
+        $this->assertTrue($verify['ok'], implode("\n", $verify['problems']));
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */

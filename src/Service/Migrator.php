@@ -323,6 +323,40 @@ final class Migrator
                 }
             }
 
+            // Repair slugs for documents that already carry an id. The combiner
+            // stamps `hiyori_id` during a merge but deliberately leaves `slug` to
+            // this backfill, so the id registry stays the single source of truth
+            // for unique slugs (see verifyHiyoriIds()). Safe to re-run.
+            $slugsFixed = 0;
+            foreach ($coll->find(
+                [
+                    'hiyori_id' => ['$exists' => true],
+                    '$or' => [['slug' => ['$exists' => false]], ['slug' => '']],
+                ],
+                ['projection' => ['hiyori_id' => 1, 'slug' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']],
+            ) as $doc) {
+                if (!is_array($doc)) {
+                    continue;
+                }
+
+                $docId = (int) ($doc['hiyori_id'] ?? 0);
+                if ($docId <= 0) {
+                    continue;
+                }
+
+                $registryRow = $this->registry()->findOne(
+                    ['hiyori_id' => $docId],
+                    ['projection' => ['slug' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']],
+                );
+                $registrySlug = is_array($registryRow) ? (string) ($registryRow['slug'] ?? '') : '';
+                if ($registrySlug === '') {
+                    continue;
+                }
+
+                $coll->updateOne(['_id' => $doc['_id']], ['$set' => ['slug' => $registrySlug]]);
+                $slugsFixed++;
+            }
+
             $duplicates = $this->duplicateIds($collectionName);
             if ($duplicates !== []) {
                 throw new \RuntimeException(sprintf(
@@ -337,6 +371,7 @@ final class Migrator
             $summary[$kind] = [
                 'collection' => $collectionName,
                 'allocated' => $allocated,
+                'slugs_fixed' => $slugsFixed,
                 'missing' => $missing,
                 'next_id' => $this->counterNext(),
             ];
