@@ -40,6 +40,7 @@ final class ReleaseCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Build + verify assets, but do not publish')
             ->addOption('verify', null, InputOption::VALUE_NONE, 'Verify manifest checksums before packaging (always on; kept for symmetry)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Publish even when the content hash is unchanged')
+            ->addOption('clean-target', null, InputOption::VALUE_NONE, 'Remove the legacy raw tree (data/, index/, manifest.json, CHANGELOG.md, tarballs) from the target branch')
             ->addOption('message', 'm', InputOption::VALUE_OPTIONAL, 'Release notes message override');
     }
 
@@ -140,7 +141,7 @@ final class ReleaseCommand extends Command
             $io->writeln('  gh release upload ' . $tag . ' ' . escapeshellarg($releaseDir . '/' . $name) . ' --repo ' . $ghRepo);
         }
 
-        $pushed = $this->pushPointer($repo, (string) $input->getOption('branch'), $releaseDir);
+        $pushed = $this->pushPointer($repo, (string) $input->getOption('branch'), $releaseDir, (bool) $input->getOption('clean-target'));
         if ($pushed) {
             $this->recordState($stateFile, $tag, $revision, $contentHash);
             $io->success('Pointer committed to ' . $repo);
@@ -318,7 +319,7 @@ final class ReleaseCommand extends Command
         return $rc === 0;
     }
 
-    private function pushPointer(string $repo, string $branch, string $releaseDir): bool
+    private function pushPointer(string $repo, string $branch, string $releaseDir, bool $cleanTarget = false): bool
     {
         $token = getenv('HIYORI_DB_TOKEN') ?: (getenv('GITHUB_TOKEN') ?: '');
         if ($token === '' && !is_dir($repo)) {
@@ -338,6 +339,18 @@ final class ReleaseCommand extends Command
         }
         copy($releaseDir . '/.hiyori-release/latest.json', $dest . '/latest.json');
         copy($releaseDir . '/SHA256SUMS.txt', $clone . '/SHA256SUMS.txt');
+
+        if ($cleanTarget) {
+            foreach (['data', 'index', 'manifest.json', 'CHANGELOG.md'] as $legacy) {
+                @exec('rm -rf ' . escapeshellarg($clone . '/' . $legacy));
+            }
+            foreach (glob($clone . '/*.tar.gz') ?: [] as $tarball) {
+                @unlink($tarball);
+            }
+            foreach (glob($clone . '/*.tar.zst') ?: [] as $tarball) {
+                @unlink($tarball);
+            }
+        }
 
         $msg = 'release: update .hiyori-release/latest.json';
         @exec('cd ' . escapeshellarg($clone) . ' && git add -A && git -c user.name="hiyori-bot" -c user.email="hiyori@hikarino.local" commit -m ' . escapeshellarg($msg) . ' 2>&1', $o, $rc);
