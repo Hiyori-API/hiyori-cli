@@ -84,6 +84,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
 | `labels` | Add / inspect human pair labels (agree/disagree) that override the organized ground truth |
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
+| `combine:dupes` / `dupes` | Detect duplicate reference keys in combined collections (release gate: `mal`/`al` must stay unique) |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
@@ -200,6 +201,11 @@ php hiyori combine myanimelist --strategy metadata_ml --config '{"ml_threshold":
 # Honest gate: train on the -train file, benchmark on the untouched -holdout file.
 php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
 php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model storage/state/ml-model.json] [--json]
+
+# Release gate: no combined collection may repeat an identity key (mal/al).
+# Reports every duplicated source key; franchise keys (k/cr/t/nf) are expected
+# to repeat. --ignore-legacy only fails on collisions between current-schema docs.
+php hiyori combine:dupes [--collection organized] [--primary mal,al] [--ignore-legacy] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)

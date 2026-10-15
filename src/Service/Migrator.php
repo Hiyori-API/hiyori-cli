@@ -497,6 +497,122 @@ final class Migrator
         return ['ok' => $problems === [], 'problems' => $problems, 'checked' => $checked];
     }
 
+    /**
+     * Count duplicate reference keys per source in a combined collection.
+     *
+     * The release gate requires **no** duplicate identity keys (by default
+     * `mal`, `al`): those sources publish one distinct id per entry. Streaming
+     * and social sources (`cr`, `nf`, `t`, `tx`, …) legitimately reuse a single
+     * id across a whole franchise, and Kitsu (`k`) sometimes groups a franchise
+     * under one id, so those are reported but do not fail the gate.
+     *
+     * @param list<string> $primaryKeys source shorthands that must stay unique
+     *
+     * @return array{collection: string, docs: int, legacy_docs: int, primary_keys: list<string>, primary_duplicates: int, primary_duplicates_current: int, sources: array<string, array{values: int, duplicates: int, duplicates_current: int, max: int, primary: bool, examples: list<array{key: string, hiyori_ids: list<int>}>}>}
+     */
+    public function duplicateReferenceKeys(string $collectionName, array $primaryKeys = ['mal', 'al'], int $maxExamples = 3): array
+    {
+        $collection = $this->collection($collectionName);
+        $docs = $collection->countDocuments([]);
+
+        // `references` is a BSON document in the current schema and a BSON
+        // array in legacy dumps. Ask the server which is which: the decoded
+        // PHP shape is not reliable (documents with numeric string keys decode
+        // to a list either way).
+        $legacyIds = [];
+        foreach ($collection->find(['references' => ['$type' => 'array']], ['projection' => ['_id' => 1]]) as $row) {
+            $legacyIds[(string) ($row['_id'] ?? '')] = true;
+        }
+
+        $options = ['projection' => ['hiyori_id' => 1, 'reference_ids' => 1], 'typeMap' => ['root' => 'array']];
+
+        /** @var array<string, array<string, list<array{id: int, legacy: bool}>>> $bySource */
+        $bySource = [];
+        foreach ($collection->find([], $options) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $refs = $row['reference_ids'] ?? null;
+            if (is_object($refs)) {
+                $refs = $refs instanceof \Traversable ? iterator_to_array($refs) : get_object_vars($refs);
+            }
+            if (!is_array($refs)) {
+                continue;
+            }
+
+            $id = (int) ($row['hiyori_id'] ?? 0);
+            $isLegacy = isset($legacyIds[(string) ($row['_id'] ?? '')]);
+            foreach ($refs as $source => $value) {
+                if (!is_string($value) || $value === '') {
+                    continue;
+                }
+                $bySource[(string) $source][$value][] = ['id' => $id, 'legacy' => $isLegacy];
+            }
+        }
+
+        $primary = array_fill_keys(array_map('strtolower', $primaryKeys), true);
+
+        $sources = [];
+        $primaryDuplicates = 0;
+        $primaryCurrent = 0;
+        foreach ($bySource as $source => $values) {
+            $duplicates = 0;
+            $duplicatesCurrent = 0;
+            $max = 1;
+            $examples = [];
+            foreach ($values as $key => $holders) {
+                $count = count($holders);
+                if ($count < 2) {
+                    continue;
+                }
+                $duplicates++;
+                $max = max($max, $count);
+                $currentHolders = 0;
+                foreach ($holders as $holder) {
+                    if (!$holder['legacy']) {
+                        $currentHolders++;
+                    }
+                }
+                // Only a collision between two current-schema docs is a live
+                // combiner bug; a legacy doc in the mix is stale data.
+                if ($currentHolders >= 2) {
+                    $duplicatesCurrent++;
+                }
+                if (count($examples) < $maxExamples) {
+                    $examples[] = [
+                        'key' => (string) $key,
+                        'hiyori_ids' => array_map(static fn (array $h): int => $h['id'], array_slice($holders, 0, 8)),
+                    ];
+                }
+            }
+            $isPrimary = isset($primary[$source]);
+            $sources[$source] = [
+                'values' => count($values),
+                'duplicates' => $duplicates,
+                'duplicates_current' => $duplicatesCurrent,
+                'max' => $max,
+                'primary' => $isPrimary,
+                'examples' => $examples,
+            ];
+            if ($isPrimary) {
+                $primaryDuplicates += $duplicates;
+                $primaryCurrent += $duplicatesCurrent;
+            }
+        }
+        ksort($sources);
+
+        return [
+            'collection' => $collectionName,
+            'docs' => $docs,
+            'legacy_docs' => count($legacyIds),
+            'primary_keys' => array_keys($primary),
+            'primary_duplicates' => $primaryDuplicates,
+            'primary_duplicates_current' => $primaryCurrent,
+            'sources' => $sources,
+        ];
+    }
+
     /** Trim/slugify a title; shared with the command and the export side. */
     public static function normalizeSlug(string $title): string
     {
