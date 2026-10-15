@@ -362,7 +362,7 @@ Recommend a **default monthly budget of $10–$20** with the caps; the judge onl
 
 Shipping gate: `metadata_ml` only becomes default if, on a fixed labeled hold-out, it beats `metadata_fuzzy` on F1 at threshold 70 **and** shows no regression in duplicate upsert keys (must stay 0, as in benchmark v2).
 
-Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over a labelled JSONL and prints a PASS/FAIL gate line; it is non-destructive (no MongoDB). For an honest gate use `ml:export-pairs --holdout 30`, which writes a deterministic, **group-safe** `-train`/`-holdout` split (all rows for a `base_source:base_id` land on one side, so no leakage), then `ml:train --in pairs-*-train.jsonl` and `combine:benchmark --in pairs-*-holdout.jsonl`. Benchmarking the training file is in-sample and will overstate the ML score.
+Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over a labelled JSONL and prints a PASS/FAIL gate line; it is non-destructive (no MongoDB). The F1 margin is configurable (`--margin <points>`) and `--strict` exits non-zero when the gate is not met, so CI can enforce "F1 ≥ baseline + margin". The duplicate-key half of the gate is `php hiyori combine:dupes` (fails when a combined collection repeats an identity key such as `mal`/`al`; franchise keys like `k`/`cr`/`t` may legitimately repeat). For an honest gate use `ml:export-pairs --holdout 30`, which writes a deterministic, **group-safe** `-train`/`-holdout` split (all rows for a `base_source:base_id` land on one side, so no leakage), then `ml:train --in pairs-*-train.jsonl` and `combine:benchmark --in pairs-*-holdout.jsonl`. Benchmarking the training file is in-sample and will overstate the ML score.
 
 ---
 

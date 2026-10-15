@@ -53,6 +53,31 @@ final class BenchmarkEvaluatorTest extends TestCase
         $this->assertNull(BenchmarkEvaluator::best([]));
     }
 
+    public function testGateRequiresTheConfiguredMargin(): void
+    {
+        // 1.5-point margin, 2-point requirement -> not met.
+        $gate = BenchmarkEvaluator::gate(0.80, 0.815, 0.02);
+        $this->assertTrue($gate['comparable']);
+        $this->assertFalse($gate['passed']);
+        $this->assertSame(0.015, $gate['margin']);
+        $this->assertSame(0.02, $gate['required_margin']);
+        $this->assertSame(0.8, $gate['baseline_f1']);
+        $this->assertSame(0.815, $gate['ml_f1']);
+
+        // Default margin of 0 means "at least equal to the baseline".
+        $this->assertTrue(BenchmarkEvaluator::gate(0.80, 0.815)['passed']);
+        $this->assertTrue(BenchmarkEvaluator::gate(0.80, 0.80)['passed']);
+        $this->assertFalse(BenchmarkEvaluator::gate(0.80, 0.79)['passed']);
+    }
+
+    public function testGateIsNotComparableWithoutBothScorers(): void
+    {
+        $gate = BenchmarkEvaluator::gate(0.80, null);
+        $this->assertFalse($gate['comparable']);
+        $this->assertFalse($gate['passed']);
+        $this->assertNull($gate['margin']);
+    }
+
     public function testSplitIsDeterministicAndGrouped(): void
     {
         $this->assertSame('train', BenchmarkEvaluator::split('mal:1', 0));

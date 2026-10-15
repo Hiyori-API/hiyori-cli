@@ -35,8 +35,10 @@ final class BenchmarkCommand extends Command
             ->addOption('in', 'i', InputOption::VALUE_OPTIONAL, 'Labelled JSONL (default: newest storage/ml/pairs-*.jsonl)', '')
             ->addOption('ml-model', null, InputOption::VALUE_OPTIONAL, 'Logistic model path', ExportConfig::rootDir() . '/storage/state/ml-model.json')
             ->addOption('thresholds', null, InputOption::VALUE_OPTIONAL, 'Comma-separated score thresholds (0-100)', '60,65,70,75,80,85,90')
+            ->addOption('margin', null, InputOption::VALUE_OPTIONAL, 'Required F1 advantage (points 0-100) of metadata_ml over metadata_fuzzy for the gate', '0')
             ->addOption('out', null, InputOption::VALUE_OPTIONAL, 'JSON report path', ExportConfig::rootDir() . '/storage/state/combine-benchmark.json')
             ->addOption('log', null, InputOption::VALUE_OPTIONAL, 'Append-only JSONL log path', ExportConfig::rootDir() . '/storage/logs/combine-benchmark.jsonl')
+            ->addOption('strict', null, InputOption::VALUE_NONE, 'Exit non-zero when the gate is not met (for CI)')
             ->addOption('json', 'j', InputOption::VALUE_NONE, 'Print the JSON report instead of tables');
     }
 
@@ -91,7 +93,10 @@ final class BenchmarkCommand extends Command
             $report['ml_model_version'] = $model->version();
         }
 
-        $report['gate'] = $this->gate($report['scorers']);
+        $requiredMargin = max(0.0, (float) $input->getOption('margin')) / 100.0;
+        $baselineF1 = isset($report['scorers']['metadata_fuzzy']['best']['f1']) ? (float) $report['scorers']['metadata_fuzzy']['best']['f1'] : null;
+        $mlF1 = isset($report['scorers']['metadata_ml']['best']['f1']) ? (float) $report['scorers']['metadata_ml']['best']['f1'] : null;
+        $report['gate'] = BenchmarkEvaluator::gate($baselineF1, $mlF1, $requiredMargin);
 
         $out = (string) $input->getOption('out');
         $dir = \dirname($out);
@@ -134,10 +139,19 @@ final class BenchmarkCommand extends Command
                 $io->text(\sprintf('  best F1 %.4f at threshold %.0f', $best['f1'], $best['threshold']));
             }
             if ($report['gate']['comparable']) {
+                $io->text(\sprintf(
+                    'gate: margin %.4f (required %.4f)',
+                    (float) $report['gate']['margin'],
+                    (float) $report['gate']['required_margin'],
+                ));
                 $io->writeln($report['gate']['passed']
-                    ? '<info>GATE PASSED: metadata_ml beats metadata_fuzzy on best F1.</info>'
-                    : '<comment>GATE NOT MET: metadata_ml has not beaten metadata_fuzzy on best F1.</comment>');
+                    ? '<info>GATE PASSED: metadata_ml beats metadata_fuzzy by at least the required margin.</info>'
+                    : '<comment>GATE NOT MET: metadata_ml does not beat metadata_fuzzy by the required margin.</comment>');
             }
+        }
+
+        if ($input->getOption('strict') && $report['gate']['comparable'] && !$report['gate']['passed']) {
+            return Command::FAILURE;
         }
 
         return Command::SUCCESS;
@@ -155,29 +169,6 @@ final class BenchmarkCommand extends Command
         $sweep = BenchmarkEvaluator::sweep($scores, $labels, $thresholds);
 
         return ['name' => $name, 'best' => BenchmarkEvaluator::best($sweep), 'sweep' => $sweep];
-    }
-
-    /**
-     * @param array<string, array{best: array<string, mixed>}> $scorers
-     *
-     * @return array{comparable: bool, passed: bool, margin: float|null, baseline_f1: float|null, ml_f1: float|null}
-     */
-    private function gate(array $scorers): array
-    {
-        if (!isset($scorers['metadata_ml'], $scorers['metadata_fuzzy'])) {
-            return ['comparable' => false, 'passed' => false, 'margin' => null, 'baseline_f1' => null, 'ml_f1' => null];
-        }
-
-        $baseline = (float) $scorers['metadata_fuzzy']['best']['f1'];
-        $ml = (float) $scorers['metadata_ml']['best']['f1'];
-
-        return [
-            'comparable' => true,
-            'passed' => $ml > $baseline,
-            'margin' => round($ml - $baseline, 4),
-            'baseline_f1' => round($baseline, 4),
-            'ml_f1' => round($ml, 4),
-        ];
     }
 
     /**

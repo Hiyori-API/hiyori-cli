@@ -200,7 +200,9 @@ php hiyori combine myanimelist --strategy metadata_ml --config '{"ml_threshold":
 # Benchmark scorers offline (no DB writes): F1 gate at 60/65/70/75/80/85/90.
 # Honest gate: train on the -train file, benchmark on the untouched -holdout file.
 php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
-php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model storage/state/ml-model.json] [--json]
+# --margin sets the required F1 advantage (points) of metadata_ml over metadata_fuzzy;
+# --strict exits non-zero when the gate is not met (for CI).
+php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model storage/state/ml-model.json] [--margin 2] [--strict] [--json]
 
 # Release gate: no combined collection may repeat an identity key (mal/al).
 # Reports every duplicated source key; franchise keys (k/cr/t/nf) are expected
