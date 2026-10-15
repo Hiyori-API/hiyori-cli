@@ -206,8 +206,8 @@ php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model s
 
 # Release gate: no combined collection may repeat an identity key (mal/al).
 # Reports every duplicated source key; franchise keys (k/cr/t/nf) are expected
-# to repeat. --ignore-legacy only fails on collisions between current-schema docs.
-php hiyori combine:dupes [--collection organized] [--primary mal,al] [--ignore-legacy] [--json]
+# to repeat.
+php hiyori combine:dupes [--collection organized] [--primary mal,al] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)

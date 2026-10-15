@@ -117,4 +117,64 @@ final class MetadataFuzzyStrategyTest extends TestCase
         $weights = ['title' => 10, 'year' => 10];
         $this->assertSame(50.0, MetadataFuzzyStrategy::calculateScore($e1, $e2, $weights));
     }
+
+    public function testEmptySynonymsDoNotCreateFalseMatch(): void
+    {
+        // Regression: '' === '' in the synonym intersection used to return 0.9
+        // for completely unrelated titles whenever both sides carried a blank
+        // synonym (sources routinely do).
+        $sim = MetadataFuzzyStrategy::titleSimilarity(
+            'HUNTER×HUNTER (2011)',
+            'Fate/Zero',
+            ['Hunter x Hunter (2011)', 'HxH', ''],
+            ['Fate Zero', ''],
+        );
+        $this->assertLessThan(0.3, $sim);
+    }
+
+    public function testRealSynonymOverlapStillScoresHigh(): void
+    {
+        $sim = MetadataFuzzyStrategy::titleSimilarity(
+            'Shingeki no Kyojin',
+            'Attack on Titan',
+            ['Attack on Titan'],
+            ['Shingeki no Kyojin'],
+        );
+        $this->assertSame(0.9, $sim);
+    }
+
+    public function testTitleGuardRejectsUnrelatedCandidateEvenWhenMetadataAgrees(): void
+    {
+        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+        // Same type/year/episodes as the base but an unrelated title: without
+        // the guard this would score ~72 (>70) and merge.
+        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+
+        $weights = MetadataFuzzyStrategy::DEFAULT_WEIGHTS;
+        $this->assertGreaterThanOrEqual(70.0, MetadataFuzzyStrategy::calculateScore($entry, $candidate, $weights));
+
+        $match = MetadataFuzzyStrategy::match($entry, [$candidate], $weights, 70.0);
+        $this->assertNull($match['best']);
+        $this->assertSame(1, $match['rejected_title']);
+    }
+
+    public function testTitleGuardDisabledLetsLegacyBehaviourThrough(): void
+    {
+        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+
+        $match = MetadataFuzzyStrategy::match($entry, [$candidate], MetadataFuzzyStrategy::DEFAULT_WEIGHTS, 70.0, true, 1, false, 0.0);
+        $this->assertNotNull($match['best']);
+        $this->assertSame(0, $match['rejected_title']);
+    }
+
+    public function testTitleGuardKeepsLegitimateMatch(): void
+    {
+        $entry = ['title' => 'Cowboy Bebop', 'type' => 'tv', 'year' => 1998, 'episodes' => 26, 'status' => 'finished'];
+        $candidate = ['title' => 'Cowboy Bebop', 'type' => 'tv', 'year' => 1998, 'episodes' => 26, 'status' => 'finished'];
+
+        $match = MetadataFuzzyStrategy::match($entry, [$candidate], MetadataFuzzyStrategy::DEFAULT_WEIGHTS, 70.0);
+        $this->assertNotNull($match['best']);
+        $this->assertSame(0, $match['rejected_title']);
+    }
 }

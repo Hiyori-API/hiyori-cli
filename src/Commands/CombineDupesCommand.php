@@ -29,7 +29,6 @@ final class CombineDupesCommand extends Command
         $this
             ->addOption('collection', 'c', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Collection(s) to scan (default: every combined collection)')
             ->addOption('primary', null, InputOption::VALUE_OPTIONAL, 'Comma-separated identity keys that must stay unique', 'mal,al')
-            ->addOption('ignore-legacy', null, InputOption::VALUE_NONE, 'Only fail on collisions between current-schema docs (ignore stale legacy dumps)')
             ->addOption('json', 'j', InputOption::VALUE_NONE, 'Output as JSON');
     }
 
@@ -57,12 +56,9 @@ final class CombineDupesCommand extends Command
             $reports[$collection] = $migrator->duplicateReferenceKeys($collection, $primary);
         }
 
-        $ignoreLegacy = (bool) $input->getOption('ignore-legacy');
         $failed = false;
         foreach ($reports as $report) {
-            $total = (int) $report['primary_duplicates'];
-            $current = (int) $report['primary_duplicates_current'];
-            if (($ignoreLegacy ? $current : $total) > 0) {
+            if ((int) $report['primary_duplicates'] > 0) {
                 $failed = true;
             }
         }
@@ -71,7 +67,6 @@ final class CombineDupesCommand extends Command
             $output->writeln(json_encode([
                 'ok' => !$failed,
                 'primary_keys' => $primary,
-                'ignore_legacy' => $ignoreLegacy,
                 'collections' => $reports,
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -80,12 +75,7 @@ final class CombineDupesCommand extends Command
 
         $io->section('Reference key duplicates');
         foreach ($reports as $report) {
-            $io->text(sprintf(
-                '<info>%s</info>: %d docs (%d legacy array-formatted)',
-                $report['collection'],
-                $report['docs'],
-                $report['legacy_docs'],
-            ));
+            $io->text(sprintf('<info>%s</info>: %d docs', $report['collection'], $report['docs']));
 
             $rows = [];
             foreach ($report['sources'] as $source => $info) {
@@ -100,7 +90,6 @@ final class CombineDupesCommand extends Command
                     $source . ($info['primary'] ? ' *' : ''),
                     $info['values'],
                     $info['duplicates'],
-                    $info['duplicates_current'],
                     $info['max'],
                     implode('; ', $examples),
                 ];
@@ -113,16 +102,13 @@ final class CombineDupesCommand extends Command
             }
 
             $table = $io->createTable();
-            $table->setHeaders(['Source', 'Values', 'Dupes', 'Current', 'Max', 'Examples']);
+            $table->setHeaders(['Source', 'Values', 'Dupes', 'Max', 'Examples']);
             $table->setRows($rows);
             $table->render();
         }
 
         if ($failed) {
             $io->error(sprintf('Duplicate identity keys (%s) present -- release gate FAILED.', implode(', ', $primary)));
-            if (!$ignoreLegacy) {
-                $io->text('Tip: `--ignore-legacy` only fails on collisions between current-schema docs (stale dumps are ignored).');
-            }
 
             return Command::FAILURE;
         }
