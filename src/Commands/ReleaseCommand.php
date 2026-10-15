@@ -39,16 +39,19 @@ final class ReleaseCommand extends Command
             ->addOption('draft', null, InputOption::VALUE_NONE, 'Create the GitHub release as a draft')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Build + verify assets, but do not publish')
             ->addOption('verify', null, InputOption::VALUE_NONE, 'Verify manifest checksums before packaging (always on; kept for symmetry)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Publish even when the content hash is unchanged')
             ->addOption('message', 'm', InputOption::VALUE_OPTIONAL, 'Release notes message override');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $tag = (string) $input->getOption('tag');
-        if ($tag === '') {
-            $tag = 'data-' . (new \DateTimeImmutable())->format('o.W');
-        }
+        $tagOption = (string) $input->getOption('tag');
+        $calendarTag = 'data-' . (new \DateTimeImmutable())->format('o.W');
+        $force = (bool) $input->getOption('force');
+        $stateFile = ExportConfig::rootDir() . '/storage/state/release-latest.json';
+        $previous = is_file($stateFile) ? json_decode((string) file_get_contents($stateFile), true) : null;
+        $previous = is_array($previous) ? $previous : null;
 
         $config = ExportConfig::load();
         $config = ExportConfig::merge($config, [
@@ -58,7 +61,7 @@ final class ReleaseCommand extends Command
         $config = ExportConfig::withProfile($config, (string) $input->getOption('profile'));
 
         $exporter = new Exporter(new Client($_ENV['MONGODB_URL']));
-        $io->writeln(sprintf('Building dump for release %s…', $tag));
+        $io->writeln('Building dump…');
         $result = $exporter->write($config);
 
         $verification = Exporter::verify($result['dir']);
@@ -70,6 +73,22 @@ final class ReleaseCommand extends Command
             return Command::FAILURE;
         }
         $io->writeln(sprintf('  verify ok: %d files, %s', $verification['checked'], (string) $verification['content_hash']));
+
+        $contentHash = (string) $verification['content_hash'];
+        $revision = (int) ($previous['revision'] ?? 0);
+        if ($tagOption !== '') {
+            $tag = $tagOption;
+        } elseif ($previous !== null && ($previous['content_hash'] ?? null) === $contentHash && !$force) {
+            $io->success('Content unchanged (' . $contentHash . ') — release ' . ($previous['tag'] ?? '') . ' is already current. Use --force to republish.');
+            $io->writeln('  pointer: .hiyori-release/latest.json');
+
+            return Command::SUCCESS;
+        } else {
+            if ($previous !== null && ($previous['content_hash'] ?? null) !== $contentHash) {
+                $revision++;
+            }
+            $tag = $revision > 0 ? $calendarTag . '.' . $revision : $calendarTag;
+        }
 
         $releaseDir = dirname($result['dir']) . '/release-' . $tag;
         if (!is_dir($releaseDir) && !mkdir($releaseDir, 0o777, true) && !is_dir($releaseDir)) {
@@ -85,7 +104,7 @@ final class ReleaseCommand extends Command
 
             return Command::FAILURE;
         }
-        $pointer = $this->writePointer($releaseDir, $tag, $result['dir'], $verification['content_hash'], $assets);
+        $pointer = $this->writePointer($releaseDir, $tag, $result['dir'], $contentHash, $assets, $revision);
         $io->writeln(sprintf('  pointer: %s', $pointer));
         foreach ($assets as $name => $bytes) {
             $io->writeln(sprintf('  asset: %-48s %s', $name, $this->human($bytes)));
@@ -106,6 +125,7 @@ final class ReleaseCommand extends Command
         if ($this->ghAvailable()) {
             $ok = $this->publishWithGh($repo, $tag, $notesFile, $releaseDir, (bool) $input->getOption('draft'));
             if ($ok) {
+                $this->recordState($stateFile, $tag, $revision, $contentHash);
                 $io->success('Published release ' . $tag . ' to ' . $repo);
 
                 return Command::SUCCESS;
@@ -122,6 +142,7 @@ final class ReleaseCommand extends Command
 
         $pushed = $this->pushPointer($repo, (string) $input->getOption('branch'), $releaseDir);
         if ($pushed) {
+            $this->recordState($stateFile, $tag, $revision, $contentHash);
             $io->success('Pointer committed to ' . $repo);
         } else {
             $io->note('Pointer was not pushed (missing token/remote or local-only target).');
@@ -187,12 +208,13 @@ final class ReleaseCommand extends Command
     /**
      * @param array<string, int> $assets
      */
-    private function writePointer(string $releaseDir, string $tag, string $dumpDir, string $contentHash, array $assets): string
+    private function writePointer(string $releaseDir, string $tag, string $dumpDir, string $contentHash, array $assets, int $revision = 0): string
     {
         $manifest = json_decode((string) file_get_contents($dumpDir . '/manifest.json'), true);
         $git = trim((string) @shell_exec('git -C ' . escapeshellarg(ExportConfig::rootDir()) . ' rev-parse HEAD 2>/dev/null'));
         $pointer = [
             'tag' => $tag,
+            'revision' => $revision,
             'content_hash' => $contentHash,
             'counts' => $manifest['counts'] ?? [],
             'generated_at' => $manifest['generated_at'] ?? date('c'),
@@ -313,6 +335,20 @@ final class ReleaseCommand extends Command
         @exec('cd ' . escapeshellarg($clone) . ' && git push ' . escapeshellarg($remote) . ' HEAD:' . escapeshellarg($branch) . ' 2>&1', $o, $rc);
 
         return $rc === 0;
+    }
+
+    private function recordState(string $stateFile, string $tag, int $revision, string $contentHash): void
+    {
+        $dir = dirname($stateFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
+        @file_put_contents($stateFile, json_encode([
+            'tag' => $tag,
+            'revision' => $revision,
+            'content_hash' => $contentHash,
+            'recorded_at' => date('c'),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
     }
 
     private function archiveTest(string $archive): bool
