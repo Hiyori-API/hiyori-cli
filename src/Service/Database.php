@@ -3,7 +3,6 @@
 namespace Hiyori\Service;
 
 use Hiyori\Models\Common\Base as AnimeBaseModel;
-use Hiyori\Service\Migrator;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
 use MongoDB\Client;
@@ -148,6 +147,7 @@ class Database
         if ($this->migrator === null) {
             throw new \RuntimeException('Migrator not available — cannot allocate hiyori_id');
         }
+
         return $this->migrator->allocateId($kind, $refs, $slug, $legacyId);
     }
 

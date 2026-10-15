@@ -1060,7 +1060,7 @@ final class Exporter
         }
 
         return $fallback;
-    } 
+    }
 
     public static function slugify(string $title): string
     {
