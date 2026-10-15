@@ -75,6 +75,29 @@ export interface BenchmarkRow {
   speed?: number
 }
 
+/** One threshold row from the offline `combine:benchmark` sweep. */
+export interface BenchmarkBest {
+  threshold: number
+  predicted: number
+  tp: number
+  fp: number
+  tn: number
+  fn: number
+  precision: number
+  recall: number
+  f1: number
+}
+
+/** Latest offline ML benchmark report (threshold suggestion + shipping gate). */
+export interface MlBenchmark {
+  created_at?: string
+  input?: string
+  rows?: number
+  ml_model_version?: string
+  gate?: { comparable?: boolean; passed?: boolean; margin?: number | null; required_margin?: number; baseline_f1?: number | null; ml_f1?: number | null }
+  best?: Record<string, BenchmarkBest>
+}
+
 export interface StatusPayload {
   timestamp: string
   counts: Record<string, number>
@@ -118,7 +141,7 @@ export async function runBackup(): Promise<{ started?: boolean; archive?: string
   return r.json() as Promise<{ started?: boolean; archive?: string }>
 }
 
-export async function fetchBenchmark(): Promise<{ seeded?: BenchmarkRow[]; latest?: unknown }> {
+export async function fetchBenchmark(): Promise<{ seeded?: BenchmarkRow[]; latest?: unknown; ml?: MlBenchmark | null }> {
   const r = await fetch('/api/benchmark')
   if (!r.ok) throw new Error(`benchmark ${r.status}`)
   return r.json()

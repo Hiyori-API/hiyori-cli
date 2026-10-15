@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow,
+  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow, type MlBenchmark,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
@@ -146,7 +146,7 @@ export function QualityPage() {
   const { data } = useStatus()
   const { settings, update } = useSettings()
   const [benchKey, setBenchKey] = useState(0)
-  const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown }>('/api/benchmark', benchKey)
+  const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown; ml?: MlBenchmark | null }>('/api/benchmark', benchKey)
   const hist = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram', benchKey)
   const histManga = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?collection=organized_manga', benchKey)
   const histMl = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?field=ml_score', benchKey)
@@ -292,6 +292,31 @@ export function QualityPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Section title="Confidence" icon={Sparkles} className="lg:col-span-2">
           <div className="space-y-4">
+            {(() => {
+              const ml = bench.data?.ml
+              const best = ml?.best?.metadata_ml
+              if (!ml || !best) return null
+              const gate = ml.gate
+              return (
+                <div className="rounded-md border bg-muted/30 p-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-medium">Suggested threshold</span>
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono tabular-nums">{best.threshold}</span>
+                    <span className="text-muted-foreground">
+                      metadata_ml · F1 {Number(best.f1).toFixed(3)} · P {Number(best.precision).toFixed(2)} / R {Number(best.recall).toFixed(2)} · {best.predicted} merges
+                    </span>
+                    {gate?.comparable && (
+                      <Badge variant={gate.passed ? 'default' : 'secondary'}>
+                        {gate.passed ? 'gate passed' : 'gate not met'} ({Number(gate.margin ?? 0).toFixed(3)})
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    From the last <code>combine:benchmark</code> run ({ml.rows} pairs{ml.ml_model_version ? `, model ${ml.ml_model_version}` : ''}). Suggested — not auto-applied.
+                  </p>
+                </div>
+              )
+            })()}
             {!hist.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
             {!histMl.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="ML scores (metadata_ml)" bins={histMl.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histMl.data.histogram ?? {}} color={['#34d399', '#6ee7b7']} />}
             <div>
