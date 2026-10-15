@@ -775,14 +775,33 @@ final class Migrator
             $hit = $legacyId !== '' && (string) ($row['legacy_id'] ?? '') === $legacyId;
 
             if (!$hit && is_array($row['refs'] ?? null)) {
+                // Compare identity keys only, and require the registry row to
+                // agree on every identity key the two share. A row can carry a
+                // foreign identity key when an earlier run merged two works
+                // (e.g. one row holding both Beelzebub's `al` and an unrelated
+                // `mal`); a conflict must veto the match, otherwise the plain
+                // `min()` tie-break hands the two works the same id.
+                $rowRefs = [];
+                foreach ($row['refs'] as $key => $value) {
+                    $rowRefs[strtolower((string) $key)] = (string) $value;
+                }
+
+                $agrees = false;
+                $conflicts = false;
                 foreach ($refs as $source => $id) {
-                    if (!in_array(strtolower((string) $source), self::IDENTITY_REF_KEYS, true)) {
+                    $key = strtolower((string) $source);
+                    if (!in_array($key, self::IDENTITY_REF_KEYS, true) || !isset($rowRefs[$key])) {
                         continue;
                     }
-                    if (isset($row['refs'][$source]) && (string) $row['refs'][$source] === (string) $id) {
-                        $hit = true;
-                        break;
+                    if ($rowRefs[$key] === (string) $id) {
+                        $agrees = true;
+                    } else {
+                        $conflicts = true;
                     }
+                }
+
+                if ($agrees && !$conflicts) {
+                    $hit = true;
                 }
             }
 

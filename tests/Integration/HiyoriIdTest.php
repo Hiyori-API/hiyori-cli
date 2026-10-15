@@ -110,6 +110,25 @@ final class HiyoriIdTest extends TestCase
         $this->assertTrue($verify['ok'], implode("\n", $verify['problems']));
     }
 
+    public function testContaminatedRegistryRowDoesNotStealIdentity(): void
+    {
+        // Row 6631 wrongly holds both Beelzebub's al and Ikoku Meiro's mal.
+        // The mal agreement must not let it win over Ikoku Meiro's real row.
+        $rows = [
+            ['hiyori_id' => 6631, 'kind' => 'anime', 'refs' => ['al' => '13067', 'mal' => '10832']],
+            ['hiyori_id' => 10933, 'kind' => 'anime', 'refs' => ['al' => '10832', 'mal' => '10832']],
+        ];
+
+        $this->assertSame(
+            10933,
+            Migrator::matchKnownId($rows, 'anime', ['al' => '10832', 'mal' => '10832'], ''),
+        );
+        $this->assertSame(
+            6631,
+            Migrator::matchKnownId($rows, 'anime', ['al' => '13067'], ''),
+        );
+    }
+
     public function testFranchiseKeyOverlapDoesNotReuseIdentity(): void
     {
         $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
