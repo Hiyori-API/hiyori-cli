@@ -4,6 +4,7 @@
 **Date:** 2026-10-15  
 **Owner:** Hiyori-API / HiyoriDB maintainers  
 **Companion checklist:** `docs/dashboard-roadmap.md` → *Batch 4*.
+**CI secret:** `HIYORI_DB_TOKEN` (fine-grained PAT with Contents:Read/Write on `Hiyori-API/HiyoriDB`; falls back to `GITHUB_TOKEN` for same-repo operation).
 
 ---
 

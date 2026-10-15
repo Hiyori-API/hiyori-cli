@@ -280,7 +280,7 @@ final class ReleaseCommand extends Command
 
     private function pushPointer(string $repo, string $branch, string $releaseDir): bool
     {
-        $token = getenv('GITHUB_TOKEN') ?: '';
+        $token = getenv('HIYORI_DB_TOKEN') ?: (getenv('GITHUB_TOKEN') ?: '');
         if ($token === '' && !is_dir($repo)) {
             return false;
         }
