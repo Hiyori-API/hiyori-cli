@@ -16,7 +16,7 @@ Hiyori CLI builds and maintains [HiyoriDB](https://github.com/Hiyori-API/HiyoriD
 - **Multi-source ingestion** — MyAnimeList (Official API v2), AniList and Kitsu, for both **anime** and **manga** collections, with per-source rate limiting, circuit breakers and resume support.
 - **Schema normalization** — source-specific values (statuses, types, seasons) are mapped onto the shared [Hiyori Schema](#hiyori-schema) via enums.
 - **Relational mapping** — known source cross-references are parsed into `reference_ids` (`mal`, `al`, `k`, …); supported references are resolved to per-source IDs.
-- **Combiner with 6 strategies** — `relational_mapping`, `relational_fuzzy`, **`metadata_fuzzy`** (default, weightage-tuned), `graph_merge`, `fellegi_sunter` and `semantic_rerank` (local embeddings).
+- **Combiner with 7 strategies** — `relational_mapping`, `relational_fuzzy`, **`metadata_fuzzy`** (default, weightage-tuned), `graph_merge`, `fellegi_sunter`, `semantic_rerank` (local embeddings) and `metadata_ml` (trained logistic second-stage scorer).
 - **Live dashboard** — a React + shadcn/ui SPA (PHP `php -S` backend) with dedicated **Explorer, Management, Quality & Analysis, Logs and Settings** pages, realtime SSE, PWA caching and an **Environment manager**.
 - **Backups & restore** — `mongodump`/`mongorestore` based, scriptable and dashboard-triggered.
 - **Scheduler** — run ingestion on a schedule via systemd timers/cron (`schedule --install`).
@@ -80,6 +80,8 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `validate` | Validate existing data against the Hiyori schema |
 | `sweep` | Clean up orphaned, duplicate or incomplete entries |
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
+| `ml:export-pairs` | Export labelled candidate pairs (JSONL) for ML training / benchmarking |
+| `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
@@ -145,6 +147,7 @@ php hiyori combine {base} [--strategy {strategy}]
 - **`graph_merge`** — transitive connected-component merge over low-confidence candidates (catches A↔B↔C pairs that `metadata_fuzzy` misses).
 - **`fellegi_sunter`** — probabilistic record linkage with configurable `m`/`u` field probabilities.
 - **`semantic_rerank`** — `metadata_fuzzy` candidates re-ranked with local embeddings (`ML_EMBED_COMMAND` sidecar; deterministic n-gram fallback).
+- **`metadata_ml`** — `metadata_fuzzy` candidate chain + anchor rejection, scored by a logistic-regression model trained on labelled pairs (`ml:export-pairs` → `ml:train`). Merges carry `ml_score`/`ml_model`/`ml_model_version`/`ml_decision`/`ml_decided_at`. Requires a trained model (hard error otherwise).
   | field | weight | | field | weight |
   |---|---|---|---|---|
   | `title` | 26.4 | | `status` | 0.6 |
@@ -174,6 +177,15 @@ php hiyori references [--source mal] [--json]
 
 # Tune metadata-fuzzy weights between two sources (feeds combine --weights)
 php hiyori weightage myanimelist anilist [--sample 1000] [--json]
+
+# Export labelled candidate pairs for ML (ground truth from the organized collection)
+php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first]
+
+# Train the metadata_ml scorer from the newest exported pairs file
+php hiyori ml:train [--in storage/ml/pairs-*.jsonl] [--epochs 400] [--threshold 0.5]
+
+# Combine with the ML scorer (needs the model file; tune via --config JSON)
+php hiyori combine myanimelist --strategy metadata_ml --config '{"ml_threshold":0.6,"metadata_floor":55}'
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)

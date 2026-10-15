@@ -1,6 +1,6 @@
 # Hiyori CLI — ML Augmentation Design (v2: Embeddings + LLM)
 
-**Status:** Level-0 (local, free) implemented: `EmbeddingService` + `SemanticRerankStrategy` + `services/ml/embed.py`. Levels 1–2 remain design only. Tracked in `docs/dashboard-roadmap.md` → **Batch 4 — ML / Augmentation**.
+**Status:** Level-0 (local, free) implemented: `EmbeddingService` + `SemanticRerankStrategy` + `services/ml/embed.py`. **Level-0.5 implemented:** `ml:export-pairs` (labelled JSONL ground truth), `ml:train` (pure-PHP logistic regression), `FeatureExtractor`/`LogisticModel`, and the `metadata_ml` combine strategy (anchor rejection + ML second stage, `ml_*` fields on merges). Levels 1–2 (LLM judge, calibrated/XGBoost classifier, migration v4) remain design only. Tracked in `docs/dashboard-roadmap.md` → **Batch 4 — ML / Augmentation**.
 **Scope:** Improve the combine decision (merge vs. keep separate) by augmenting `metadata_fuzzy` with lexical features, multilingual embeddings, a cross-source tag taxonomy, a cheap LLM tie-breaker for ambiguous pairs, and a trained (Clef/JEB-style) decision model.
 **Baseline (already shipped):** `metadata_fuzzy` is the default combine strategy. Tuned weights `title 26.4 / type 5.7 / episodes 26.2 / status 0.6 / season 16.4 / year 23.2 / tags 1.5 / synonyms 0`. Threshold `70`. Result on anime: `organized = 10,770`, triple-linked `8,358`, confidence histogram `70–80 = 3,705 · 80–90 = 680 · 90–100 = 6,385`. `confidence` is stored per merged document; `/api/histogram` exposes it in 10 bins; `/api/sample` is the human-in-the-loop agree/disagree sampler.
 
@@ -176,15 +176,25 @@ DBSCAN (optional helper): cluster normalized title embeddings per `(type, year)`
 Do not replace `metadata_fuzzy` in v2.0. Layer ML **after** candidate generation:
 
 ```
-candidate = metadata_fuzzy.findBestMatch(...)        // existing narrowing + hard floor 70
-features  = MlFeatureExtractor::forPair(base, cand, embBase, embCand)
-mlScore   = ModelSidecar::score(features)           // 0..100, or null if unavailable
-decision  = decide(features, mlScore, llmResult)     // see §5
-if (decision === approve and mlScore >= threshold):
-    merge(... extra: ml_score, ml_model, ml_model_version, ml_decision)
+// Shipped (Level-0.5): MetadataMlStrategy
+candidates = MetadataFuzzyStrategy::candidates(db, table, base)   // same chain as metadata_fuzzy
+foreach candidate:
+    skip if MetadataFuzzyStrategy::isAnchorRejected(base, candidate)     // hard veto
+    meta = MetadataFuzzyStrategy::calculateScore(base, candidate, weights)
+    skip if meta < metadata_floor                                        // cheap gate
+    features  = FeatureExtractor::extract(base, candidate)               // 12-dim, [0,1]
+    mlScore   = LogisticModel::predict(features)                         // 0..1
+keep highest mlScore >= ml_threshold
+merge(... extra: confidence, ml_score, ml_model, ml_model_version, ml_decision, ml_decided_at)
 ```
 
-Rationale: keeps the proven coverage (10,770 merges, 0 duplicate upsert keys) while improving borderline decisions and adding audit metadata. The combiner command gains `--ml` (default off until benchmark passes) so production runs are unchanged until promoted.
+Shipped commands: `php hiyori ml:export-pairs` (labels each base↔candidate pair positive iff the
+`organized` ground truth carries both reference ids) → `php hiyori ml:train` (writes
+`storage/state/ml-model.json`, reports precision/recall/F1/AUC) → `php hiyori combine <base>
+--strategy metadata_ml --config '{"ml_threshold":0.6,"metadata_floor":55}'`. A missing model is a
+hard error (never a silent fallback). `ml_reason` and isotonic calibration are still pending.
+
+Rationale: keeps the proven coverage (10,770 merges, 0 duplicate upsert keys) while improving borderline decisions and adding audit metadata. `metadata_ml` stays opt-in (not the default) until the F1 gate in §10 passes.
 
 ---
 
@@ -358,9 +368,9 @@ Shipping gate: `metadata_ml` only becomes default if, on a fixed labeled hold-ou
 
 1. **P0 — Baseline & labels (no model change).** Extend `/api/sample` to capture agree/disagree as `_labels` with features snapshot. Target ≥ 1,000 labeled pairs. Export `ml:export-pairs`.
 2. **P1 — Python sidecar embeddings + cache.** Implement Option A, `embeddings` collection, content-hash idempotency. Stamp `title_embedding_model/version` only (no decisions).
-3. **P2 — Feature extractor + offline eval.** Implement §3 in PHP, build `pair_labels`+features JSONL, train logistic regression in Python, report metrics. No combine changes.
+3. **P2 — Feature extractor + offline eval.** ✅ Implemented in PHP: `FeatureExtractor`, `ml:export-pairs` (labelled JSONL), `ml:train` (pure-PHP logistic regression with precision/recall/F1/AUC reporting).
 4. **P3 — LLM judge (capped) for 70–85 band**, caching by pair hash. Store `llm_judgements`.
-5. **P4 — `metadata_ml` strategy (gated by `--ml`)** as second-stage scorer, storing `ml_*` fields. Benchmark v3 (anime + manga).
+5. **P4 — `metadata_ml` strategy** ✅ implemented as an opt-in second-stage scorer (`--strategy metadata_ml`) storing `ml_*` fields; still to prove out: benchmark v3 (anime + manga) before any default switch.
 6. **P5 — Dashboard (Batch 4 §4.6)** and, if gates pass, promote `metadata_ml` to default.
 
 ---

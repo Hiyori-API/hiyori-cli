@@ -21,11 +21,11 @@ final class ExportHelpersTest extends TestCase
     {
         $this->assertSame(
             'filename must not be empty',
-            \hiyoriExportFilenameError('')
+            \hiyoriExportFilenameError(''),
         );
         $this->assertSame(
             'filename must contain the {hiyori_id} placeholder',
-            \hiyoriExportFilenameError('{slug}.json')
+            \hiyoriExportFilenameError('{slug}.json'),
         );
     }
 
@@ -33,15 +33,15 @@ final class ExportHelpersTest extends TestCase
     {
         $this->assertSame(
             'filename must be a relative path without traversal',
-            \hiyoriExportFilenameError('../{hiyori_id}.json')
+            \hiyoriExportFilenameError('../{hiyori_id}.json'),
         );
         $this->assertSame(
             'filename must be a relative path without traversal',
-            \hiyoriExportFilenameError('/{hiyori_id}.json')
+            \hiyoriExportFilenameError('/{hiyori_id}.json'),
         );
         $this->assertSame(
             'filename must be a relative path without traversal',
-            \hiyoriExportFilenameError('{hiyori_id}\\x.json')
+            \hiyoriExportFilenameError('{hiyori_id}\\x.json'),
         );
     }
 
@@ -108,7 +108,7 @@ final class ExportHelpersTest extends TestCase
 
         $this->assertSame(
             ['fields' => ['c'], 'filename' => '{hiyori_id}-{slug}.json'],
-            \hiyoriExportMergeDeep($base, $patch)
+            \hiyoriExportMergeDeep($base, $patch),
         );
     }
 
