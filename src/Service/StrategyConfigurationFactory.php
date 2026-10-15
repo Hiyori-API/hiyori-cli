@@ -7,6 +7,7 @@ use Hiyori\Service\Combiner\Strategy\CombinerStrategy;
 use Hiyori\Service\Combiner\Strategy\FellegiSunterStrategy;
 use Hiyori\Service\Combiner\Strategy\GraphMergeStrategy;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
+use Hiyori\Service\Combiner\Strategy\MetadataMlStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalMappingStrategy;
 use Hiyori\Service\Combiner\Strategy\SemanticRerankStrategy;
@@ -20,6 +21,7 @@ final class StrategyConfigurationFactory
         GraphMergeStrategy::class,
         FellegiSunterStrategy::class,
         SemanticRerankStrategy::class,
+        MetadataMlStrategy::class,
     ];
 
     private ?CombinerStrategy $strategy = null;

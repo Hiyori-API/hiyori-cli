@@ -695,8 +695,11 @@ the acceptance checks that need a real remote.
 ## Batch 4 — ML / Augmentation (v2 Embeddings + LLM)
 
 Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). **Level-0 (local, free)** is shipped:
-`EmbeddingService`, `SemanticRerankStrategy`, and the optional `services/ml/embed.py` sidecar. Levels 1–2
-(LLM judge, trained classifier) remain design only.
+`EmbeddingService`, `SemanticRerankStrategy`, and the optional `services/ml/embed.py` sidecar.
+**Level-0.5** is also shipped: `ml:export-pairs` (labelled JSONL from the `organized` ground truth),
+`ml:train` (pure-PHP logistic regression), `FeatureExtractor`/`LogisticModel`, and the `metadata_ml`
+combiner strategy (second-stage scorer with `anchor_rejection`). The LLM judge (Level-1) and a calibrated
+classifier with XGBoost + migration v4 (Level-2) remain design only.
 
 ### 4.1 Feature engineering
 - [x] Title lexical features: Levenshtein, Jaro-Winkler, N-gram cosine, token sort ratio, containment, exact-normalized match
@@ -704,7 +707,7 @@ Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). **Leve
 - [x] Multilingual title embeddings (title + synonyms blob) via sentence-transformers (`services/ml/embed.py`, n-gram fallback)
 - [ ] Cross-source tag/genre taxonomy + canonical tag overlap features
 - [ ] Content-hash idempotency (`content_hash`) for embeddings and feature rows
-- [ ] Feature JSONL export (`ml:export-pairs`) for offline training/eval
+- [x] Feature JSONL export (`ml:export-pairs`) for offline training/eval
 
 ### 4.2 Embeddings sidecar
 - [x] Python sidecar (sentence-transformers) invoked from PHP per line (`ML_EMBED_COMMAND`, Option A)
@@ -722,17 +725,17 @@ Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). **Leve
 ### 4.4 Decision model / classifier
 - [ ] Human-in-the-loop label capture (`_labels`, extend `/api/sample` agree/disagree)
 - [ ] LLM bootstrap of training labels
-- [ ] Train logistic regression (v2.0) / XGBoost (v2.1) on feature JSONL
+- [x] Train logistic regression (v2.0, pure PHP `ml:train`) / XGBoost (v2.1, pending) on feature JSONL
 - [ ] Calibration (isotonic/Platt) so `ml_score` maps to 0–100 threshold
 - [ ] DBSCAN title-clustering helper (optional, behind flag)
 - [ ] Clef/JEB-style external scoring harness over the same feature JSONL
 
 ### 4.5 Strategy & storage
 - [x] New strategy `semantic_rerank` as second-stage scorer on `metadata_fuzzy` candidates (local embeddings; LLM `metadata_ml` still pending)
-- [ ] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_reason`, `ml_decided_at`
+- [x] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_decided_at` on merges (`ml_reason` deferred)
 - [ ] Migration v4 (`ml_fields_and_indexes`): indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels`
 - [ ] Rejection buffer + multiclass labels (approve/reject/unsure)
-- [ ] Registration in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES`
+- [x] Registration in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (`metadata_ml`)
 
 ### 4.6 Dashboard
 - [ ] Explorer: opt-in `confidence`/`ml_score`/`ml_model`/`ml_model_version`/`ml_decision` columns

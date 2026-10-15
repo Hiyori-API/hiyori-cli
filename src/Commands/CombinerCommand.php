@@ -34,9 +34,10 @@ final class CombinerCommand extends Command
     {
         $this
             ->addArgument('base', InputArgument::REQUIRED, 'Source dataset to use as a base')
-            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy (default), graph_merge, fellegi_sunter, semantic_rerank, relational_fuzzy, relational_mapping')
+            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy (default), metadata_ml, graph_merge, fellegi_sunter, semantic_rerank, relational_fuzzy, relational_mapping')
             ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
+            ->addOption('config', null, InputOption::VALUE_OPTIONAL, 'Extra strategy config as JSON (e.g. {"ml_threshold":0.6,"metadata_floor":55})')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
             ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
@@ -78,6 +79,15 @@ final class CombinerCommand extends Command
                 return Command::FAILURE;
             }
             $config['weights'] = $decoded;
+        }
+        if ($input->getOption('config') !== null) {
+            $decoded = json_decode((string) $input->getOption('config'), true);
+            if (!is_array($decoded)) {
+                $output->writeln('<error>--config must be a valid JSON object, e.g. {"ml_threshold":0.6}</error>');
+
+                return Command::FAILURE;
+            }
+            $config = array_merge($config, $decoded);
         }
 
         $this->hiyori->combine($base, $strategy, $config);

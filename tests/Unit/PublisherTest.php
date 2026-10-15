@@ -10,7 +10,7 @@ final class PublisherTest extends TestCase
 {
     private function publisher(): Publisher
     {
-        $_ENV['MONGODB_URL'] = $_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017';
+        $_ENV['MONGODB_URL'] ??= 'mongodb://localhost:27017';
 
         return new Publisher(new Client($_ENV['MONGODB_URL']), 'hiyori_test_publish', sys_get_temp_dir() . '/hiyori-pub-test');
     }

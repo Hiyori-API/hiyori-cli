@@ -646,7 +646,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         return strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '', $title)));
     }
 
-    private static function tokenJaccard(string $a, string $b): float
+    public static function tokenJaccard(string $a, string $b): float
     {
         $tokensA = preg_split('/[\s_\-:()&\'"]+/', strtolower(trim($a)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $tokensB = preg_split('/[\s_\-:()&\'"]+/', strtolower(trim($b)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
