@@ -650,10 +650,10 @@ release-tag policy.
 - [ ] Write the manami-style vs LFS vs trunk-only vs release+LFS comparison into the design doc (done)
 
 ### 4.2 Tagging
-- [ ] Adopt tag grammar `data-YYYY.WW` (append `.N` on hash change) + optional `vYYYY.MM.PATCH` milestone + mutable `latest` alias
-- [ ] Define annotated-tag / release body template carrying `content_hash`, counts, `generated_at`, `source_commit`, asset list, verify commands
-- [ ] Implement content_hash-based idempotency: same `content_hash` → exit 0; differing hash → `.N` suffix
-- [ ] Add `source_commit` recording to release notes so a release is reproducible from `hiyori-cli` at a known commit
+- [x] Adopt tag grammar `data-YYYY.WW` (append `.N` on hash change) + optional `vYYYY.MM.PATCH` milestone + mutable `latest` alias
+- [x] Define annotated-tag / release body template carrying `content_hash`, counts, `generated_at`, `source_commit`, asset list, verify commands
+- [x] Implement content_hash-based idempotency: same `content_hash` → exit 0; differing hash → `.N` suffix
+- [x] Add `source_commit` recording to release notes so a release is reproducible from `hiyori-cli` at a known commit
 
 ### 4.3 Script & compression
 - [x] Create `scripts/publish-release.sh` from the skeleton in design doc §5.2 (bash, `set -euo pipefail`, cleanup trap)
