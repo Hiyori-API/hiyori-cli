@@ -43,6 +43,26 @@ final class BenchmarkEvaluator
     }
 
     /**
+     * Deterministically assign a grouping key to `train` or `holdout`.
+     *
+     * The key MUST identify a whole group (e.g. `base_source:base_id`), not a
+     * single row, so all rows for one base entry land on the same side and the
+     * holdout is not leaked into training. Hash-based, so repeated exports of
+     * the same data produce the same split.
+     */
+    public static function split(string $key, int $holdoutPercent): string
+    {
+        if ($holdoutPercent <= 0) {
+            return 'train';
+        }
+        if ($holdoutPercent >= 100) {
+            return 'holdout';
+        }
+
+        return (hexdec(substr(sha1($key), 0, 8)) % 100) < $holdoutPercent ? 'holdout' : 'train';
+    }
+
+    /**
      * @param list<array{threshold: float, f1: float, precision: float, recall: float}> $rows
      *
      * @return array{threshold: float, f1: float, precision: float, recall: float}|null

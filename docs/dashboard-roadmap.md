@@ -763,4 +763,4 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [x] Semantic re-rank strategy aligned to `docs/ml-augmentation-design.md` (embeddings interface; LLM tie-break/`ml_*` fields still pending)
 - [x] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
 - [x] Label capture via `/api/sample` agree/disagree for precision/recall tracking (`_labels` + `labels` CLI + `/api/labels`)
-- [ ] Release gate: default switch still pending — `combine:benchmark` reports the F1 comparison; agree the margin + confirm duplicate organized keys = 0 first
+- [ ] Release gate: default switch still pending — holdout run (250 MAL bases, 30% grouped holdout) measured `metadata_ml` best F1 **0.931** vs `metadata_fuzzy` **0.824**; still need an agreed margin, larger/manga holdout, and duplicate organized keys = 0 before promoting

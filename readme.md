@@ -186,8 +186,9 @@ php hiyori labels add --base-source mal --base-id 1 --candidate-source al --cand
 php hiyori labels stats
 php hiyori labels list --base-source mal --base-id 1
 
-# Export labelled candidate pairs for ML (human labels win over the organized collection)
-php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first]
+# Export labelled candidate pairs for ML (human labels win over the organized collection).
+# --holdout writes a deterministic, group-safe -train/-holdout pair of files:
+php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first] [--holdout 30]
 
 # Train the metadata_ml scorer from the newest exported pairs file
 php hiyori ml:train [--in storage/ml/pairs-*.jsonl] [--epochs 400] [--threshold 0.5]
@@ -195,9 +196,10 @@ php hiyori ml:train [--in storage/ml/pairs-*.jsonl] [--epochs 400] [--threshold 
 # Combine with the ML scorer (needs the model file; tune via --config JSON)
 php hiyori combine myanimelist --strategy metadata_ml --config '{"ml_threshold":0.6,"metadata_floor":55}'
 
-# Benchmark scorers offline (no DB writes): F1 gate at 60/65/70/75/80/85/90
-# For an honest gate, benchmark on a pairs file exported separately from the training set
-php hiyori combine:benchmark [--in storage/ml/pairs-*.jsonl] [--ml-model storage/state/ml-model.json] [--json]
+# Benchmark scorers offline (no DB writes): F1 gate at 60/65/70/75/80/85/90.
+# Honest gate: train on the -train file, benchmark on the untouched -holdout file.
+php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
+php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl [--ml-model storage/state/ml-model.json] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)
