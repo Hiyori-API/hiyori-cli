@@ -319,6 +319,7 @@ final class ReleaseCommand extends Command
     {
         if (str_ends_with($archive, '.zst')) {
             @exec('zstd -t ' . escapeshellarg($archive) . ' 2>/dev/null', $o, $rc);
+
             return $rc === 0;
         }
 
