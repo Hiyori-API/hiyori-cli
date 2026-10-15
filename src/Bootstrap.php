@@ -37,10 +37,15 @@ $container->register(\JMS\Serializer\Serializer::class)
     ->setPublic(true);
 
 $container->autowire(\Hiyori\Service\Logging::class);
+$container->autowire(\Hiyori\Service\Database::class)
+    // The migrator is injected with a setter below to avoid a constructor cycle.
+    ->setArgument('$migrator', null);
 $container->autowire(\Hiyori\Service\Migrator::class)
     ->setPublic(true);
-$container->autowire(\Hiyori\Service\Database::class)
-    ->setArguments([$container->get(\Hiyori\Service\Migrator::class)]);
+$container->getDefinition(\Hiyori\Service\Database::class)->addMethodCall(
+    'setMigrator',
+    [new \Symfony\Component\DependencyInjection\Reference(\Hiyori\Service\Migrator::class)],
+);
 $container->autowire(\Hiyori\Service\ConsoleFactory::class)
     ->setFactory([\Hiyori\Service\ConsoleFactory::class, 'create']);
 $container->autowire(\Hiyori\Service\SourceConfigurationFactory::class)
@@ -78,6 +83,7 @@ $app->addCommands([
     new \Hiyori\Commands\MigrateCommand($hiyori),
     new \Hiyori\Commands\SetupCommand($hiyori),
     new \Hiyori\Commands\PublishCommand(),
+    new \Hiyori\Commands\ReleaseCommand(),
     new \Hiyori\Commands\ScheduleCommand(),
     new \Hiyori\Commands\CombinerCommand($hiyori),
     new \Hiyori\Commands\ReferencesCommand($hiyori),
