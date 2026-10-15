@@ -541,6 +541,94 @@ final class Migrator
     }
 
     /**
+     * Resolve duplicate identity keys in place: for every primary key value
+     * held by more than one document, keep it on the document with the
+     * smallest `hiyori_id` and remove it from the others.
+     *
+     * This is the release-gate unblocker for collisions that survive precise
+     * matching (e.g. the same `mal` value assigned to two source rows during
+     * ingestion) and never deletes documents, so coverage and ids are stable.
+     *
+     * @param list<string> $primaryKeys
+     *
+     * @return array{collection: string, primary_keys: list<string>, duplicate_keys: int, resolved: int, dry_run: bool, keys: list<array{source: string, key: string, keep: int, dropped: list<int>}>}
+     */
+    public function stripDuplicateIdentityKeys(string $collectionName, array $primaryKeys = ['mal', 'al'], bool $dryRun = false, int $maxKeys = 50): array
+    {
+        $collection = $this->collection($collectionName);
+        $primary = array_fill_keys(array_map('strtolower', $primaryKeys), true);
+
+        /** @var array<string, array<string, list<array{doc_id: mixed, hiyori_id: int}>>> $holders */
+        $holders = [];
+        $options = [
+            'projection' => ['hiyori_id' => 1, 'reference_ids' => 1],
+            'sort' => ['hiyori_id' => 1],
+            'typeMap' => ['root' => 'array', 'document' => 'array'],
+        ];
+        foreach ($collection->find([], $options) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $refs = $row['reference_ids'] ?? null;
+            if (is_object($refs)) {
+                $refs = $refs instanceof \Traversable ? iterator_to_array($refs) : get_object_vars($refs);
+            }
+            if (!is_array($refs)) {
+                continue;
+            }
+
+            $id = (int) ($row['hiyori_id'] ?? 0);
+            foreach ($refs as $source => $value) {
+                $source = strtolower((string) $source);
+                if (!isset($primary[$source]) || !is_string($value) || $value === '') {
+                    continue;
+                }
+                $holders[$source][$value][] = ['doc_id' => $row['_id'], 'hiyori_id' => $id];
+            }
+        }
+
+        $resolved = 0;
+        $keys = [];
+        foreach ($holders as $source => $values) {
+            foreach ($values as $value => $rows) {
+                if (count($rows) < 2) {
+                    continue;
+                }
+
+                usort($rows, static fn (array $a, array $b): int => $a['hiyori_id'] <=> $b['hiyori_id']);
+                $keep = array_shift($rows);
+                $dropped = [];
+                foreach ($rows as $row) {
+                    $dropped[] = $row['hiyori_id'];
+                    if (!$dryRun) {
+                        $collection->updateOne(['_id' => $row['doc_id']], ['$unset' => ['reference_ids.' . $source => '']]);
+                    }
+                }
+
+                $resolved++;
+                if (count($keys) < $maxKeys) {
+                    $keys[] = [
+                        'source' => $source,
+                        'key' => (string) $value,
+                        'keep' => $keep['hiyori_id'],
+                        'dropped' => $dropped,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'collection' => $collectionName,
+            'primary_keys' => array_keys($primary),
+            'duplicate_keys' => $resolved,
+            'resolved' => $resolved,
+            'dry_run' => $dryRun,
+            'keys' => $keys,
+        ];
+    }
+
+    /**
      * Count duplicate identity keys across a combined collection.
      *
      * A duplicate is two or more documents sharing the same value for a
