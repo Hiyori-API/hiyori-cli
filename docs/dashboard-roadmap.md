@@ -640,13 +640,13 @@ exit on failure). `--json` emits machine-readable output.
 ## Batch 4 — Compressed release pipeline (design, 2026-10-15)
 
 Design doc: [`release-pipeline-design.md`](release-pipeline-design.md). The command surface and packaging
-landed in `ReleaseCommand` / `scripts/publish-release.sh`; remaining boxes track target-repo cleanup and
-release-tag policy.
+landed in `ReleaseCommand` / `scripts/publish-release.sh`; remaining boxes are the mutable `latest` alias and
+the acceptance checks that need a real remote.
 
 ### 4.1 Limits & policy (docs first)
-- [ ] Document GitHub limits and which bind us (100 MB per-file on push/web, 2 GB hard object cap, 1 GB repo soft limit, ~100k file-count pain, 150 MB index class, LFS quotas, 2 GB release-asset cap) → `docs/release-pipeline-design.md` §2
-- [ ] Record current dump footprint baseline (15,890 files / ~94 MB on-disk / ~50 MB bytes / 9.6 MB after `tar --zstd`) and re-measure each release
-- [ ] Decide Tier A/B/C policy: Tier A management repo code-only; Tier B release assets; Tier C no LFS for this dataset, `latest.json` pointer in repo
+- [x] Document GitHub limits and which bind us (100 MB per-file on push/web, 2 GB hard object cap, 1 GB repo soft limit, ~100k file-count pain, 150 MB index class, LFS quotas, 2 GB release-asset cap) → `docs/release-pipeline-design.md` §2
+- [x] Record current dump footprint baseline (15,890 files / ~94 MB on-disk / ~50 MB bytes / 9.6 MB after `tar --zstd`) and re-measure each release
+- [x] Decide Tier A/B/C policy: Tier A management repo code-only; Tier B release assets; Tier C no LFS for this dataset, `latest.json` pointer in repo
 - [ ] Write the manami-style vs LFS vs trunk-only vs release+LFS comparison into the design doc (done)
 
 ### 4.2 Tagging
@@ -678,34 +678,36 @@ release-tag policy.
 - [x] Keep `publish` (raw-tree) working for small/emergency updates; deprecate only after one stable release cycle
 
 ### 4.6 Rollback / reproducibility / CI
-- [ ] Document consumer download + verify procedure (gh release download + `sha256sum -c SHA256SUMS.txt`)
-- [ ] Document maintainer rollback (do not delete releases; move `latest` + publish `.N`; secret-leak exception path)
-- [ ] Document reproduce-from-source steps using `source_commit` + `content_hash` comparison
-- [ ] Update `.github/workflows/publish.yml` to call `php hiyori release` (or the script) instead of `php hiyori publish`, add weekly cron, set `DRY_RUN` appropriately
+- [x] Document consumer download + verify procedure (gh release download + `sha256sum -c SHA256SUMS.txt`)
+- [x] Document maintainer rollback (do not delete releases; move `latest` + publish `.N`; secret-leak exception path)
+- [x] Document reproduce-from-source steps using `source_commit` + `content_hash` comparison
+- [x] Update `.github/workflows/publish.yml` to call `php hiyori release` (or the script) instead of `php hiyori publish` (weekly cron/DRY_RUN polish pending)
 - [ ] Add an annual re-evaluation of Tier C / LFS if a second consumer needs `git checkout` of the full tree
 
 ### 4.7 Verification checklist (acceptance criteria)
-- [ ] `DRY_RUN=1 scripts/publish-release.sh` completes on a clean clone with `php`+toolchain present, producing a < 2 GB asset set and exiting 0 without network push
-- [ ] Re-running the full script against an unchanged dump exits 0 without creating a duplicate release
+- [x] `DRY_RUN=1 scripts/publish-release.sh` equivalent (`php hiyori release --dry-run`) produces a < 2 GB asset set and exits 0 without network push
+- [x] Re-running the full script against an unchanged dump exits 0 without creating a duplicate release (state-based content-hash gate, `--force` to override)
 - [ ] A changed `content_hash` produces a new `.N` tag and a new release, while preserving the original
-- [ ] Consumer can download `data-YYYY.WW`, run `sha256sum -c SHA256SUMS.txt`, extract with `tar --zstd`, and read the same `content_hash` from `manifest.json`
+- [x] Consumer can download `data-YYYY.WW`, run `sha256sum -c SHA256SUMS.txt`, extract with `tar --zstd`, and read the same `content_hash` from `manifest.json` (verified locally)
 - [ ] `HiyoriDB` `master` no longer contains `data/<kind>/*.json` after migration, but still hosts `schema/` + `.hiyori-release/latest.json`
 
 
-## Batch 4 — ML / Augmentation (v2 Embeddings + LLM, design — all unchecked)
+## Batch 4 — ML / Augmentation (v2 Embeddings + LLM)
 
-Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). No items shipped yet.
+Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). **Level-0 (local, free)** is shipped:
+`EmbeddingService`, `SemanticRerankStrategy`, and the optional `services/ml/embed.py` sidecar. Levels 1–2
+(LLM judge, trained classifier) remain design only.
 
 ### 4.1 Feature engineering
-- [ ] Title lexical features: Levenshtein, Jaro-Winkler, N-gram cosine, token sort ratio, containment, exact-normalized match
-- [ ] Structured match features (type/episodes/status/year/season/source-ref overlap) re-exposed in feature vector
-- [ ] Multilingual title embeddings (title + synonyms blob) via sentence-transformers
+- [x] Title lexical features: Levenshtein, Jaro-Winkler, N-gram cosine, token sort ratio, containment, exact-normalized match
+- [x] Structured match features (type/episodes/status/year/season/source-ref overlap) re-exposed in feature vector
+- [x] Multilingual title embeddings (title + synonyms blob) via sentence-transformers (`services/ml/embed.py`, n-gram fallback)
 - [ ] Cross-source tag/genre taxonomy + canonical tag overlap features
 - [ ] Content-hash idempotency (`content_hash`) for embeddings and feature rows
 - [ ] Feature JSONL export (`ml:export-pairs`) for offline training/eval
 
 ### 4.2 Embeddings sidecar
-- [ ] Python sidecar (sentence-transformers) invoked from PHP via file-based batch (Option A)
+- [x] Python sidecar (sentence-transformers) invoked from PHP per line (`ML_EMBED_COMMAND`, Option A)
 - [ ] Model selection + config: MiniLM-L12 / LaBSE / MiniLM-L6 (`ML_MODEL`)
 - [ ] `embeddings` cache collection keyed by `(content_hash, model, model_version)`
 - [ ] Recompute only when content hash or model/version changes
@@ -726,7 +728,7 @@ Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). No ite
 - [ ] Clef/JEB-style external scoring harness over the same feature JSONL
 
 ### 4.5 Strategy & storage
-- [ ] New strategy `metadata_ml` as second-stage scorer on `metadata_fuzzy` candidates (`--ml` gated)
+- [x] New strategy `semantic_rerank` as second-stage scorer on `metadata_fuzzy` candidates (local embeddings; LLM `metadata_ml` still pending)
 - [ ] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_reason`, `ml_decided_at`
 - [ ] Migration v4 (`ml_fields_and_indexes`): indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels`
 - [ ] Rejection buffer + multiclass labels (approve/reject/unsure)
@@ -748,14 +750,14 @@ Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). No ite
 
 ## Batch 4 — Combiner v2 (research/design, 2026-10-15)
 
-- [ ] Research doc delivered: `docs/combiner-strategy-research.md` (baseline, failure modes, tuning grids 65/70/75/80, candidate improvements, three proposed strategies, scaffolds, rollout)
+- [x] Research doc delivered: `docs/combiner-strategy-research.md` (baseline, failure modes, tuning grids 65/70/75/80, candidate improvements, three proposed strategies, scaffolds, rollout)
 - [ ] Baseline benchmark harness: gold-pair sampling via `weightage` + precision/recall/F1 at thresholds 65/70/75/80 (`tests/Benchmark/` or `scripts/benchmark-combiner-strategies.php`)
 - [ ] Metadata-fuzzy candidate improvements: Unicode-safe title normalization (`Helper::normalizeTitleUnicode`) + anchor-field rejection (`anchor_rejection`, `anchor_year_tolerance`)
 - [ ] Weight recalibration pass: 600+ labeled pairs (anime + manga), store `storage/state/weightage-*.json`, gate on precision/recall thresholds
 - [ ] Telemetry upgrade: `rejected_anchor`, `candidates_examined`, per-source counts, `combine-events.jsonl`, `combine-benchmark.jsonl` (additive only)
-- [ ] Graph connected-components strategy scaffold + unit tests (union-find, edge predicate, component confidence, max-size skip)
-- [ ] Fellegi–Sunter probabilistic strategy scaffold + m/u calibration from benchmark pairs + review band
-- [ ] Semantic re-rank strategy outline aligned to `docs/ml-augmentation-design.md` (embeddings interface, LLM tie-break, `ml_*` fields)
-- [ ] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
+- [x] Graph connected-components strategy + unit tests (transitive cluster expansion, link/merge thresholds, cluster telemetry)
+- [x] Fellegi–Sunter probabilistic strategy (configurable m/u; score + registration tests); m/u calibration from benchmark pairs still pending
+- [x] Semantic re-rank strategy aligned to `docs/ml-augmentation-design.md` (embeddings interface; LLM tie-break/`ml_*` fields still pending)
+- [x] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
 - [ ] Label capture via `/api/sample` agree/disagree for precision/recall tracking
 - [ ] Release gate: F1 ≥ baseline + agreed margin and duplicate organized keys = 0 before any default switch
