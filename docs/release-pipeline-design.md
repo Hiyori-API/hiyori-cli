@@ -1,6 +1,6 @@
 # HiyoriDB Compressed Release Pipeline — Design
 
-**Status:** Design only — no source changes in this document.  
+**Status:** Implemented (Tier B command + assets). See Batch 4 checklist for the few remaining target-repo cleanup items.  
 **Date:** 2026-10-15  
 **Owner:** Hiyori-API / HiyoriDB maintainers  
 **Companion checklist:** `docs/dashboard-roadmap.md` → *Batch 4*.

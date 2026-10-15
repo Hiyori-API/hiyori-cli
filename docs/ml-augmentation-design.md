@@ -1,6 +1,6 @@
 # Hiyori CLI — ML Augmentation Design (v2: Embeddings + LLM)
 
-**Status:** Design only. Tracked in `docs/dashboard-roadmap.md` → **Batch 4 — ML / Augmentation**.
+**Status:** Level-0 (local, free) implemented: `EmbeddingService` + `SemanticRerankStrategy` + `services/ml/embed.py`. Levels 1–2 remain design only. Tracked in `docs/dashboard-roadmap.md` → **Batch 4 — ML / Augmentation**.
 **Scope:** Improve the combine decision (merge vs. keep separate) by augmenting `metadata_fuzzy` with lexical features, multilingual embeddings, a cross-source tag taxonomy, a cheap LLM tie-breaker for ambiguous pairs, and a trained (Clef/JEB-style) decision model.
 **Baseline (already shipped):** `metadata_fuzzy` is the default combine strategy. Tuned weights `title 26.4 / type 5.7 / episodes 26.2 / status 0.6 / season 16.4 / year 23.2 / tags 1.5 / synonyms 0`. Threshold `70`. Result on anime: `organized = 10,770`, triple-linked `8,358`, confidence histogram `70–80 = 3,705 · 80–90 = 680 · 90–100 = 6,385`. `confidence` is stored per merged document; `/api/histogram` exposes it in 10 bins; `/api/sample` is the human-in-the-loop agree/disagree sampler.
 

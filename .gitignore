@@ -22,3 +22,7 @@ storage/repo-*/
 storage/*.tar.gz
 
 output/
+
+# Python sidecar bytecode
+__pycache__/
+*.pyc

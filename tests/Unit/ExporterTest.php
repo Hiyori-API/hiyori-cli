@@ -346,6 +346,34 @@ final class ExporterTest extends TestCase
         $this->assertSame('../../schema/hiyori.schema.json', $entry['$schema']);
     }
 
+    public function testVerifyAcceptsIntactDump(): void
+    {
+        $base = $this->tempDir();
+        $dir = $base . '/verified-dump';
+        $config = ExportConfig::overrides(ExportConfig::defaults(), ['bundle=false']);
+        (new Exporter(null, 'hiyori', $base))->emit(['anime' => [$this->anime()], 'manga' => []], $config, $dir);
+
+        $verification = Exporter::verify($dir);
+
+        $this->assertTrue($verification['ok']);
+        $this->assertGreaterThan(0, $verification['checked']);
+        $this->assertStringStartsWith('sha256:', (string) $verification['content_hash']);
+    }
+
+    public function testVerifyDetectsTamperedFile(): void
+    {
+        $base = $this->tempDir();
+        $dir = $base . '/tampered-dump';
+        $config = ExportConfig::overrides(ExportConfig::defaults(), ['bundle=false']);
+        (new Exporter(null, 'hiyori', $base))->emit(['anime' => [$this->anime()], 'manga' => []], $config, $dir);
+
+        file_put_contents($dir . '/data/anime.jsonl', "tampered\n");
+        $verification = Exporter::verify($dir);
+
+        $this->assertFalse($verification['ok']);
+        $this->assertContains('data/anime.jsonl', $verification['mismatched']);
+    }
+
     public function testEmitTablesCsvProfileSkipsPerEntryFiles(): void
     {
         $dir = $this->tempDir() . '/tables-dump';

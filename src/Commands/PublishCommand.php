@@ -27,7 +27,10 @@ final class PublishCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only build the dump; print what would be pushed')
             ->addOption('no-gzip', null, InputOption::VALUE_NONE, 'Skip the .tar.gz bundle')
             ->addOption('no-manga', null, InputOption::VALUE_NONE, 'Exclude manga from the dump')
-            ->addOption('message', 'm', InputOption::VALUE_OPTIONAL, 'Commit message override');
+            ->addOption('message', 'm', InputOption::VALUE_OPTIONAL, 'Commit message override')
+            ->addOption('verify', null, InputOption::VALUE_NONE, 'Verify manifest checksums/sizes before pushing')
+            ->addOption('max-changed', null, InputOption::VALUE_OPTIONAL, 'Abort if more than N files changed (diff-stat gate)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Override the --max-changed gate');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -72,6 +75,28 @@ final class PublishCommand extends Command
         }
         $io->writeln(sprintf('  %-34s %s', 'relational rows', (string) $rows));
         $io->writeln(sprintf('  %-34s +%d ~%d -%d', 'changelog', $result['changelog']['added'], $result['changelog']['updated'], $result['changelog']['removed']));
+
+        if ($input->getOption('verify') || $input->getOption('max-changed') !== null) {
+            $verification = Exporter::verify($dir);
+            if (!$verification['ok']) {
+                foreach ($verification['issues'] as $issue) {
+                    $io->error('verify: ' . $issue);
+                }
+
+                return Command::FAILURE;
+            }
+            $io->writeln(sprintf('  %-34s ok (%d files, %s)', 'verify', $verification['checked'], (string) $verification['content_hash']));
+        }
+
+        $maxChanged = $input->getOption('max-changed');
+        if ($maxChanged !== null && !$input->getOption('force')) {
+            $maxChanged = (int) $maxChanged;
+            if ($maxChanged >= 0 && $result['changed'] > $maxChanged) {
+                $io->error(sprintf('Diff-stat gate: %d files changed, limit is %d. Re-run with --force or a higher --max-changed.', $result['changed'], $maxChanged));
+
+                return Command::FAILURE;
+            }
+        }
 
         $repo = $input->getOption('repo');
         $publishDir = dirname($dir, 2) . '/repo-' . date('YmdHis');
