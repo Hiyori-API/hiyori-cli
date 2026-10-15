@@ -5,6 +5,7 @@
 | **dashboard-roadmap.md** (this file) | **Living tracker** | Feature progress for the dashboard, explorer, combiner and manga work, plus engineering notes |
 | [explorer-ux-plan.md](explorer-ux-plan.md) | Plan — largely shipped | Explorer UX overhaul + TanStack DataTable checklist |
 | [live-dashboard-plan.md](live-dashboard-plan.md) | **Shipped — superseded** | Original live-dashboard plan; folded into this roadmap and the readme's [Live dashboard](../readme.md#live-dashboard) section |
+| [ml-augmentation-design.md](ml-augmentation-design.md) | Design — not implemented | v2 (Embeddings + LLM) combine-decision augmentation; tracked as **Batch 4** |
 
 ---
 
@@ -635,3 +636,125 @@ within a kind are suffixed `-2`, `-3`, … (`Migrator::normalizeSlug()` /
 checks that every doc has an id, ids are unique, docs and registry agree in both
 directions, and slugs are unique per kind (prints up to 20 problems; non-zero
 exit on failure). `--json` emits machine-readable output.
+
+## Batch 4 — Compressed release pipeline (design, 2026-10-15)
+
+Design doc: [`release-pipeline-design.md`](release-pipeline-design.md). No source changes landed
+yet; these items track the open work, in dependency order.
+
+### 4.1 Limits & policy (docs first)
+- [ ] Document GitHub limits and which bind us (100 MB per-file on push/web, 2 GB hard object cap, 1 GB repo soft limit, ~100k file-count pain, 150 MB index class, LFS quotas, 2 GB release-asset cap) → `docs/release-pipeline-design.md` §2
+- [ ] Record current dump footprint baseline (15,890 files / ~94 MB on-disk / ~50 MB bytes / 9.6 MB after `tar --zstd`) and re-measure each release
+- [ ] Decide Tier A/B/C policy: Tier A management repo code-only; Tier B release assets; Tier C no LFS for this dataset, `latest.json` pointer in repo
+- [ ] Write the manami-style vs LFS vs trunk-only vs release+LFS comparison into the design doc (done)
+
+### 4.2 Tagging
+- [ ] Adopt tag grammar `data-YYYY.WW` (append `.N` on hash change) + optional `vYYYY.MM.PATCH` milestone + mutable `latest` alias
+- [ ] Define annotated-tag / release body template carrying `content_hash`, counts, `generated_at`, `source_commit`, asset list, verify commands
+- [ ] Implement content_hash-based idempotency: same `content_hash` → exit 0; differing hash → `.N` suffix
+- [ ] Add `source_commit` recording to release notes so a release is reproducible from `hiyori-cli` at a known commit
+
+### 4.3 Script & compression
+- [ ] Create `scripts/publish-release.sh` from the skeleton in design doc §5.2 (bash, `set -euo pipefail`, cleanup trap)
+- [ ] Build dump via `php hiyori export organized --profile per-entry-json` (or reuse `HIYORI_DUMP_DIR` from PHP)
+- [ ] Verify manifest with `sha256sum -c` before any publish step (`--verify` equivalent)
+- [ ] Produce single `hiyori-db-<tag>.tar.zst` (~9.6 MB today) with deterministic headers (`--sort=name`, `SOURCE_DATE_EPOCH`)
+- [ ] Add optional sidecars: `*.anime.jsonl.zst`, `*.manga.jsonl.zst`, `*.tables.zip`, `*.schema.zip`
+- [ ] Split any asset above 1.9 GB with `split -b 1900M … .part` and reject > 2 GB (release-asset cap)
+- [ ] Write `SHA256SUMS.txt` over every asset (including split parts)
+- [ ] Implement `DRY_RUN=1` mode that stops after asset creation + verification
+- [ ] Support gh-CLI-unavailable fallback: annotated tag pushed to target repo, release skipped, follow-up command printed
+
+### 4.4 Target repo / manami-style cleanup
+- [ ] On publish, remove legacy raw tree from `HiyoriDB` `master` (`data/`, `index/`, `manifest.json`, `CHANGELOG.md`, tarballs)
+- [ ] Keep `schema/`, `README.md` and add `.hiyori-release/latest.json` pointer (`tag`, `content_hash`, counts, `generated_at`, `source_commit`, asset list)
+- [ ] Update/move mutable `latest` tag + GitHub "latest" release after each run
+
+### 4.5 Command surface changes
+- [ ] Add `--verify` to `PublishCommand` (`php hiyori publish --verify`): validate manifest checksums/sizes and archive-test the `.tar.gz`
+- [ ] Add diff-stat gate before push (`--max-changed N`, `--force` override) using `Exporter::write()` `$result['changed']`
+- [ ] Add `ReleaseCommand` (`php hiyori release` / alias `db:release`) as a thin PHP wrapper around `scripts/publish-release.sh` with `--repo`, `--branch`, `--tag`, `--profile`, `--no-manga`, `--draft`, `--verify`, `--dry-run`, `-m`
+- [ ] Keep `publish` (raw-tree) working for small/emergency updates; deprecate only after one stable release cycle
+
+### 4.6 Rollback / reproducibility / CI
+- [ ] Document consumer download + verify procedure (gh release download + `sha256sum -c SHA256SUMS.txt`)
+- [ ] Document maintainer rollback (do not delete releases; move `latest` + publish `.N`; secret-leak exception path)
+- [ ] Document reproduce-from-source steps using `source_commit` + `content_hash` comparison
+- [ ] Update `.github/workflows/publish.yml` to call `php hiyori release` (or the script) instead of `php hiyori publish`, add weekly cron, set `DRY_RUN` appropriately
+- [ ] Add an annual re-evaluation of Tier C / LFS if a second consumer needs `git checkout` of the full tree
+
+### 4.7 Verification checklist (acceptance criteria)
+- [ ] `DRY_RUN=1 scripts/publish-release.sh` completes on a clean clone with `php`+toolchain present, producing a < 2 GB asset set and exiting 0 without network push
+- [ ] Re-running the full script against an unchanged dump exits 0 without creating a duplicate release
+- [ ] A changed `content_hash` produces a new `.N` tag and a new release, while preserving the original
+- [ ] Consumer can download `data-YYYY.WW`, run `sha256sum -c SHA256SUMS.txt`, extract with `tar --zstd`, and read the same `content_hash` from `manifest.json`
+- [ ] `HiyoriDB` `master` no longer contains `data/<kind>/*.json` after migration, but still hosts `schema/` + `.hiyori-release/latest.json`
+
+
+## Batch 4 — ML / Augmentation (v2 Embeddings + LLM, design — all unchecked)
+
+Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). No items shipped yet.
+
+### 4.1 Feature engineering
+- [ ] Title lexical features: Levenshtein, Jaro-Winkler, N-gram cosine, token sort ratio, containment, exact-normalized match
+- [ ] Structured match features (type/episodes/status/year/season/source-ref overlap) re-exposed in feature vector
+- [ ] Multilingual title embeddings (title + synonyms blob) via sentence-transformers
+- [ ] Cross-source tag/genre taxonomy + canonical tag overlap features
+- [ ] Content-hash idempotency (`content_hash`) for embeddings and feature rows
+- [ ] Feature JSONL export (`ml:export-pairs`) for offline training/eval
+
+### 4.2 Embeddings sidecar
+- [ ] Python sidecar (sentence-transformers) invoked from PHP via file-based batch (Option A)
+- [ ] Model selection + config: MiniLM-L12 / LaBSE / MiniLM-L6 (`ML_MODEL`)
+- [ ] `embeddings` cache collection keyed by `(content_hash, model, model_version)`
+- [ ] Recompute only when content hash or model/version changes
+- [ ] Venv + pinned `requirements.txt` + smoke test
+
+### 4.3 LLM-as-judge
+- [ ] OpenAI/Anthropic judge for ambiguous band (70–85), JSON-schema output
+- [ ] Invoke directly from PHP (Option B) with per-run cap + budget guard
+- [ ] `llm_judgements` cache keyed by pair hash
+- [ ] Telemetry for token/cost spend (`llm_tokens`, `llm_cost_usd`)
+
+### 4.4 Decision model / classifier
+- [ ] Human-in-the-loop label capture (`_labels`, extend `/api/sample` agree/disagree)
+- [ ] LLM bootstrap of training labels
+- [ ] Train logistic regression (v2.0) / XGBoost (v2.1) on feature JSONL
+- [ ] Calibration (isotonic/Platt) so `ml_score` maps to 0–100 threshold
+- [ ] DBSCAN title-clustering helper (optional, behind flag)
+- [ ] Clef/JEB-style external scoring harness over the same feature JSONL
+
+### 4.5 Strategy & storage
+- [ ] New strategy `metadata_ml` as second-stage scorer on `metadata_fuzzy` candidates (`--ml` gated)
+- [ ] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_reason`, `ml_decided_at`
+- [ ] Migration v4 (`ml_fields_and_indexes`): indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels`
+- [ ] Rejection buffer + multiclass labels (approve/reject/unsure)
+- [ ] Registration in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES`
+
+### 4.6 Dashboard
+- [ ] Explorer: opt-in `confidence`/`ml_score`/`ml_model`/`ml_model_version`/`ml_decision` columns
+- [ ] Quality page: metadata vs ML score histograms; `/api/histogram?field=`
+- [ ] Threshold suggestions (merge count + precision/recall/F1 when labels exist)
+- [ ] Rejection buffer review + promote-to-training
+- [ ] Model/version filter for A/B review
+- [ ] Settings → Combine/ML config (model, sidecar path, caps, budget, enable toggle)
+
+### 4.7 Validation
+- [ ] Offline A/B benchmark vs `metadata_fuzzy` (coverage, F1, duplicate keys = 0)
+- [ ] Idempotency/content-hash regression test for re-runs
+- [ ] Cost + latency documentation + shipping gate (F1 ≥ baseline +2 pts)
+
+
+## Batch 4 — Combiner v2 (research/design, 2026-10-15)
+
+- [ ] Research doc delivered: `docs/combiner-strategy-research.md` (baseline, failure modes, tuning grids 65/70/75/80, candidate improvements, three proposed strategies, scaffolds, rollout)
+- [ ] Baseline benchmark harness: gold-pair sampling via `weightage` + precision/recall/F1 at thresholds 65/70/75/80 (`tests/Benchmark/` or `scripts/benchmark-combiner-strategies.php`)
+- [ ] Metadata-fuzzy candidate improvements: Unicode-safe title normalization (`Helper::normalizeTitleUnicode`) + anchor-field rejection (`anchor_rejection`, `anchor_year_tolerance`)
+- [ ] Weight recalibration pass: 600+ labeled pairs (anime + manga), store `storage/state/weightage-*.json`, gate on precision/recall thresholds
+- [ ] Telemetry upgrade: `rejected_anchor`, `candidates_examined`, per-source counts, `combine-events.jsonl`, `combine-benchmark.jsonl` (additive only)
+- [ ] Graph connected-components strategy scaffold + unit tests (union-find, edge predicate, component confidence, max-size skip)
+- [ ] Fellegi–Sunter probabilistic strategy scaffold + m/u calibration from benchmark pairs + review band
+- [ ] Semantic re-rank strategy outline aligned to `docs/ml-augmentation-design.md` (embeddings interface, LLM tie-break, `ml_*` fields)
+- [ ] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
+- [ ] Label capture via `/api/sample` agree/disagree for precision/recall tracking
+- [ ] Release gate: F1 ≥ baseline + agreed margin and duplicate organized keys = 0 before any default switch
