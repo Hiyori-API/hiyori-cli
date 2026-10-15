@@ -82,6 +82,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
 | `ml:export-pairs` | Export labelled candidate pairs (JSONL) for ML training / benchmarking |
 | `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
+| `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
@@ -186,6 +187,10 @@ php hiyori ml:train [--in storage/ml/pairs-*.jsonl] [--epochs 400] [--threshold 
 
 # Combine with the ML scorer (needs the model file; tune via --config JSON)
 php hiyori combine myanimelist --strategy metadata_ml --config '{"ml_threshold":0.6,"metadata_floor":55}'
+
+# Benchmark scorers offline (no DB writes): F1 gate at 60/65/70/75/80/85/90
+# For an honest gate, benchmark on a pairs file exported separately from the training set
+php hiyori combine:benchmark [--in storage/ml/pairs-*.jsonl] [--ml-model storage/state/ml-model.json] [--json]
 
 # Export data (organized by default) as JSON, JSONL or CSV
 # Export combined DB with the configured profile (default per-entry-json)

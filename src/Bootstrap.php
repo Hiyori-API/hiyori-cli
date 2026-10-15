@@ -99,6 +99,7 @@ $app->addCommands([
     new \Hiyori\Commands\HiyoriIdCommand($hiyori),
     new \Hiyori\Commands\MlExportPairsCommand($hiyori),
     new \Hiyori\Commands\MlTrainCommand(),
+    new \Hiyori\Commands\BenchmarkCommand(),
 ]);
 
 /**

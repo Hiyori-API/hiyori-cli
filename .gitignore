@@ -11,6 +11,7 @@
 /storage/ml/
 /storage/logs/dashboard-serve.log
 storage/logs/*.log
+storage/logs/*.jsonl
 
 storage/logs/daily-*
 

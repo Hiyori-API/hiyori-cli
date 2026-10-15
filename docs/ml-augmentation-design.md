@@ -362,6 +362,8 @@ Recommend a **default monthly budget of $10–$20** with the caps; the judge onl
 
 Shipping gate: `metadata_ml` only becomes default if, on a fixed labeled hold-out, it beats `metadata_fuzzy` on F1 at threshold 70 **and** shows no regression in duplicate upsert keys (must stay 0, as in benchmark v2).
 
+Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over a labelled JSONL and prints a PASS/FAIL gate line; it is non-destructive (no MongoDB). For an honest gate, export **two** disjoint pair sets — train on one (`ml:train --in A.jsonl`), benchmark on the other (`combine:benchmark --in B.jsonl`). Benchmarking the training file is in-sample and will overstate the ML score.
+
 ---
 
 ## 11. Rollout plan (phased)
