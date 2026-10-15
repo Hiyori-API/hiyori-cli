@@ -83,8 +83,9 @@ jobs:
       - name: Combine (merge all sources into organized)
         working-directory: hiyori-cli
         run: |
+          # Anime base = anilist; manga base = anilist_manga (see scripts/finalize-merges.sh).
           php hiyori combine anilist --export=per-entry-json
-          php hiyori combine kitsu --into=organized_manga --export=per-entry-json
+          php hiyori combine anilist_manga --into=organized_manga --export=per-entry-json
 
       - name: Release gate (no duplicate identity keys)
         # Fails the release if any combined collection repeats a `mal`/`al`
