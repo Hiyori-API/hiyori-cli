@@ -2,6 +2,7 @@
 
 namespace Hiyori\Service\Ingestion\Source;
 
+use Hiyori\Helper;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\RateLimiter;
@@ -46,7 +47,7 @@ final class MyAnimeListMangaIngestion
         $total = max(0, (int) ($meta['total'] ?? 0)); // 0 = unknown
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
-        $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
+        $progressBar->setFormat(Helper::progressFormat($_ENV['PROGRESSBAR_FORMAT'] ?? null, $total));
         $progressBar->start();
 
         $processed = 0;

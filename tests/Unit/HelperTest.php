@@ -151,6 +151,28 @@ final class HelperTest extends TestCase
         $this->assertSame(['al' => '30001', 'al_manga' => '19'], $merged->getReferenceIds());
     }
 
+    public function testProgressFormatKeepsEtaWhenTotalIsKnown(): void
+    {
+        $format = '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%';
+
+        $this->assertSame($format, Helper::progressFormat($format, 500));
+    }
+
+    public function testProgressFormatDropsEtaWhenTotalIsUnknown(): void
+    {
+        $format = '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%';
+        $result = Helper::progressFormat($format, 0);
+
+        $this->assertStringNotContainsString('%estimated', $result);
+        $this->assertStringContainsString('%memory', $result);
+    }
+
+    public function testProgressFormatUsesDefaultWhenConfiguredIsNull(): void
+    {
+        $this->assertStringContainsString('%estimated', Helper::progressFormat(null, 500));
+        $this->assertStringNotContainsString('%estimated', Helper::progressFormat(null, 0));
+    }
+
     public function testMergeEntriesUsesAnimeModelForAnimeTable(): void
     {
         $entry = [
