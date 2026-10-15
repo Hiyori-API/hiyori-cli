@@ -44,12 +44,14 @@ final class MyAnimeListOfficialIngestion
         ]);
         $httpClient = new RetryableHttpClient($httpClient, new GenericRetryStrategy(), 3);
 
-        // Get total count from ranking
+        // Validate the credential / endpoint. MAL's ranking API does not expose
+        // a total, so the loop below runs until an empty page instead of
+        // trusting an arbitrary 25,000 ceiling.
         $meta = self::fetchMeta($httpClient, $console, $rateLimiter, $sourceKey);
         if (!$meta) {
             return;
         }
-        $total = (int) $meta['total'];
+        $total = max(0, (int) ($meta['total'] ?? 0)); // 0 = unknown (indeterminate progress bar)
         Telemetry::track($sourceKey, 0, $total, 0, 'running');
 
         $processed = 0;
@@ -64,10 +66,22 @@ final class MyAnimeListOfficialIngestion
 
         $offset = 0;
         $limit = 500;
+        $maxPages = max(0, (int) ($_ENV['MAL_MAX_PAGES'] ?? 0)); // 0 = no ceiling
+        $page = 0;
+        $consecutivePageErrors = 0;
 
-        while ($offset < $meta['total']) {
+        while ($maxPages === 0 || $page < $maxPages) {
             $entries = self::fetchPage($httpClient, $offset, $limit, $console, $rateLimiter, $sourceKey);
-            if (empty($entries)) {
+            if ($entries === null) {
+                $consecutivePageErrors++;
+                if ($consecutivePageErrors >= 3) {
+                    $console->io()->warning('MAL ranking page failed 3 times in a row — stopping to avoid a retry loop.');
+                    break;
+                }
+                continue;
+            }
+            $consecutivePageErrors = 0;
+            if ($entries === []) {
                 break;
             }
 
@@ -106,7 +120,8 @@ final class MyAnimeListOfficialIngestion
             }
 
             $offset += $limit;
-            sleep($sources->get()->getDelay());
+            $page++;
+            // Only throttle between pages; per-entry waits already happen above.
         }
 
         $progressBar->finish();
@@ -120,7 +135,7 @@ final class MyAnimeListOfficialIngestion
     private static function fetchMeta($httpClient, $console, RateLimiter $rateLimiter, string $sourceKey): ?array
     {
         try {
-            $response = $rateLimiter->executeWithRetry(
+            $rateLimiter->executeWithRetry(
                 fn () => $httpClient->request('GET', 'anime/ranking', [
                     'query' => ['ranking_type' => 'all', 'limit' => 1],
                 ]),
@@ -130,7 +145,7 @@ final class MyAnimeListOfficialIngestion
                 2.0,
             );
 
-            return ['total' => 25000];
+            return ['total' => null]; // MAL ranking does not expose a total.
         } catch (\Exception $e) {
             $console->io()->error('Failed to fetch meta: ' . $e->getMessage());
 
@@ -138,7 +153,10 @@ final class MyAnimeListOfficialIngestion
         }
     }
 
-    private static function fetchPage($httpClient, int $offset, int $limit, $console, RateLimiter $rateLimiter, string $sourceKey): array
+    /**
+     * @return list<array<string, mixed>>|null null on transport error, [] when the ranking is exhausted
+     */
+    private static function fetchPage($httpClient, int $offset, int $limit, $console, RateLimiter $rateLimiter, string $sourceKey): ?array
     {
         try {
             $response = $rateLimiter->executeWithRetry(
@@ -159,7 +177,7 @@ final class MyAnimeListOfficialIngestion
         } catch (\Exception $e) {
             $console->io()->error("Failed to fetch page at offset $offset: " . $e->getMessage());
 
-            return [];
+            return null;
         }
     }
 
