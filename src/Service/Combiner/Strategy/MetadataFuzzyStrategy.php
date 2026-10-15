@@ -44,6 +44,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::DEFAULT_WEIGHTS);
         $threshold = self::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
+        $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
+        $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
+        $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -60,6 +63,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $scores = [];
         $totalMerged = 0;
         $mergedSources = [];
+        $candidatesExamined = 0;
+        $rejectedAnchor = 0;
+        $telemetry = new \Hiyori\Service\Telemetry();
 
         foreach ($cursor as $id => $entry) {
             $entryArray = Helper::convertMongoResultToArray($entry);
@@ -78,13 +84,18 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     continue;
                 }
 
-                $bestMatch = self::findBestMatch(
-                    $db,
-                    $currentSource->getTable(),
+                $match = self::match(
                     $entryArray,
+                    self::candidates($db, $currentSource->getTable(), $entryArray),
                     $weights,
                     $threshold,
+                    $anchorRejection,
+                    $anchorYearTolerance,
+                    $anchorEpisodes,
                 );
+                $candidatesExamined += $match['examined'];
+                $rejectedAnchor += $match['rejected_anchor'];
+                $bestMatch = $match['best'];
 
                 if ($bestMatch !== null) {
                     $score = (float) $bestMatch['_score'];
@@ -164,11 +175,16 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $console->io()->text('Merges by source: ' . implode(', ', $bySource));
         }
 
-        (new \Hiyori\Service\Telemetry())->update('combine-latest', [
+        $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $source->get()->getTable(),
             'merges' => $totalMerged,
             'threshold' => round($threshold, 1),
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
+            'merged_sources' => $mergedSources,
+            'anchor_rejection' => $anchorRejection,
+            'anchor_year_tolerance' => $anchorYearTolerance,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),
                 'min' => round(min($scores), 1),
@@ -181,6 +197,14 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             ],
             'completed_at' => date('c'),
         ]);
+        $telemetry->append('combine-events', [
+            'strategy' => self::NAME,
+            'base' => $source->get()->getTable(),
+            'merges' => $totalMerged,
+            'threshold' => round($threshold, 1),
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
+        ]);
     }
 
     /**
@@ -192,16 +216,57 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         string $targetTable,
         array $entry,
         array $weights,
-        float $threshold
+        float $threshold,
+        bool $anchorRejection = true,
+        int $anchorYearTolerance = 1,
+        bool $anchorEpisodes = false
     ): ?array {
-        $candidates = self::candidates($db, $targetTable, $entry);
+        return self::match(
+            $entry,
+            self::candidates($db, $targetTable, $entry),
+            $weights,
+            $threshold,
+            $anchorRejection,
+            $anchorYearTolerance,
+            $anchorEpisodes,
+        )['best'];
+    }
 
+    /**
+     * Score a candidate pool with optional anchor-field rejection.
+     *
+     * Anchor rejection vetoes a candidate regardless of weighted score when
+     * a hard field clearly disagrees: the base `type` family differs, or the
+     * release years are further apart than `yearTolerance`. Episodes are only
+     * used when explicitly enabled because split-cour releases legitimately
+     * differ.
+     *
+     * @param list<array<string, mixed>> $candidates
+     * @param array<string, float>       $weights
+     *
+     * @return array{best: ?array<string, mixed>, examined: int, rejected_anchor: int}
+     */
+    public static function match(
+        array $entry,
+        array $candidates,
+        array $weights,
+        float $threshold,
+        bool $anchorRejection = true,
+        int $yearTolerance = 1,
+        bool $rejectEpisodes = false
+    ): array {
         $bestScore = 0.0;
         $bestMatch = null;
+        $rejected = 0;
 
         foreach ($candidates as $candidateArray) {
-            $score = self::calculateScore($entry, $candidateArray, $weights);
+            if ($anchorRejection && self::isAnchorRejected($entry, $candidateArray, $yearTolerance, $rejectEpisodes)) {
+                $rejected++;
 
+                continue;
+            }
+
+            $score = self::calculateScore($entry, $candidateArray, $weights);
             if ($score > $bestScore && $score >= $threshold) {
                 $bestScore = $score;
                 $bestMatch = $candidateArray;
@@ -212,7 +277,59 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $bestMatch['_score'] = $bestScore;
         }
 
-        return $bestMatch;
+        return ['best' => $bestMatch, 'examined' => count($candidates), 'rejected_anchor' => $rejected];
+    }
+
+    /**
+     * Hard anchor veto used by {@see match()}.
+     *
+     * @param array<string, mixed> $e1
+     * @param array<string, mixed> $e2
+     */
+    public static function isAnchorRejected(
+        array $e1,
+        array $e2,
+        int $yearTolerance = 1,
+        bool $rejectEpisodes = false
+    ): bool {
+        $type1 = self::anchorType($e1['type'] ?? null);
+        $type2 = self::anchorType($e2['type'] ?? null);
+        if ($type1 !== '' && $type2 !== '' && $type1 !== $type2) {
+            return true;
+        }
+
+        if ($yearTolerance >= 0) {
+            $year1 = (int) ($e1['year'] ?? 0);
+            $year2 = (int) ($e2['year'] ?? 0);
+            if ($year1 > 0 && $year2 > 0 && abs($year1 - $year2) > $yearTolerance) {
+                return true;
+            }
+        }
+
+        if ($rejectEpisodes) {
+            $ep1 = (int) ($e1['episodes'] ?? 0);
+            $ep2 = (int) ($e2['episodes'] ?? 0);
+            if ($ep1 > 0 && $ep2 > 0 && $ep1 !== $ep2) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Reduce a media type to its family (`tv_short` → `tv`, `movie` → `movie`).
+     */
+    public static function anchorType(mixed $value): string
+    {
+        $type = strtolower(trim((string) $value));
+        if ($type === '') {
+            return '';
+        }
+        $type = preg_replace('/[^a-z0-9]+/', '_', $type) ?? $type;
+        $parts = explode('_', trim($type, '_'));
+
+        return $parts[0] ?? '';
     }
 
     /**
@@ -357,6 +474,13 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             return 1.0;
         }
         if ($t1 === $t2) {
+            return 1.0;
+        }
+
+        // Unicode-safe exact match (NFKC full-width folding, combining marks).
+        $u1 = Helper::normalizeTitleUnicode($title1);
+        $u2 = Helper::normalizeTitleUnicode($title2);
+        if ($u1 !== '' && $u1 === $u2) {
             return 1.0;
         }
 

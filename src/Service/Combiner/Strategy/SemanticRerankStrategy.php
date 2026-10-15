@@ -40,6 +40,9 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $metadataWeight = max(0.0, (float) ($strategy->getConfig('metadata_weight') ?? 0.7));
         $semanticWeight = max(0.0, (float) ($strategy->getConfig('semantic_weight') ?? 0.3));
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
+        $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
+        $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
+        $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
 
         $embeddings = new EmbeddingService(
             (int) ($strategy->getConfig('embedding_dimensions') ?? 256),
@@ -60,6 +63,9 @@ final class SemanticRerankStrategy extends CombinerStrategy
 
         $totalMerged = 0;
         $scores = [];
+        $candidatesExamined = 0;
+        $rejectedAnchor = 0;
+        $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
             $entryArray = Helper::convertMongoResultToArray($entry);
@@ -71,6 +77,13 @@ final class SemanticRerankStrategy extends CombinerStrategy
                 }
 
                 foreach (MetadataFuzzyStrategy::candidates($db, $currentSource->getTable(), $entryArray) as $candidate) {
+                    $candidatesExamined++;
+                    if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entryArray, $candidate, $anchorYearTolerance, $anchorEpisodes)) {
+                        $rejectedAnchor++;
+
+                        continue;
+                    }
+
                     $metadataScore = MetadataFuzzyStrategy::calculateScore($entryArray, $candidate, $weights);
                     if ($metadataScore < $prefilter) {
                         continue;
@@ -97,19 +110,30 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $embeddings->flush();
 
         $console->io()->info('Semantic re-rank complete. Merged: ' . $totalMerged . ($embeddings->isExternal() ? ' (sidecar embeddings)' : ' (local n-gram fallback)'));
-        (new Telemetry())->update('combine-latest', [
+        $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
             'merges' => $totalMerged,
             'threshold' => $threshold,
             'prefilter_threshold' => $prefilter,
             'embedding_backend' => $embeddings->isExternal() ? 'sidecar' : 'local-ngram',
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
+            'anchor_rejection' => $anchorRejection,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),
                 'min' => round(min($scores), 1),
                 'max' => round(max($scores), 1),
             ] : null,
             'completed_at' => date('c'),
+        ]);
+        $telemetry->append('combine-events', [
+            'strategy' => self::NAME,
+            'base' => $tableName,
+            'merges' => $totalMerged,
+            'threshold' => $threshold,
+            'candidates_examined' => $candidatesExamined,
+            'rejected_anchor' => $rejectedAnchor,
         ]);
     }
 
