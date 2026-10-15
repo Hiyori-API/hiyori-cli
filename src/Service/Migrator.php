@@ -20,6 +20,8 @@ use MongoDB\Operation\FindOneAndUpdate;
  * single monotonic sequence shared by both kinds, recorded in the
  * `_hiyori_ids` registry so that rebuilds and later merges re-use the
  * already-allocated id for an entry's reference set instead of shifting ids.
+ * Migration v4 (`ml_fields_and_indexes`) adds the ML/label collections and the
+ * dashboard indexes (`confidence`, `ml_score`, `ml_decision`, `_labels`, ...).
  */
 final class Migrator
 {
@@ -50,6 +52,7 @@ final class Migrator
             1 => ['name' => 'indexes_candidates_and_references', 'run' => fn () => $this->applyIndexes()],
             2 => ['name' => 'ensure_organized_collections', 'run' => fn () => $this->ensureOrganizedCollections()],
             3 => ['name' => 'allocate_hiyori_ids', 'run' => fn () => $this->allocateHiyoriIds()],
+            4 => ['name' => 'ml_fields_and_indexes', 'run' => fn () => $this->mlFieldsAndIndexes()],
         ];
     }
 
@@ -177,6 +180,77 @@ final class Migrator
         return [
             ['key' => ['reference_ids.' . $shorthand => 1], 'name' => $shorthand . '_ref'],
         ];
+    }
+
+    /**
+     * Migration v4: create the ML/label collections and the indexes the
+     * dashboard + ML pipeline query. Additive and idempotent — existing
+     * collections/indexes are left untouched.
+     *
+     * @return array{collections: list<string>, indexes_created: list<string>}
+     */
+    public function mlFieldsAndIndexes(): array
+    {
+        $db = $this->client->selectDatabase($this->database);
+        $collections = ['_labels', 'pair_rejections', 'embeddings', 'llm_judgements'];
+        foreach ($collections as $name) {
+            try {
+                $db->createCollection($name);
+            } catch (\MongoDB\Driver\Exception\CommandException $e) {
+                // already exists — fine
+            }
+        }
+
+        $indexes = [
+            'organized' => [
+                ['key' => ['confidence' => -1], 'name' => 'org_confidence'],
+                ['key' => ['ml_score' => -1], 'name' => 'org_ml_score'],
+                ['key' => ['ml_decision' => 1], 'name' => 'org_ml_decision'],
+            ],
+            'organized_manga' => [
+                ['key' => ['confidence' => -1], 'name' => 'mg_confidence'],
+                ['key' => ['ml_score' => -1], 'name' => 'mg_ml_score'],
+                ['key' => ['ml_decision' => 1], 'name' => 'mg_ml_decision'],
+            ],
+            '_labels' => [
+                ['key' => ['base_source' => 1, 'base_id' => 1, 'candidate_source' => 1, 'candidate_id' => 1], 'name' => 'label_pair', 'unique' => true],
+                ['key' => ['created_at' => -1], 'name' => 'created_at_desc'],
+            ],
+            'pair_rejections' => [
+                ['key' => ['base_id' => 1, 'candidate_id' => 1], 'name' => 'pair_idx'],
+                ['key' => ['created_at' => -1], 'name' => 'created_at_desc'],
+            ],
+            'embeddings' => [
+                ['key' => ['content_hash' => 1, 'model' => 1, 'model_version' => 1], 'name' => 'content_model_version', 'unique' => true],
+                ['key' => ['updated_at' => -1], 'name' => 'updated_at_desc'],
+            ],
+            'llm_judgements' => [
+                ['key' => ['pair_hash' => 1], 'name' => 'pair_hash', 'unique' => true],
+                ['key' => ['created_at' => -1], 'name' => 'created_at_desc'],
+            ],
+        ];
+
+        $created = [];
+        foreach ($indexes as $collection => $defs) {
+            $coll = $db->selectCollection($collection);
+            $existing = [];
+            foreach ($coll->listIndexes() as $index) {
+                $existing[] = (array) $index->getKey();
+            }
+            foreach ($defs as $def) {
+                if ($this->hasKey($existing, $def['key'])) {
+                    continue;
+                }
+                $options = ['name' => $def['name']];
+                if (!empty($def['unique'])) {
+                    $options['unique'] = true;
+                }
+                $coll->createIndex($def['key'], $options);
+                $created[] = $collection . '.' . $def['name'];
+            }
+        }
+
+        return ['collections' => $collections, 'indexes_created' => $created];
     }
 
     private function ensureOrganizedCollections(): void

@@ -53,8 +53,31 @@ final class MigratorTest extends TestCase
         }
         $this->assertContains('hiyori_id_1', $animeNames);
 
+        // v4 ML/label collections + indexes
+        $mlIndexes = $client->selectDatabase(self::DB)->selectCollection('organized')->listIndexes();
+        $mlNames = [];
+        foreach ($mlIndexes as $i) {
+            $mlNames[] = $i->getName();
+        }
+        $this->assertContains('org_ml_score', $mlNames);
+        $this->assertContains('org_confidence', $mlNames);
+
+        $labelIndexes = $client->selectDatabase(self::DB)->selectCollection('_labels')->listIndexes();
+        $labelNames = [];
+        foreach ($labelIndexes as $i) {
+            $labelNames[] = $i->getName();
+        }
+        $this->assertContains('label_pair', $labelNames);
+
+        $embeddingIndexes = $client->selectDatabase(self::DB)->selectCollection('embeddings')->listIndexes();
+        $embeddingNames = [];
+        foreach ($embeddingIndexes as $i) {
+            $embeddingNames[] = $i->getName();
+        }
+        $this->assertContains('content_model_version', $embeddingNames);
+
         $log = $client->selectDatabase(self::DB)->selectCollection('_migrations')->countDocuments();
-        $this->assertSame(3, $log);
+        $this->assertSame(4, $log);
 
         $client->selectDatabase(self::DB)->drop();
     }

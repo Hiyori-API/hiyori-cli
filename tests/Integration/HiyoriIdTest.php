@@ -42,7 +42,7 @@ final class HiyoriIdTest extends TestCase
         ]);
 
         $migrator = new Migrator($db, self::DB);
-        $applied = $migrator->run(3);
+        $applied = $migrator->run();
         $this->assertArrayHasKey(3, $applied);
 
         $anime = $this->rows('organized');
