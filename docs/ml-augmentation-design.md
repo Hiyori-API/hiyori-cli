@@ -29,7 +29,7 @@ Non-goals (this design): replacing ingestion, changing source schemas, or runnin
 | CLI entry | `src/Commands/CombinerCommand.php` (`combine`, `-s`, `-t`, `-w`, `--into`, `--config`) | ✅ shipped as `--strategy metadata_ml --config '{...}'`; `--llm-judge` still pending. |
 | Persistence | `src/Service/Database.php::mergeIntoOrganized(..., array $extra)` | `$extra` lands on the merged doc; already carries `confidence`. |
 | IDs | `Migrator` v3 (hiyori_id registry) / v4 (`ml_fields_and_indexes`) | ✅ v4 adds `_labels`/`pair_rejections`/`embeddings`/`llm_judgements` + `confidence`/`ml_score`/`ml_decision` indexes. |
-| HITL sampler | `/api/sample?collection=&min=` in `public/index.php` | Agree/disagree UI exists; `_labels` capture endpoint still pending. |
+| HITL sampler | `/api/sample?collection=&min=` + `POST /api/labels` in `public/index.php` | ✅ Quality page agree/disagree stamps `_labels`; `labels` CLI mirrors it. |
 | Histogram | `/api/histogram?collection=` (10 bins, width 10, score+confidence) | Add `ml_score` binning. |
 | Cost controls | `.env` (`OPENAI_API_KEY`, etc.) via Settings → Environment | Reuse masked env manager. |
 
@@ -368,7 +368,7 @@ Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over 
 
 ## 11. Rollout plan (phased)
 
-1. **P0 — Baseline & labels (no model change).** Extend `/api/sample` to capture agree/disagree as `_labels` with features snapshot. Target ≥ 1,000 labeled pairs. Export `ml:export-pairs`.
+1. **P0 — Baseline & labels (no model change).** ✅ `/api/sample` agree/disagree (Quality page) records `_labels` via `POST /api/labels` (also `php hiyori labels add`); `ml:export-pairs` prefers human labels over the organized ground truth. Feature snapshot per label + the ≥1,000-pair target are still open.
 2. **P1 — Python sidecar embeddings + cache.** Implement Option A, `embeddings` collection, content-hash idempotency. Stamp `title_embedding_model/version` only (no decisions).
 3. **P2 — Feature extractor + offline eval.** ✅ Implemented in PHP: `FeatureExtractor`, `ml:export-pairs` (labelled JSONL), `ml:train` (pure-PHP logistic regression with precision/recall/F1/AUC reporting).
 4. **P3 — LLM judge (capped) for 70–85 band**, caching by pair hash. Store `llm_judgements`.

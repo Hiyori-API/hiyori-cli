@@ -130,6 +130,26 @@ export async function fetchSample(collection: string, minConfidence = -1): Promi
   return r.json() as Promise<{ sample?: Record<string, unknown> | null }>
 }
 
+export interface PairLabel {
+  base_source: string
+  base_id: string
+  candidate_source: string
+  candidate_id: string
+  label: 0 | 1
+  source?: string
+  notes?: string
+}
+
+/** POST /api/labels — record a human agree/disagree vote for a candidate pair. */
+export async function postLabel(label: PairLabel): Promise<{ ok?: boolean; error?: string }> {
+  const r = await fetch('/api/labels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(label),
+  })
+  return r.json() as Promise<{ ok?: boolean; error?: string }>
+}
+
 export async function runAction(job: string, cmd: ActionCmd): Promise<ActionResponse> {
   return postAction(job, cmd)
 }

@@ -82,6 +82,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
 | `ml:export-pairs` | Export labelled candidate pairs (JSONL) for ML training / benchmarking |
 | `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
+| `labels` | Add / inspect human pair labels (agree/disagree) that override the organized ground truth |
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
@@ -179,7 +180,13 @@ php hiyori references [--source mal] [--json]
 # Tune metadata-fuzzy weights between two sources (feeds combine --weights)
 php hiyori weightage myanimelist anilist [--sample 1000] [--json]
 
-# Export labelled candidate pairs for ML (ground truth from the organized collection)
+# Capture a human label for a candidate pair (overrides the organized ground truth).
+# The dashboard's merge sampler posts these to POST /api/labels on agree/disagree.
+php hiyori labels add --base-source mal --base-id 1 --candidate-source al --candidate-id 2 --label 1
+php hiyori labels stats
+php hiyori labels list --base-source mal --base-id 1
+
+# Export labelled candidate pairs for ML (human labels win over the organized collection)
 php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first]
 
 # Train the metadata_ml scorer from the newest exported pairs file

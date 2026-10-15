@@ -100,6 +100,7 @@ $app->addCommands([
     new \Hiyori\Commands\MlExportPairsCommand($hiyori),
     new \Hiyori\Commands\MlTrainCommand(),
     new \Hiyori\Commands\BenchmarkCommand(),
+    new \Hiyori\Commands\LabelsCommand($hiyori),
 ]);
 
 /**
