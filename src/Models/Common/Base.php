@@ -174,6 +174,31 @@ abstract class Base implements BaseInterface
         return $this;
     }
 
+    /**
+     * Field map compatible with {@see AnimeBase::merge()} / MangaBase::merge()
+     * and with the Mongo document shape (plural `images`).
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'title' => $this->title ?? '',
+            'synonyms' => $this->synonyms,
+            'type' => $this->type,
+            'episodes' => $this->episodes,
+            'chapters' => $this->chapters,
+            'volumes' => $this->volumes,
+            'status' => $this->status,
+            'season' => $this->season,
+            'year' => $this->year,
+            'images' => $this->images,
+            'reference_ids' => $this->referenceIds,
+            'references' => $this->references,
+            'tags' => $this->tags,
+        ];
+    }
+
     public function getTags(): array
     {
         return $this->tags;

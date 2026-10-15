@@ -34,7 +34,7 @@ final class CombinerCommand extends Command
     {
         $this
             ->addArgument('base', InputArgument::REQUIRED, 'Source dataset to use as a base')
-            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'Defaults to metadata_fuzzy (benchmark winner; tuned weights)')
+            ->addOption('strategy', 's', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy (default), graph_merge, fellegi_sunter, semantic_rerank, relational_fuzzy, relational_mapping')
             ->addOption('threshold', 't', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy score threshold (0-100, default 70)')
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
@@ -51,7 +51,7 @@ final class CombinerCommand extends Command
         }
 
         $base = $input->getArgument('base');
-        $strategy = $input->getOption('strategy') ?? MetadataFuzzyStrategy::class;
+        $strategy = $input->getOption('strategy') ?? MetadataFuzzyStrategy::NAME;
 
         // Pre-flight: migrations must be applied before the combiner touches data.
         $pending = $this->hiyori->getMigrator()->pending();
