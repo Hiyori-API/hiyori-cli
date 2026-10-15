@@ -639,8 +639,9 @@ exit on failure). `--json` emits machine-readable output.
 
 ## Batch 4 — Compressed release pipeline (design, 2026-10-15)
 
-Design doc: [`release-pipeline-design.md`](release-pipeline-design.md). No source changes landed
-yet; these items track the open work, in dependency order.
+Design doc: [`release-pipeline-design.md`](release-pipeline-design.md). The command surface and packaging
+landed in `ReleaseCommand` / `scripts/publish-release.sh`; remaining boxes track target-repo cleanup and
+release-tag policy.
 
 ### 4.1 Limits & policy (docs first)
 - [ ] Document GitHub limits and which bind us (100 MB per-file on push/web, 2 GB hard object cap, 1 GB repo soft limit, ~100k file-count pain, 150 MB index class, LFS quotas, 2 GB release-asset cap) → `docs/release-pipeline-design.md` §2
@@ -655,26 +656,26 @@ yet; these items track the open work, in dependency order.
 - [ ] Add `source_commit` recording to release notes so a release is reproducible from `hiyori-cli` at a known commit
 
 ### 4.3 Script & compression
-- [ ] Create `scripts/publish-release.sh` from the skeleton in design doc §5.2 (bash, `set -euo pipefail`, cleanup trap)
-- [ ] Build dump via `php hiyori export organized --profile per-entry-json` (or reuse `HIYORI_DUMP_DIR` from PHP)
-- [ ] Verify manifest with `sha256sum -c` before any publish step (`--verify` equivalent)
-- [ ] Produce single `hiyori-db-<tag>.tar.zst` (~9.6 MB today) with deterministic headers (`--sort=name`, `SOURCE_DATE_EPOCH`)
-- [ ] Add optional sidecars: `*.anime.jsonl.zst`, `*.manga.jsonl.zst`, `*.tables.zip`, `*.schema.zip`
+- [x] Create `scripts/publish-release.sh` from the skeleton in design doc §5.2 (bash, `set -euo pipefail`, cleanup trap)
+- [x] Build dump via `php hiyori export organized --profile per-entry-json` (or reuse `HIYORI_DUMP_DIR` from PHP)
+- [x] Verify manifest with `sha256sum -c` before any publish step (`--verify` equivalent)
+- [x] Produce single `hiyori-db-<tag>.tar.zst` (~9.6 MB today) with deterministic headers (`--sort=name`, `SOURCE_DATE_EPOCH`)
+- [x] Add optional sidecars: `*.anime.jsonl.zst`, `*.manga.jsonl.zst` (tables/schema sidecars pending)
 - [ ] Split any asset above 1.9 GB with `split -b 1900M … .part` and reject > 2 GB (release-asset cap)
-- [ ] Write `SHA256SUMS.txt` over every asset (including split parts)
-- [ ] Implement `DRY_RUN=1` mode that stops after asset creation + verification
-- [ ] Support gh-CLI-unavailable fallback: annotated tag pushed to target repo, release skipped, follow-up command printed
+- [x] Write `SHA256SUMS.txt` over every asset (including split parts)
+- [x] Implement `DRY_RUN=1` mode that stops after asset creation + verification (`release --dry-run`)
+- [x] Support gh-CLI-unavailable fallback: follow-up GitHub commands printed, pointer push attempted
 
 ### 4.4 Target repo / manami-style cleanup
 - [ ] On publish, remove legacy raw tree from `HiyoriDB` `master` (`data/`, `index/`, `manifest.json`, `CHANGELOG.md`, tarballs)
-- [ ] Keep `schema/`, `README.md` and add `.hiyori-release/latest.json` pointer (`tag`, `content_hash`, counts, `generated_at`, `source_commit`, asset list)
+- [x] Add `.hiyori-release/latest.json` pointer (`tag`, `content_hash`, counts, `generated_at`, `source_commit`, asset list); legacy tree removal still pending
 - [ ] Update/move mutable `latest` tag + GitHub "latest" release after each run
 
 ### 4.5 Command surface changes
-- [ ] Add `--verify` to `PublishCommand` (`php hiyori publish --verify`): validate manifest checksums/sizes and archive-test the `.tar.gz`
-- [ ] Add diff-stat gate before push (`--max-changed N`, `--force` override) using `Exporter::write()` `$result['changed']`
-- [ ] Add `ReleaseCommand` (`php hiyori release` / alias `db:release`) as a thin PHP wrapper around `scripts/publish-release.sh` with `--repo`, `--branch`, `--tag`, `--profile`, `--no-manga`, `--draft`, `--verify`, `--dry-run`, `-m`
-- [ ] Keep `publish` (raw-tree) working for small/emergency updates; deprecate only after one stable release cycle
+- [x] Add `--verify` to `PublishCommand` (`php hiyori publish --verify`): validate manifest checksums/sizes
+- [x] Add diff-stat gate before push (`--max-changed N`, `--force` override) using `Exporter::write()` `$result['changed']`
+- [x] Add `ReleaseCommand` (`php hiyori release` / alias `db:release`) with `--repo`, `--branch`, `--tag`, `--profile`, `--no-manga`, `--draft`, `--verify`, `--dry-run`, `-m`
+- [x] Keep `publish` (raw-tree) working for small/emergency updates; deprecate only after one stable release cycle
 
 ### 4.6 Rollback / reproducibility / CI
 - [ ] Document consumer download + verify procedure (gh release download + `sha256sum -c SHA256SUMS.txt`)

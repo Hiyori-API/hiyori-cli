@@ -635,6 +635,85 @@ final class Exporter
     }
 
     /**
+     * Verify a written dump against its manifest: every listed file must
+     * exist with the recorded sha256 and size, and the root content hash must
+     * match. Used by `publish --verify` and the release pipeline.
+     *
+     * @return array{ok: bool, checked: int, content_hash: ?string, issues: list<string>, missing: list<string>, mismatched: list<string>}
+     */
+    public static function verify(string $dir): array
+    {
+        $manifestPath = rtrim($dir, '/') . '/manifest.json';
+        if (!is_file($manifestPath)) {
+            return [
+                'ok' => false,
+                'checked' => 0,
+                'content_hash' => null,
+                'issues' => ['manifest.json is missing'],
+                'missing' => [],
+                'mismatched' => [],
+            ];
+        }
+
+        $manifest = json_decode((string) file_get_contents($manifestPath), true);
+        if (!is_array($manifest)) {
+            return [
+                'ok' => false,
+                'checked' => 0,
+                'content_hash' => null,
+                'issues' => ['manifest.json is not valid JSON'],
+                'missing' => [],
+                'mismatched' => [],
+            ];
+        }
+
+        $files = is_array($manifest['files'] ?? null) ? $manifest['files'] : [];
+        $missing = [];
+        $mismatched = [];
+        $issues = [];
+
+        foreach ($files as $rel => $meta) {
+            $path = rtrim($dir, '/') . '/' . $rel;
+            if (!is_file($path)) {
+                $missing[] = (string) $rel;
+
+                continue;
+            }
+            $expectedHash = is_array($meta) ? (string) ($meta['sha256'] ?? '') : '';
+            $expectedBytes = is_array($meta) ? (int) ($meta['bytes'] ?? -1) : -1;
+            if ($expectedHash !== '' && hash_file('sha256', $path) !== $expectedHash) {
+                $mismatched[] = (string) $rel;
+
+                continue;
+            }
+            if ($expectedBytes >= 0 && filesize($path) !== $expectedBytes) {
+                $mismatched[] = (string) $rel;
+            }
+        }
+
+        if ($missing !== []) {
+            $issues[] = count($missing) . ' manifest file(s) missing';
+        }
+        if ($mismatched !== []) {
+            $issues[] = count($mismatched) . ' file(s) failed checksum/size validation';
+        }
+
+        $contentHash = self::contentHash($files);
+        if (($manifest['content_hash'] ?? null) !== $contentHash) {
+            $issues[] = 'content_hash does not match manifest file table';
+        }
+
+        return [
+            'ok' => $issues === [],
+            'checked' => count($files),
+            'content_hash' => $contentHash,
+            'issues' => $issues,
+            'missing' => $missing,
+            'mismatched' => $mismatched,
+        ];
+    }
+
+    /**
      * Write only when the content differs, so git diffs stay small.
      */
     public static function writeIfChanged(string $path, string $content): bool

@@ -16,7 +16,7 @@ Hiyori CLI builds and maintains [HiyoriDB](https://github.com/Hiyori-API/HiyoriD
 - **Multi-source ingestion** — MyAnimeList (Official API v2), AniList and Kitsu, for both **anime** and **manga** collections, with per-source rate limiting, circuit breakers and resume support.
 - **Schema normalization** — source-specific values (statuses, types, seasons) are mapped onto the shared [Hiyori Schema](#hiyori-schema) via enums.
 - **Relational mapping** — known source cross-references are parsed into `reference_ids` (`mal`, `al`, `k`, …); supported references are resolved to per-source IDs.
-- **Combiner with 3 strategies** — `relational_mapping`, `relational_fuzzy` and **`metadata_fuzzy`** (the default, with weightage-tuned weights — the benchmark winner at ~1.6× the coverage of the next best strategy).
+- **Combiner with 6 strategies** — `relational_mapping`, `relational_fuzzy`, **`metadata_fuzzy`** (default, weightage-tuned), `graph_merge`, `fellegi_sunter` and `semantic_rerank` (local embeddings).
 - **Live dashboard** — a React + shadcn/ui SPA (PHP `php -S` backend) with dedicated **Explorer, Management, Quality & Analysis, Logs and Settings** pages, realtime SSE, PWA caching and an **Environment manager**.
 - **Backups & restore** — `mongodump`/`mongorestore` based, scriptable and dashboard-triggered.
 - **Scheduler** — run ingestion on a schedule via systemd timers/cron (`schedule --install`).
@@ -88,7 +88,8 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `health` | Health check for services and dependencies |
 | `metrics` | Expose Prometheus metrics |
 | `dashboard:serve` | Serve the live dashboard (UI + API + SSE + `/metrics`) |
-| `publish` / `db:push` | Build relational dump and push to HiyoriDB repository |
+| `publish` / `db:push` | Build relational dump and push to HiyoriDB repository (`--verify`, `--max-changed`) |
+| `release` / `db:release` | Build, verify and publish a compressed Tier B release (`.tar.zst` + sidecars + `SHA256SUMS.txt`) |
 | `completion` | Dump a shell completion script |
 | `hiyori-id` / `ids` | Report / backfill / verify Hiyori IDs (`--verify`, `--backfill`, `--json`) |
 
@@ -128,7 +129,7 @@ php hiyori combine {base} [--strategy {strategy}]
 
 | Option | Description |
 |--------|-------------|
-| `--strategy`, `-s` | One of the three strategies below. **Default: `metadata_fuzzy`** (benchmark winner; tuned weights) |
+| `--strategy`, `-s` | One of the six strategies below. **Default: `metadata_fuzzy`** |
 | `--threshold`, `-t` | `metadata_fuzzy` score threshold, 0–100 (default: `70`) |
 | `--weights`, `-w` | `metadata_fuzzy` field weights as JSON, e.g. `{"title":25,"tags":20}` |
 | `--into` | Collection to merge into (e.g. `organized_manga`). Default: `organized` |
@@ -141,6 +142,9 @@ php hiyori combine {base} [--strategy {strategy}]
 - **`relational_fuzzy`** — cross-checks every `reference_ids` value across datasets to find the same entry in another source.
 - **`metadata_fuzzy`** *(default)* — compares entry metadata, weighting each field (Levenshtein for titles, Jaccard for tags). Entries are merged when the weighted score exceeds the threshold. The built-in weights were tuned via `hiyori weightage` on ground-truth MAL↔AniList pairs:
 
+- **`graph_merge`** — transitive connected-component merge over low-confidence candidates (catches A↔B↔C pairs that `metadata_fuzzy` misses).
+- **`fellegi_sunter`** — probabilistic record linkage with configurable `m`/`u` field probabilities.
+- **`semantic_rerank`** — `metadata_fuzzy` candidates re-ranked with local embeddings (`ML_EMBED_COMMAND` sidecar; deterministic n-gram fallback).
   | field | weight | | field | weight |
   |---|---|---|---|---|
   | `title` | 26.4 | | `status` | 0.6 |

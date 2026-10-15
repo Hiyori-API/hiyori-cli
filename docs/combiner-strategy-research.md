@@ -1,6 +1,6 @@
 # Hiyori CLI — Combiner Strategy Research
 
-**Status:** Research/design document. No source changes. Implements the requested combiner-v2 strategy research.
+**Status:** Implemented in `src/Service/Combiner/Strategy/{GraphMergeStrategy,FellegiSunterStrategy,SemanticRerankStrategy}.php` and registered in `StrategyConfigurationFactory`; this document remains the design/reference record.
 **Primary references:** `src/Service/Combiner/Combiner.php`, `src/Service/Combiner/Strategy/*`, `src/Service/StrategyConfigurationFactory.php`, `src/Helper.php`, `src/Service/Exporter.php`, `src/Service/Telemetry.php`, `docs/ml-augmentation-design.md`, `docs/release-pipeline-design.md`.
 
 ---

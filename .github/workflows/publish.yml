@@ -85,12 +85,18 @@ jobs:
           php hiyori combine anilist --export=per-entry-json
           php hiyori combine kitsu --into=organized_manga --export=per-entry-json
 
-      - name: Publish to HiyoriDB
+      - name: Publish compressed Tier B release
         working-directory: hiyori-cli
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
-        run: php hiyori publish --repo "$GITHUB_REPO" --branch master
+        run: |
+          php hiyori release \
+            --repo "$GITHUB_REPO" \
+            --branch master \
+            --tag "${GITHUB_REF_NAME:-data-$(date +%Y.%V)}" \
+            --verify
 
       - name: Summary
         if: success()
