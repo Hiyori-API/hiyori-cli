@@ -1013,11 +1013,12 @@ function backupsList(): array
     return array_map(static fn ($f) => ['file' => basename($f), 'mtime' => filemtime($f), 'size' => filesize($f)], $files);
 }
 
-function histogram(MongoClient $client, string $collection = 'organized'): array
+function histogram(MongoClient $client, string $collection = 'organized', ?string $field = null): array
 {
     $db = $client->selectDatabase('hiyori');
     $bins = [];
-    foreach (['score', 'confidence'] as $field) {
+    $fields = $field !== null ? [$field] : ['score', 'confidence'];
+    foreach ($fields as $field) {
         try {
             $pipeline = [
                 ['$match' => [$field => ['$exists' => true]]],
@@ -1162,8 +1163,13 @@ if ($path === '/api/histogram') {
     if ($collection === '') {
         sendJson(['error' => 'bad collection'], 400);
     }
+    $field = (string) ($_GET['field'] ?? '');
+    if ($field !== '' && !in_array($field, ['score', 'confidence', 'ml_score'], true)) {
+        sendJson(['error' => 'field must be one of score, confidence, ml_score'], 400);
+    }
     sendJson([
-        'histogram' => histogram($client, $collection),
+        'histogram' => histogram($client, $collection, $field !== '' ? $field : null),
+        'field' => $field !== '' ? $field : 'score+confidence',
         'bins' => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
         'collection' => $collection,
         'timestamp' => date('c'),

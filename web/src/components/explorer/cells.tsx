@@ -29,6 +29,7 @@ const columnHelper = createColumnHelper<DataTableFeatures, ExploreRow>()
 const BAR_FIELDS = new Set([
   'episodes', 'episode_count', 'chapters', 'volumes', 'score', 'popularity',
   'favorites', 'count', 'total', 'ref_count', 'reference_count', 'mal_count', 'al_count', 'k_count',
+  'ml_score',
 ])
 
 /** id-ish columns rendered mono when the mono toggle is on. */

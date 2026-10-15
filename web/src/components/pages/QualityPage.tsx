@@ -149,6 +149,7 @@ export function QualityPage() {
   const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown }>('/api/benchmark', benchKey)
   const hist = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram', benchKey)
   const histManga = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?collection=organized_manga', benchKey)
+  const histMl = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?field=ml_score', benchKey)
   const [benchManga, setBenchManga] = useState<BenchmarkRow[]>([])
   const { failures, refresh: refreshFailures } = useFailures()
 
@@ -292,6 +293,7 @@ export function QualityPage() {
         <Section title="Confidence" icon={Sparkles} className="lg:col-span-2">
           <div className="space-y-4">
             {!hist.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
+            {!histMl.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="ML scores (metadata_ml)" bins={histMl.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histMl.data.histogram ?? {}} color={['#34d399', '#6ee7b7']} />}
             <div>
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-xs text-muted-foreground">min score</span>
