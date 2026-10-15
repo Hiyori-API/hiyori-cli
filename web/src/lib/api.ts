@@ -313,9 +313,11 @@ export async function fetchHistory(): Promise<HistoryPayload> {
   return r.json() as Promise<HistoryPayload>
 }
 
-export async function fetchHistogram(collection = 'organized'): Promise<{ histogram?: Record<string, number>; bins?: number[]; collection?: string }> {
-  const r = await fetch(`/api/histogram?collection=${encodeURIComponent(collection)}`)
-  return r.json() as Promise<{ histogram?: Record<string, number>; bins?: number[] }>
+export async function fetchHistogram(collection = 'organized', field?: string): Promise<{ histogram?: Record<string, number>; bins?: number[]; collection?: string; field?: string }> {
+  const qs = new URLSearchParams({ collection })
+  if (field) qs.set('field', field)
+  const r = await fetch(`/api/histogram?${qs.toString()}`)
+  return r.json() as Promise<{ histogram?: Record<string, number>; bins?: number[]; field?: string }>
 }
 
 export async function downloadExport(collection: string, format: 'jsonl' | 'csv'): Promise<void> {
