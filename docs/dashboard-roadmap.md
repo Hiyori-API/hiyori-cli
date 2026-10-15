@@ -667,8 +667,8 @@ release-tag policy.
 - [x] Support gh-CLI-unavailable fallback: follow-up GitHub commands printed, pointer push attempted
 
 ### 4.4 Target repo / manami-style cleanup
-- [ ] On publish, remove legacy raw tree from `HiyoriDB` `master` (`data/`, `index/`, `manifest.json`, `CHANGELOG.md`, tarballs)
-- [x] Add `.hiyori-release/latest.json` pointer (`tag`, `content_hash`, counts, `generated_at`, `source_commit`, asset list); legacy tree removal still pending
+- [x] On publish, remove legacy raw tree from `HiyoriDB` `master` (`data/`, `index/`, `manifest.json`, `CHANGELOG.md`, tarballs) via opt-in `release --clean-target`
+- [x] Add `.hiyori-release/latest.json` pointer (`tag`, `content_hash`, counts, `generated_at`, `source_commit`, asset list)
 - [ ] Update/move mutable `latest` tag + GitHub "latest" release after each run
 
 ### 4.5 Command surface changes
