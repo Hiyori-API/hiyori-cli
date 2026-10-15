@@ -24,12 +24,12 @@ Non-goals (this design): replacing ingestion, changing source schemas, or runnin
 
 | Item | Location | Notes |
 |---|---|---|
-| Strategy registry | `src/Service/StrategyConfigurationFactory.php` `AVAILABLE_STRATEGIES` | Add `MetadataMlStrategy::class` here. |
+| Strategy registry | `src/Service/StrategyConfigurationFactory.php` `AVAILABLE_STRATEGIES` | ✅ `MetadataMlStrategy::class` registered. |
 | Strategy impl | `src/Service/Combiner/Strategy/MetadataFuzzyStrategy.php` | Reuse `findBestMatch`, `candidateFilterChain`, `calculateScore`, `fieldSimilarity`, `jaroWinkler`, `titleSimilarity`. |
-| CLI entry | `src/Commands/CombinerCommand.php` (`combine`, `-s`, `-t`, `-w`, `--into`) | New optional `--ml`, `--llm-judge` flags. |
+| CLI entry | `src/Commands/CombinerCommand.php` (`combine`, `-s`, `-t`, `-w`, `--into`, `--config`) | ✅ shipped as `--strategy metadata_ml --config '{...}'`; `--llm-judge` still pending. |
 | Persistence | `src/Service/Database.php::mergeIntoOrganized(..., array $extra)` | `$extra` lands on the merged doc; already carries `confidence`. |
-| IDs | `Migrator` v3 (hiyori_id registry) | Version bump to v4 below. |
-| HITL sampler | `/api/sample?collection=&min=` in `public/index.php` | Agree/disagree UI exists in Quality page; needs label capture. |
+| IDs | `Migrator` v3 (hiyori_id registry) / v4 (`ml_fields_and_indexes`) | ✅ v4 adds `_labels`/`pair_rejections`/`embeddings`/`llm_judgements` + `confidence`/`ml_score`/`ml_decision` indexes. |
+| HITL sampler | `/api/sample?collection=&min=` in `public/index.php` | Agree/disagree UI exists; `_labels` capture endpoint still pending. |
 | Histogram | `/api/histogram?collection=` (10 bins, width 10, score+confidence) | Add `ml_score` binning. |
 | Cost controls | `.env` (`OPENAI_API_KEY`, etc.) via Settings → Environment | Reuse masked env manager. |
 

@@ -733,7 +733,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 ### 4.5 Strategy & storage
 - [x] New strategy `semantic_rerank` as second-stage scorer on `metadata_fuzzy` candidates (local embeddings; LLM `metadata_ml` still pending)
 - [x] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_decided_at` on merges (`ml_reason` deferred)
-- [ ] Migration v4 (`ml_fields_and_indexes`): indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels`
+- [x] Migration v4 (`ml_fields_and_indexes`): `confidence`/`ml_score`/`ml_decision` indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels` collections & unique indexes
 - [ ] Rejection buffer + multiclass labels (approve/reject/unsure)
 - [x] Registration in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (`metadata_ml`)
 
