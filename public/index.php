@@ -278,7 +278,42 @@ function benchmarkData(Telemetry $telemetry): array
         $out[] = $s;
     }
 
-    return ['seeded' => $out, 'latest' => $combine];
+    return ['seeded' => $out, 'latest' => $combine, 'ml' => mlBenchmarkReport()];
+}
+
+/**
+ * Read the latest offline ML benchmark report (`combine:benchmark`), if any.
+ *
+ * Exposes the threshold suggestion (best F1 row: threshold, predicted merges,
+ * precision/recall/F1) and the shipping gate so the dashboard can show a
+ * recommended threshold without re-running the sweep.
+ */
+function mlBenchmarkReport(): ?array
+{
+    $path = dirname(__DIR__) . '/storage/state/combine-benchmark.json';
+    if (!is_file($path)) {
+        return null;
+    }
+    $report = json_decode((string) @file_get_contents($path), true);
+    if (!is_array($report)) {
+        return null;
+    }
+
+    $best = [];
+    foreach (($report['scorers'] ?? []) as $name => $scorer) {
+        if (is_array($scorer) && isset($scorer['best']) && is_array($scorer['best'])) {
+            $best[(string) $name] = $scorer['best'];
+        }
+    }
+
+    return [
+        'created_at' => $report['created_at'] ?? null,
+        'input' => $report['input'] ?? null,
+        'rows' => $report['rows'] ?? null,
+        'ml_model_version' => $report['ml_model_version'] ?? null,
+        'gate' => $report['gate'] ?? null,
+        'best' => $best,
+    ];
 }
 
 function outageDebounce(Telemetry $telemetry, bool $unreachable): bool
