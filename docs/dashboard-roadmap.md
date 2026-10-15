@@ -711,10 +711,10 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 
 ### 4.2 Embeddings sidecar
 - [x] Python sidecar (sentence-transformers) invoked from PHP per line (`ML_EMBED_COMMAND`, Option A)
-- [ ] Model selection + config: MiniLM-L12 / LaBSE / MiniLM-L6 (`ML_MODEL`)
-- [ ] `embeddings` cache collection keyed by `(content_hash, model, model_version)`
-- [ ] Recompute only when content hash or model/version changes
-- [ ] Venv + pinned `requirements.txt` + smoke test
+- [x] Model selection + config: MiniLM-L12 / LaBSE / MiniLM-L6 (`ML_MODEL`, passed per-request to the sidecar)
+- [ ] `embeddings` Mongo cache collection keyed by `(content_hash, model, model_version)` (Level-0 uses a file cache with the same key namespacing: `storage/state/ml-embeddings.json`)
+- [x] Recompute only when content hash or model/version changes (cache key = `(model, version, sha1(text))`; model/version mismatch discards stale vectors)
+- [x] Venv + pinned `requirements.txt` (`services/ml/requirements.txt`) + smoke test (documented in `services/ml/README.md`)
 
 ### 4.3 LLM-as-judge
 - [ ] OpenAI/Anthropic judge for ambiguous band (70–85), JSON-schema output

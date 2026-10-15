@@ -47,6 +47,8 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $embeddings = new EmbeddingService(
             (int) ($strategy->getConfig('embedding_dimensions') ?? 256),
             is_string($strategy->getConfig('embedding_command')) ? $strategy->getConfig('embedding_command') : null,
+            null,
+            is_string($strategy->getConfig('embedding_model')) ? $strategy->getConfig('embedding_model') : null,
         );
 
         $tableName = $source->get()->getTable();

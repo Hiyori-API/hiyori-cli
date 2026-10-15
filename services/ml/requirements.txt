@@ -1,0 +1,7 @@
+# Level-0 ML sidecar (local, free). Create an isolated venv, then:
+#   python3 -m venv .venv-ml && . .venv-ml/bin/activate
+#   pip install -r services/ml/requirements.txt
+#   python3 services/ml/embed.py < /dev/null   # smoke test: exits 0, no output
+#
+# Pinned for reproducible venvs; bump deliberately and re-run the smoke test.
+sentence-transformers==3.3.1
