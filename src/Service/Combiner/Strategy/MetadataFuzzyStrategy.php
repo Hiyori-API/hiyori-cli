@@ -22,7 +22,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * Tags are intentionally near-zero: different sources use disjoint tag sets.
      * Sum does not need to be 100; weights are normalized at runtime.
      */
-    private const DEFAULT_WEIGHTS = [
+    public const DEFAULT_WEIGHTS = [
         // Optimized via `hiyori weightage` (discrimination-gap) on 600 matched
         // MAL<->AniList pairs; benchmark-validated (10,770 organized vs 6,873 fuzzy).
         'title' => 26.4,
@@ -187,35 +187,14 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * Find the best matching entry in a target collection using weighted metadata comparison.
      * Returns the candidate array plus a synthetic '_score' key (0-100).
      */
-    private static function findBestMatch(
+    public static function findBestMatch(
         Database $db,
         string $targetTable,
         array $entry,
         array $weights,
         float $threshold
     ): ?array {
-        /** @var Collection $collection */
-        $collection = $db->getCollection($targetTable);
-
-        // Progressive candidate narrowing: start strict, relax until candidates exist.
-        $candidates = [];
-        foreach (self::candidateFilterChain($entry) as $filter) {
-            $cursor = $collection->find($filter, [
-                'projection' => [
-                    'title' => 1, 'synonyms' => 1, 'type' => 1, 'episodes' => 1,
-                    'status' => 1, 'season' => 1, 'year' => 1, 'tags' => 1,
-                    'references' => 1, 'reference_ids' => 1, '_id' => 0,
-                ],
-                'limit' => 100,
-            ]);
-            $candidates = [];
-            foreach ($cursor as $candidate) {
-                $candidates[] = Helper::convertMongoResultToArray($candidate);
-            }
-            if ($candidates !== []) {
-                break;
-            }
-        }
+        $candidates = self::candidates($db, $targetTable, $entry);
 
         $bestScore = 0.0;
         $bestMatch = null;
@@ -237,11 +216,43 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     }
 
     /**
+     * Return the narrowed candidate pool for an entry (highest-signal filter
+     * that yields any rows, up to 100 rows).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function candidates(Database $db, string $targetTable, array $entry, int $limit = 100): array
+    {
+        /** @var Collection $collection */
+        $collection = $db->getCollection($targetTable);
+
+        foreach (self::candidateFilterChain($entry) as $filter) {
+            $cursor = $collection->find($filter, [
+                'projection' => [
+                    'title' => 1, 'synonyms' => 1, 'type' => 1, 'episodes' => 1,
+                    'status' => 1, 'season' => 1, 'year' => 1, 'tags' => 1,
+                    'references' => 1, 'reference_ids' => 1, '_id' => 0,
+                ],
+                'limit' => max(1, $limit),
+            ]);
+            $candidates = [];
+            foreach ($cursor as $candidate) {
+                $candidates[] = Helper::convertMongoResultToArray($candidate);
+            }
+            if ($candidates !== []) {
+                return $candidates;
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * Build a chain of candidate filters from strict to relaxed.
      *
      * @return array<int, array<string, mixed>>
      */
-    private static function candidateFilterChain(array $entry): array
+    public static function candidateFilterChain(array $entry): array
     {
         $filters = [];
 
@@ -384,7 +395,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         return $union > 0 ? $intersection / $union : 0.0;
     }
 
-    private static function normalizeWeights(array $weights): array
+    public static function normalizeWeights(array $weights): array
     {
         $known = array_fill_keys(array_keys(self::DEFAULT_WEIGHTS), 0);
         $weights = array_filter($weights, fn ($w) => is_numeric($w)) + $known;
@@ -395,7 +406,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         return $weights;
     }
 
-    private static function normalizeThreshold(mixed $threshold): float
+    public static function normalizeThreshold(mixed $threshold): float
     {
         $threshold = (float) $threshold;
         if ($threshold <= 0 || $threshold > 100) {

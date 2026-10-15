@@ -4,9 +4,12 @@ namespace Hiyori\Service;
 
 use Hiyori\Exception\InvalidArgumentException;
 use Hiyori\Service\Combiner\Strategy\CombinerStrategy;
+use Hiyori\Service\Combiner\Strategy\FellegiSunterStrategy;
+use Hiyori\Service\Combiner\Strategy\GraphMergeStrategy;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalFuzzyStrategy;
 use Hiyori\Service\Combiner\Strategy\RelationalMappingStrategy;
+use Hiyori\Service\Combiner\Strategy\SemanticRerankStrategy;
 
 final class StrategyConfigurationFactory
 {
@@ -14,6 +17,9 @@ final class StrategyConfigurationFactory
         RelationalMappingStrategy::class,
         RelationalFuzzyStrategy::class,
         MetadataFuzzyStrategy::class,
+        GraphMergeStrategy::class,
+        FellegiSunterStrategy::class,
+        SemanticRerankStrategy::class,
     ];
 
     private ?CombinerStrategy $strategy = null;
