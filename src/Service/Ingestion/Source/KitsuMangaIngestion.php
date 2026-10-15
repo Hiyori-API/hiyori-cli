@@ -3,6 +3,7 @@
 namespace Hiyori\Service\Ingestion\Source;
 
 use Hiyori\Models\Manga\Base\KitsuBase;
+use Hiyori\Requests\Kitsu\KitsuEntryDetail;
 use Hiyori\Requests\Kitsu\KitsuMangaEntryList as KitsuEntryList;
 use Hiyori\Requests\Kitsu\KitsuMangaEntryListMeta as KitsuEntryListMeta;
 use Hiyori\Service\ConsoleFactory;
@@ -48,10 +49,11 @@ final class KitsuMangaIngestion
             );
 
             foreach ($list->getList() as $listItem) {
-                $itemId = $listItem[$config->getJsonId()];
+                $itemId = (int) $listItem[$config->getJsonId()];
+                $itemRef = (string) $listItem[$config->getJsonId()];
                 $processed++;
 
-                if ($db->exists($config->getTable(), $config->getShorthand(), (string) $itemId)) {
+                if ($db->exists($config->getTable(), $config->getShorthand(), $itemRef)) {
                     $skipped++;
                     $progressBar->advance();
                     continue;
@@ -62,44 +64,17 @@ final class KitsuMangaIngestion
 
                 $listItemData = null;
                 try {
-                    $mappings = $rateLimiter->executeWithRetry(
-                        fn () => \Hiyori\Requests\Kitsu\KitsuEntryMappings::create($itemId),
-                        $sourceKey,
-                        3,
-                        1000,
-                        2.0,
-                    );
-                    $streamingLinks = $rateLimiter->executeWithRetry(
-                        fn () => \Hiyori\Requests\Kitsu\KitsuEntryStreamingLinks::create($itemId),
-                        $sourceKey,
-                        3,
-                        1000,
-                        2.0,
-                    );
-                    sleep($sources->get()->getDelay());
-                    $genres = $rateLimiter->executeWithRetry(
-                        fn () => \Hiyori\Requests\Kitsu\KitsuEntryGenres::create($itemId),
-                        $sourceKey,
-                        3,
-                        1000,
-                        2.0,
-                    );
-                    $categories = $rateLimiter->executeWithRetry(
-                        fn () => \Hiyori\Requests\Kitsu\KitsuEntryCategories::create($itemId),
+                    // One detail request embeds mappings, genres and categories
+                    // (manga has no streaming-links relationship).
+                    $detail = $rateLimiter->executeWithRetry(
+                        fn () => KitsuEntryDetail::create($itemId, 'manga'),
                         $sourceKey,
                         3,
                         1000,
                         2.0,
                     );
 
-                    $listItemData = array_merge(
-                        $listItem,
-                        ['streaming' => $streamingLinks->getData()],
-                        ['external' => $mappings->getData()],
-                        ['genres' => $genres->getData()],
-                        ['categories' => $categories->getData()],
-                    );
-
+                    $listItemData = $detail->getData();
                 } catch (\Exception $e) {
                     $errors++;
                     $console->io()->error("[$itemId] " . $e->getMessage());
