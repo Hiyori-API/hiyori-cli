@@ -88,6 +88,42 @@ final class DuplicateReferenceKeysTest extends TestCase
         $this->assertEqualsCanonicalizing([41, 42], $report['sources']['al']['examples'][0]['hiyori_ids']);
     }
 
+    public function testStripDuplicateIdentityKeysKeepsSmallestId(): void
+    {
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
+            ['title' => 'A', 'reference_ids' => ['mal' => '7', 'al' => '1'], 'hiyori_id' => 1, 'references' => (object) ['0' => 'x']],
+            ['title' => 'B', 'reference_ids' => ['mal' => '7', 'al' => '2'], 'hiyori_id' => 2, 'references' => (object) ['0' => 'y']],
+        ]);
+
+        $report = $this->migrator()->stripDuplicateIdentityKeys('organized', ['mal', 'al']);
+        $this->assertSame(1, $report['resolved']);
+        $this->assertSame('7', $report['keys'][0]['key']);
+        $this->assertSame(1, $report['keys'][0]['keep']);
+        $this->assertSame([2], $report['keys'][0]['dropped']);
+
+        // Gate is clean; winner keeps mal, loser keeps its own id and al.
+        $after = $this->migrator()->duplicateReferenceKeys('organized');
+        $this->assertSame(0, $after['primary_duplicates']);
+
+        $b = $this->client->selectDatabase(self::DB)->selectCollection('organized')
+            ->findOne(['hiyori_id' => 2], ['typeMap' => ['root' => 'array', 'document' => 'array']]);
+        $this->assertArrayNotHasKey('mal', $b['reference_ids']);
+        $this->assertSame('2', $b['reference_ids']['al']);
+    }
+
+    public function testStripDuplicateIdentityKeysDryRunWritesNothing(): void
+    {
+        $this->client->selectDatabase(self::DB)->selectCollection('organized')->insertMany([
+            ['title' => 'A', 'reference_ids' => ['mal' => '7'], 'hiyori_id' => 1, 'references' => (object) ['0' => 'x']],
+            ['title' => 'B', 'reference_ids' => ['mal' => '7'], 'hiyori_id' => 2, 'references' => (object) ['0' => 'y']],
+        ]);
+
+        $report = $this->migrator()->stripDuplicateIdentityKeys('organized', ['mal', 'al'], true);
+        $this->assertTrue($report['dry_run']);
+        $this->assertSame(1, $report['resolved']);
+        $this->assertSame(1, $this->migrator()->duplicateReferenceKeys('organized')['primary_duplicates']);
+    }
+
     private function migrator(): Migrator
     {
         return new Migrator(new Database(SerializerBuilder::create()->build()), self::DB);
