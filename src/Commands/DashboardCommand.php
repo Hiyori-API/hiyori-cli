@@ -67,6 +67,13 @@ final class DashboardCommand extends Command
         $cmd = [$phpBin, '-S', $host . ':' . $port, $router];
 
         $env = $_ENV;
+        // The built-in server is single-threaded by default, so one long-lived SSE
+        // stream (/api/events) starves every other request — the port listens but
+        // nothing answers. Mirror the systemd unit's worker pool. POSIX only;
+        // PHP_CLI_SERVER_WORKERS is ignored on Windows.
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $env['PHP_CLI_SERVER_WORKERS'] = (string) max(1, (int) (getenv('PHP_CLI_SERVER_WORKERS') ?: 6));
+        }
         if ($token !== '') {
             $env['DASHBOARD_TOKEN'] = $token;
         }
@@ -89,6 +96,9 @@ final class DashboardCommand extends Command
             $io->writeln('Token required: ?token=... or X-Dashboard-Token header');
         }
         $io->writeln('Endpoints: /api/status  /api/counts  /api/jobs  /api/health  /api/validate  /metrics');
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $io->writeln('Workers: ' . $env['PHP_CLI_SERVER_WORKERS'] . ' (concurrent polls + SSE; override with PHP_CLI_SERVER_WORKERS)');
+        }
         $io->writeln('Press Ctrl+C to stop.');
 
         if ($autoOpen && $host !== '0.0.0.0' && getenv('DISPLAY') !== false) {
