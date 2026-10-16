@@ -39,7 +39,9 @@ cp .env.example .env
 php hiyori ingest anilist
 
 # 4. Combine ingested data into the `organized` collection
-php hiyori combine anilist
+#    --passthrough keeps base entries that matched nothing as their own records,
+#    so every ingested entry has a document and its hiyori_id stays attached to one
+php hiyori combine anilist --passthrough
 
 # 5. Open the live dashboard
 php hiyori dashboard:serve                 # http://127.0.0.1:8080
@@ -76,7 +78,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 |---|---|
 | `ingest <source>` | Begin ingestion from a source (`myanimelist`, `anilist`, `kitsu`) |
 | `ingest:all` | Run ingestion for all available sources sequentially |
-| `combine <base>` | Merge all source datasets into one collection |
+| `combine <base>` | Merge all source datasets into one collection (`--passthrough` keeps entries that matched nothing) |
 | `validate` | Validate existing data against the Hiyori schema |
 | `sweep` | Clean up orphaned, duplicate or incomplete entries |
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
@@ -140,8 +142,41 @@ php hiyori combine {base} [--strategy {strategy}]
 | `--threshold`, `-t` | `metadata_fuzzy` score threshold, 0–100 (default: `70`) |
 | `--weights`, `-w` | `metadata_fuzzy` field weights as JSON, e.g. `{"title":25,"tags":20}` |
 | `--into` | Collection to merge into (e.g. `organized_manga`). Default: `organized` |
+| `--passthrough` / `--no-passthrough` | Keep a base entry that matched nothing as its own single-source record. **Off by default** (see below) |
 | `--export` | After combine, run exporter with profile (`per-entry-json`, `bulk-jsonl`, `tables-csv`, or `none`). Default: `combiner.auto_export` config value |
 | `--skip-migrations` | Bypass the pending-migration gate (not recommended) |
+
+#### Passthrough records
+
+The merge loop only writes a document when at least one candidate matched, so a
+base entry that matches nothing used to disappear from the merged collection
+entirely. That is fine for a benchmark (documents produced ≈ merging ability) and
+wrong for a release build:
+
+- the `hiyori_id` the registry allocated for that entry on an earlier run is left
+  with **no document**, and `php hiyori hiyori-id --verify` reports it;
+- the merged collection ends up holding *fewer* records than the base dataset has
+  entries, with no record of which ones went missing.
+
+`--passthrough` writes those entries as their own records instead, keyed by their
+own reference, so a rebuild reuses the ids it already has and only allocates ids
+for entries it has genuinely never seen.
+
+```console
+# Release build: one document per base entry, id-stable
+php hiyori combine anilist --passthrough
+
+# Benchmark run: measure merging alone (no single-source records)
+php hiyori combine anilist --strategy metadata_fuzzy --into bench_metadata_fuzzy
+```
+
+A passthrough record carries **no `confidence`** — it is not a merge, and a `0.0`
+would park it in the bottom histogram bin and feed it to the spot-check sampler
+as though a merge had been scored and failed. Its `reference_ids` has a single
+key, the base source, which is how a consumer can tell the two apart.
+
+`combine` warns before the run when the target is `organized`/`organized_manga`
+and `--passthrough` is off, because that combination silently drops coverage.
 
 #### Available strategies
 
@@ -468,7 +503,7 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/coverage` | Reference-shorthand coverage matrix per collection |
 | `/api/benchmark` | Recorded strategy rows (from the benchmark script's log) + latest combine + ML gate report |
 | `/api/alerts` | Anomaly evaluation (circuit open, low tokens, API down); posts to `WEBHOOK_URL` when set |
-| `/api/sample` | Random doc for the merge sampler (`?collection=&min=&field=`, defaults to `confidence`) |
+| `/api/sample` | Random doc for the merge sampler (`?collection=&min=&field=`, defaults to `confidence`); also returns `refs`, the title each source holds for the record's references |
 | `/api/slow` | Request latency extremes (>2s) |
 | `/api/schedule` | Scheduled-run info |
 | `/api/histogram` | Score/confidence histogram (`?collection=&field=`, 10 bins) |
