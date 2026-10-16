@@ -228,6 +228,68 @@ export async function postLabel(label: PairLabel): Promise<{ ok?: boolean; error
   return r.json() as Promise<{ ok?: boolean; error?: string }>
 }
 
+/** One row of the rejection buffer (`pair_rejections`). */
+export interface RejectionRow {
+  base_source: string
+  base_id: string
+  candidate_source: string
+  candidate_id: string
+  decision: 'approve' | 'reject' | 'unsure'
+  source?: string
+  notes?: string
+  score?: number
+  promoted?: boolean
+  created_at?: unknown
+}
+
+export interface RejectionStats {
+  total: number
+  by_decision: Record<string, number>
+  by_source: Record<string, number>
+  promoted: number
+  pending: number
+}
+
+export interface RejectionsResponse {
+  stats?: RejectionStats
+  rejections?: RejectionRow[]
+}
+
+/** GET /api/rejections — buffer stats plus the newest rejection rows. */
+export async function fetchRejections(limit = 50): Promise<RejectionsResponse> {
+  const r = await fetch(`/api/rejections?limit=${limit}`)
+  return r.json() as Promise<RejectionsResponse>
+}
+
+/** POST /api/rejections — add a rejected candidate pair to the buffer. */
+export async function postRejection(body: {
+  base_source: string
+  base_id: string
+  candidate_source: string
+  candidate_id: string
+  decision?: string
+  source?: string
+  notes?: string
+  score?: number
+}): Promise<{ ok?: boolean; error?: string }> {
+  const r = await fetch('/api/rejections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return r.json() as Promise<{ ok?: boolean; error?: string }>
+}
+
+/** POST /api/rejections/promote — copy decided pairs into `_labels` as training truth. */
+export async function promoteRejections(decision?: string, limit?: number): Promise<{ promoted?: number; labels?: number }> {
+  const r = await fetch('/api/rejections/promote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, limit }),
+  })
+  return r.json() as Promise<{ promoted?: number; labels?: number }>
+}
+
 export async function runAction(job: string, cmd: ActionCmd): Promise<ActionResponse> {
   return postAction(job, cmd)
 }

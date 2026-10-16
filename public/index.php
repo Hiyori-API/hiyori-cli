@@ -18,6 +18,7 @@ use Hiyori\Service\Explorer;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
 use Hiyori\Service\Ml\LabelStore;
+use Hiyori\Service\Ml\RejectionStore;
 use Hiyori\Service\RateLimiter;
 use Hiyori\Service\Telemetry;
 use Hiyori\Service\Validator;
@@ -1179,6 +1180,46 @@ if ($path === '/api/labels') {
         sendJson(['ok' => true]);
     }
     sendJson(['labels' => $store->stats()]);
+}
+
+if ($path === '/api/rejections') {
+    $store = RejectionStore::create($database);
+    $store->ensureIndexes();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = readJsonBody();
+        $ok = $store->upsert([
+            'base_source' => (string) ($body['base_source'] ?? ''),
+            'base_id' => (string) ($body['base_id'] ?? ''),
+            'candidate_source' => (string) ($body['candidate_source'] ?? ''),
+            'candidate_id' => (string) ($body['candidate_id'] ?? ''),
+            'decision' => (string) ($body['decision'] ?? 'reject'),
+            'source' => (string) ($body['source'] ?? 'human'),
+            'notes' => (string) ($body['notes'] ?? ''),
+            'score' => $body['score'] ?? null,
+        ]);
+        if (!$ok) {
+            sendJson(['error' => 'base_source, base_id, candidate_source and candidate_id are required'], 400);
+        }
+        sendJson(['ok' => true]);
+    }
+    $decision = (string) ($_GET['decision'] ?? '');
+    sendJson([
+        'stats' => $store->stats(),
+        'rejections' => $store->list($decision !== '' ? $decision : null, (int) ($_GET['limit'] ?? 50)),
+    ]);
+}
+
+if ($path === '/api/rejections/promote') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'promote requires POST'], 405);
+    }
+    $store = RejectionStore::create($database);
+    $store->ensureIndexes();
+    $body = readJsonBody();
+    sendJson($store->promote(
+        (string) ($body['decision'] ?? '') !== '' ? (string) ($body['decision'] ?? '') : null,
+        isset($body['limit']) && (int) $body['limit'] > 0 ? (int) $body['limit'] : null,
+    ));
 }
 
 if ($path === '/api/jobsV2') {

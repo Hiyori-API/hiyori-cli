@@ -652,7 +652,7 @@ the acceptance checks that need a real remote.
 - [x] Document GitHub limits and which bind us (100 MB per-file on push/web, 2 GB hard object cap, 1 GB repo soft limit, ~100k file-count pain, 150 MB index class, LFS quotas, 2 GB release-asset cap) → `docs/release-pipeline-design.md` §2
 - [x] Record current dump footprint baseline (15,890 files / ~94 MB on-disk / ~50 MB bytes / 9.6 MB after `tar --zstd`) and re-measure each release
 - [x] Decide Tier A/B/C policy: Tier A management repo code-only; Tier B release assets; Tier C no LFS for this dataset, `latest.json` pointer in repo
-- [ ] Write the manami-style vs LFS vs trunk-only vs release+LFS comparison into the design doc (done)
+- [x] Write the manami-style vs LFS vs trunk-only vs release+LFS comparison into the design doc (done)
 
 ### 4.2 Tagging
 - [x] Adopt tag grammar `data-YYYY.WW` (append `.N` on hash change) + optional `vYYYY.MM.PATCH` milestone + mutable `latest` alias
@@ -739,14 +739,14 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [x] New strategy `semantic_rerank` as second-stage scorer on `metadata_fuzzy` candidates (local embeddings; LLM `metadata_ml` still pending)
 - [x] Store `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_decided_at` on merges (`ml_reason` deferred)
 - [x] Migration v4 (`ml_fields_and_indexes`): `confidence`/`ml_score`/`ml_decision` indexes + `embeddings`/`llm_judgements`/`pair_rejections`/`_labels` collections & unique indexes
-- [ ] Rejection buffer + multiclass labels (approve/reject/unsure)
+- [x] Rejection buffer + multiclass labels (approve/reject/unsure) — `RejectionStore` over `pair_rejections` (unique on the full pair), `php hiyori rejections add|list|stats|promote`, `POST /api/rejections` + `/api/rejections/promote`, and a Quality-page buffer card.
 - [x] Registration in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (`metadata_ml`)
 
 ### 4.6 Dashboard
-- [ ] Explorer: opt-in `confidence`/`ml_score`/`ml_model`/`ml_model_version`/`ml_decision` columns
-- [ ] Quality page: metadata vs ML score histograms; `/api/histogram?field=`
+- [x] Explorer: opt-in `confidence`/`ml_score`/`ml_model`/`ml_model_version`/`ml_decision` columns — the column list is data-driven (the API returns each collection's `fields`) and `ml_score` already renders as an inline bar (`web/src/components/explorer/cells.tsx`).
+- [x] Quality page: metadata vs ML score histograms; `/api/histogram?field=` — `field` accepts `confidence | score | ml_score` (`public/index.php`) and the Quality page renders both the merged-score and ML-score histograms.
 - [x] Threshold suggestions — `combine:benchmark` stores the best threshold (predicted merges + precision/recall/F1) and `/api/benchmark` exposes it; the Quality page shows a "Suggested threshold" banner with the shipping-gate margin. Shown as a recommendation, never auto-applied
-- [ ] Rejection buffer review + promote-to-training
+- [x] Rejection buffer review + promote-to-training — the Quality page lists the buffer with pending/promoted counts and a Promote button; `promote()` copies approve→1 / reject→0 into `_labels` and skips `unsure`.
 - [ ] Model/version filter for A/B review
 - [ ] Settings → Combine/ML config (model, sidecar path, caps, budget, enable toggle)
 
@@ -833,6 +833,8 @@ First full rebuild with `--passthrough`: `php hiyori combine anilist --passthrou
 - [x] **Chart / layout correctness.** `SeriesChartCard` put `<Area>` inside `<LineChart>`, so the ingestion-rate chart drew nothing (now `ComposedChart`); x-axis labels follow the real sample cadence and MAX matches the largest selectable window. The pipeline strip reports `sources → merged` instead of `totalDocs - violations` (an arithmetic no-op that read as 125K → 125K). The merged-score histogram y-axis is no longer clipped. Validation tables truncate long titles instead of painting over the Errors column. Coverage views share one collection list (no derived `organized*`, no `_*`), fixing the badge/footer mismatch, and the `_counters`/`_migrations` bookkeeping collections start hidden.
 - [x] **Honest benchmark panel.** `/api/benchmark` no longer merges a hardcoded seed over the benchmark log — the log stores `total`, which never mapped to the seeded `merges`, so every strategy displayed a fabricated merge count. Only recorded rows are returned now, labelled with their source log and date, pointing at `docs/combiner-strategy-benchmark.md` for the full comparison. The ML gate badge spells out its margin ("+0.107 vs baseline") instead of a bare number.
 - [x] **Memory gauge.** `HealthCheck::checkMemory()` reported PHP's per-request footprint (~2 MB of a 512 MB limit) to the Memory gauge — a permanent 0% and an empty ring. It now reports host memory from `/proc/meminfo`, matching `checkDiskSpace()`'s host scope; PHP's own figures stay under `php_*`.
+
+- [x] **Rejection buffer shipped (2026-10-17).** `RejectionStore` over `pair_rejections` (unique on the full pair, multiclass `approve`/`reject`/`unsure`), `php hiyori rejections add|list|stats|promote`, `GET/POST /api/rejections` + `POST /api/rejections/promote`, and a Quality-page buffer card with pending/promoted counts and a Promote button. `promote()` copies approve→1 / reject→0 into `_labels` and skips `unsure`, so an ambiguous verdict never reaches the trainer. `schema/hiyori.schema.json` now also declares the opt-in rich fields (`tags`/`genres`/`synopsis`/`score`/`studios`) and the merge/ML fields (`confidence`, `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_decided_at`) that the exporter toggles and `metadata_ml` already emit. Three stale checkboxes (Explorer ML columns, Quality histograms, `/api/histogram?field=`) and the manami-vs-LFS "(done)" box are ticked — all were already shipped.
 
 ## Security notes (2026-10-15)
 

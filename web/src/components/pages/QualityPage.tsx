@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Download, GitMerge, ListChecks, RefreshCw, Scale, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
+import { Download, GitMerge, ListChecks, RefreshCw, Scale, ShieldX, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,7 +9,8 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow, type MlBenchmark, type SampleRef,
+  downloadExport, fetchBenchmarkManga, fetchRejections, fetchSample, postLabel, promoteRejections,
+  type BenchmarkRow, type MlBenchmark, type RejectionRow, type RejectionStats, type SampleRef,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
@@ -174,6 +176,10 @@ export function QualityPage() {
   const [verdicts, setVerdicts] = useState<Record<string, 0 | 1>>({})
   const [minConf, setMinConf] = useState(0)
   const [feed, setFeed] = useState({ right: 0, wrong: 0 })
+  // Rejection buffer (`pair_rejections`) — the review queue of turned-down pairs.
+  const [rejections, setRejections] = useState<RejectionRow[]>([])
+  const [rejStats, setRejStats] = useState<RejectionStats | null>(null)
+  const [rejPromoting, setRejPromoting] = useState(false)
   const weights: Record<string, number> = { ...DEFAULT_WEIGHTS, ...(settings.prefs?.weights ?? {}) }
   const [weightsLocal, setWeightsLocal] = useState<Record<string, number>>(weights)
   useEffect(() => setWeightsLocal(weights), [JSON.stringify(weights)])
@@ -222,6 +228,27 @@ export function QualityPage() {
     setSampleRows(r.refs ?? [])
     setVerdicts({})
   })
+  // Rejection buffer: newest-first review queue + stats, refreshed after a promote.
+  const loadRejections = useCallback(() => {
+    void fetchRejections(50).then(r => {
+      setRejections(r.rejections ?? [])
+      if (r.stats) setRejStats(r.stats)
+    })
+  }, [])
+  useEffect(() => { loadRejections() }, [loadRejections])
+
+  const promoteBuffer = useCallback(async () => {
+    setRejPromoting(true)
+    try {
+      const res = await promoteRejections()
+      toast.success(`Promoted ${res.promoted ?? 0} rejection(s) into ${(res.labels ?? 0)} training label(s)`)
+      loadRejections()
+    } catch {
+      toast.error('Promote failed')
+    } finally {
+      setRejPromoting(false)
+    }
+  }, [loadRejections])
   // A verdict belongs to a *pair*, not to the record. A merged document can
   // hold one wrong reference beside three correct ones, and a whole-record
   // "wrong" was previously written against every reference in it — including
@@ -474,6 +501,38 @@ export function QualityPage() {
           )}
         </Section>
       </div>
+
+      {/* Rejection buffer — review queue of turned-down pairs; promote into training labels */}
+      <Section title="Rejection buffer" icon={ShieldX} badge={<Badge variant="outline">pair_rejections</Badge>}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="space-y-1.5 lg:col-span-2">
+            {rejections.length === 0 ? (
+              <EmptyState icon={ShieldX} title="Buffer is empty" description="Rejected candidate pairs land here for review, then promote into training labels." />
+            ) : (
+              rejections.map((r, i) => (
+                <div key={`${r.base_source}:${r.base_id}:${r.candidate_source}:${r.candidate_id}:${i}`} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs">
+                  <Badge variant={r.decision === 'approve' ? 'default' : r.decision === 'reject' ? 'secondary' : 'outline'} className="w-16 justify-center">{r.decision}</Badge>
+                  <span className="font-mono text-muted-foreground">{r.base_source}:{r.base_id} ↔ {r.candidate_source}:{r.candidate_id}</span>
+                  <span className="ml-auto tabular-nums text-muted-foreground">{r.score != null ? Number(r.score).toFixed(1) : '—'}</span>
+                  <span className={r.promoted ? 'text-muted-foreground' : 'text-amber-600'}>{r.promoted ? 'promoted' : 'pending'}</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="rounded-md border p-2"><div className="text-lg font-semibold tabular-nums">{rejStats?.pending ?? '—'}</div><div className="text-xs text-muted-foreground">pending</div></div>
+              <div className="rounded-md border p-2"><div className="text-lg font-semibold tabular-nums">{rejStats?.promoted ?? '—'}</div><div className="text-xs text-muted-foreground">promoted</div></div>
+            </div>
+            <Button className="w-full" onClick={() => { void promoteBuffer() }} disabled={rejPromoting || (rejStats?.pending ?? 0) === 0}>
+              {rejPromoting ? 'Promoting…' : 'Promote to training'}
+            </Button>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Promote copies decided pairs into <code className="rounded bg-muted px-1">_labels</code> (approve → agree, reject → disagree). <code className="rounded bg-muted px-1">unsure</code> rows are skipped so an ambiguous verdict never reaches the trainer.
+            </p>
+          </div>
+        </div>
+      </Section>
 
       {/* Q6: weight explorer — adjustable weights + honest CLI note, preview dropped */}
       <Section title="Weightage explorer" icon={SlidersHorizontal} badge={<Badge variant="outline">metadata_fuzzy</Badge>}>

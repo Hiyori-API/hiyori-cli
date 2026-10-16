@@ -93,6 +93,60 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "confidence": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100,
+            "description": "metadata_fuzzy merge confidence (0-100) on merged records. Absent on single-source passthrough records — the absence, not the reference shape, marks those."
+        },
+        "score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Source score, opt-in via the exporter `score` toggle."
+        },
+        "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tag list, opt-in via the exporter `tags` toggle."
+        },
+        "genres": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Genre list, opt-in via the exporter `genres` toggle."
+        },
+        "synopsis": {
+            "type": ["string", "null"],
+            "description": "Synopsis text, opt-in via the exporter `synopsis` toggle."
+        },
+        "studios": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Studio/author list, opt-in via the exporter `studios` toggle."
+        },
+        "ml_score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "metadata_ml model probability for the merge (second-stage scorer)."
+        },
+        "ml_model": {
+            "type": ["string", "null"],
+            "description": "Model identifier that produced ml_score (e.g. logreg-2026.10.16.122621)."
+        },
+        "ml_model_version": {
+            "type": ["string", "null"],
+            "description": "Model version string."
+        },
+        "ml_decision": {
+            "type": ["string", "null"],
+            "description": "Model decision for the pair."
+        },
+        "ml_decided_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO-8601 timestamp of the model decision."
         }
     }
 }
