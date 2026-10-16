@@ -57,27 +57,30 @@ export function useCachedFetch<T>(url: string, bypassKey?: unknown): CachedFetch
 // mounting its own fetch+state, they subscribe to one module-level snapshot that
 // is refetched at most once per 5s (via the shared cache above).
 
-let failuresCache: ValidationEvent[] = []
+let failuresState: { failures: ValidationEvent[]; total: number } = { failures: [], total: 0 }
 const failuresListeners = new Set<() => void>()
 
 const subscribeFailures = (l: () => void) => {
   failuresListeners.add(l)
   return () => { failuresListeners.delete(l) }
 }
-const getFailuresSnapshot = () => failuresCache
+const getFailuresSnapshot = () => failuresState
 
 /** Re-fetch validation failures (deduped by cachedFetch) and notify subscribers. */
 export async function refreshFailures(): Promise<ValidationEvent[]> {
-  const r = await cachedFetch<{ failures?: ValidationEvent[] }>('/api/failures')
-  failuresCache = r.failures ?? []
+  const r = await cachedFetch<{ failures?: ValidationEvent[]; total?: number }>('/api/failures')
+  const failures = r.failures ?? []
+  // `total` is the whole log's line count; the payload is capped server-side, so
+  // callers can show "newest 500 of N" rather than passing the cap off as all.
+  failuresState = { failures, total: r.total ?? failures.length }
   ;[...failuresListeners].forEach(l => l())
-  return failuresCache
+  return failures
 }
 
 /** Live, shared view of validation failures + a refresh() that busts the cache. */
-export function useFailures(): { failures: ValidationEvent[]; refresh: () => Promise<void> } {
-  const failures = useSyncExternalStore(subscribeFailures, getFailuresSnapshot)
+export function useFailures(): { failures: ValidationEvent[]; total: number; refresh: () => Promise<void> } {
+  const { failures, total } = useSyncExternalStore(subscribeFailures, getFailuresSnapshot)
   const refresh = useCallback(() => refreshFailures().then(() => undefined), [])
   useEffect(() => { void refresh() }, [refresh])
-  return { failures, refresh }
+  return { failures, total, refresh }
 }

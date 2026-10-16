@@ -200,21 +200,84 @@ final class HealthCheck
         ];
     }
 
+    /**
+     * Host memory, matching checkDiskSpace()'s host-level scope.
+     *
+     * This used to report PHP's own per-request footprint against
+     * `memory_limit`, which for the dashboard is ~1MB of a 512MB limit — always
+     * 0% once rounded, so the Memory gauge rendered as an empty ring. The host's
+     * pressure is what a health gauge should show; PHP's own numbers stay
+     * available under `php_*` for diagnostics.
+     */
     private function checkMemory(): array
     {
         $usage = memory_get_usage(true);
         $peak = memory_get_peak_usage(true);
         $limit = ini_get('memory_limit');
 
-        $limitBytes = $this->parseMemoryLimit($limit);
-        $usedPercent = $limitBytes > 0 ? ($usage / $limitBytes) * 100 : 0;
+        $host = $this->hostMemory();
+        if ($host === null) {
+            // No /proc (e.g. macOS): fall back to PHP's own budget.
+            $limitBytes = $this->parseMemoryLimit($limit);
+            $usedPercent = $limitBytes > 0 ? ($usage / $limitBytes) * 100 : 0;
+
+            return [
+                'healthy' => $usedPercent < 85,
+                'source' => 'php',
+                'used_percent' => round($usedPercent, 1),
+                'current_mb' => round($usage / 1024 / 1024, 2),
+                'peak_mb' => round($peak / 1024 / 1024, 2),
+                'limit' => $limit,
+            ];
+        }
 
         return [
-            'healthy' => $usedPercent < 85,
-            'current_mb' => round($usage / 1024 / 1024, 2),
-            'peak_mb' => round($peak / 1024 / 1024, 2),
+            'healthy' => $host['used_percent'] < 90,
+            'source' => 'host',
+            'used_percent' => round($host['used_percent'], 1),
+            'total_gb' => round($host['total'] / 1024 / 1024 / 1024, 2),
+            'available_gb' => round($host['available'] / 1024 / 1024 / 1024, 2),
+            'php_current_mb' => round($usage / 1024 / 1024, 2),
+            'php_peak_mb' => round($peak / 1024 / 1024, 2),
             'limit' => $limit,
-            'used_percent' => round($usedPercent, 1),
+        ];
+    }
+
+    /**
+     * Read host memory from /proc/meminfo.
+     *
+     * `MemAvailable` already discounts reclaimable page cache, so the derived
+     * percentage reflects real pressure rather than "everything is cache".
+     *
+     * @return array{total: float, available: float, used_percent: float}|null
+     */
+    private function hostMemory(): ?array
+    {
+        if (!is_readable('/proc/meminfo')) {
+            return null;
+        }
+        $raw = @file_get_contents('/proc/meminfo');
+        if ($raw === false) {
+            return null;
+        }
+
+        $kb = [];
+        foreach (explode("\n", $raw) as $line) {
+            if (preg_match('/^(\w+):\s+(\d+)\s*kB/', $line, $m)) {
+                $kb[$m[1]] = (float) $m[2];
+            }
+        }
+
+        $total = $kb['MemTotal'] ?? 0.0;
+        if ($total <= 0) {
+            return null;
+        }
+        $available = $kb['MemAvailable'] ?? $kb['MemFree'] ?? 0.0;
+
+        return [
+            'total' => $total * 1024,
+            'available' => $available * 1024,
+            'used_percent' => (($total - $available) / $total) * 100,
         ];
     }
 

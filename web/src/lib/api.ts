@@ -9,9 +9,35 @@ export interface Job {
   errors?: number
   eta_seconds?: number
   started_at_ts?: number
+  updated_at?: string
   mode?: string
   history?: { t: number; v: number }[]
   [k: string]: unknown
+}
+
+/** A run that stopped reporting for this long is no longer actually running. */
+export const JOB_STALE_AFTER_MS = 90_000
+
+/**
+ * Effective phase of an ingestion job.
+ *
+ * State files are last-write-wins and a killed ingest process cannot write a
+ * terminal phase, so a long-dead run stays `running` on disk forever. Treat a
+ * `running` phase as `stale` once the state file has not been touched for
+ * JOB_STALE_AFTER_MS, so the dashboard never claims a dead job is live.
+ */
+export function jobPhase(job?: Job | null): string {
+  const phase = job?.phase ?? 'idle'
+  if (phase !== 'running') return phase
+  const updatedAt = typeof job?.updated_at === 'string' ? Date.parse(job.updated_at) : Number.NaN
+  if (!Number.isNaN(updatedAt) && Date.now() - updatedAt > JOB_STALE_AFTER_MS) return 'stale'
+  return phase
+}
+
+/** True while a job is actively progressing (not done, idle, paused-off or stale). */
+export function isJobLive(job?: Job | null): boolean {
+  const phase = jobPhase(job)
+  return phase !== 'done' && phase !== 'idle' && phase !== 'stale'
 }
 
 export interface ValidationEvent {
@@ -29,7 +55,19 @@ export interface HealthCheck {
     external_apis?: { healthy?: boolean; all_reachable?: boolean; endpoints?: Record<string, { healthy?: boolean; reachable?: boolean; latency_ms?: number; status_code?: number; note?: string; error?: string }> }
     rate_limiter?: { healthy?: boolean; limiters?: Record<string, { tokens_available?: number; max_tokens?: number; circuit_state?: string; failures?: number }> }
     disk_space?: { healthy?: boolean; used_percent?: number; free_gb?: number; total_gb?: number }
-    memory?: { healthy?: boolean; used_percent?: number; current_mb?: number; peak_mb?: number; limit?: string }
+    memory?: {
+      healthy?: boolean
+      /** `host` (from /proc/meminfo) or `php` (per-request fallback). */
+      source?: string
+      used_percent?: number
+      total_gb?: number
+      available_gb?: number
+      php_current_mb?: number
+      php_peak_mb?: number
+      current_mb?: number
+      peak_mb?: number
+      limit?: string
+    }
   }
 }
 
@@ -141,7 +179,7 @@ export async function runBackup(): Promise<{ started?: boolean; archive?: string
   return r.json() as Promise<{ started?: boolean; archive?: string }>
 }
 
-export async function fetchBenchmark(): Promise<{ seeded?: BenchmarkRow[]; latest?: unknown; ml?: MlBenchmark | null }> {
+export async function fetchBenchmark(): Promise<{ recorded?: BenchmarkRow[]; source?: string | null; recorded_at?: string | null; latest?: unknown; ml?: MlBenchmark | null }> {
   const r = await fetch('/api/benchmark')
   if (!r.ok) throw new Error(`benchmark ${r.status}`)
   return r.json()
@@ -310,12 +348,12 @@ export async function restoreBackup(file: string): Promise<{ started?: boolean; 
   return jsonPost('/api/restore', { file }) as Promise<{ started?: boolean; error?: string }>
 }
 
-export async function fetchFailures(): Promise<{ failures?: ValidationEvent[] }> {
+export async function fetchFailures(): Promise<{ failures?: ValidationEvent[]; total?: number }> {
   const r = await fetch('/api/failures')
-  return r.json() as Promise<{ failures?: ValidationEvent[] }>
+  return r.json() as Promise<{ failures?: ValidationEvent[]; total?: number }>
 }
 
-export interface LimitsResp { limits?: { max?: number; window?: number }; applied?: string }
+export interface LimitsResp { limits?: { max?: number; window?: number; source?: string }; applied?: string }
 export async function fetchLimits(): Promise<LimitsResp> {
   const r = await fetch('/api/limits')
   return r.json() as Promise<LimitsResp>
@@ -325,9 +363,9 @@ export async function postLimits(patch: { max?: number; window?: number }): Prom
 }
 
 export interface AuditItem { ts?: string; action?: string; ip?: string; detail?: Record<string, unknown> }
-export async function fetchAudit(): Promise<{ audit?: AuditItem[] }> {
+export async function fetchAudit(): Promise<{ audit?: AuditItem[]; total?: number }> {
   const r = await fetch('/api/audit')
-  return r.json() as Promise<{ audit?: AuditItem[] }>
+  return r.json() as Promise<{ audit?: AuditItem[]; total?: number }>
 }
 
 export interface HistoryPayload { states?: Record<string, Job>; runs?: Array<Record<string, unknown>> }

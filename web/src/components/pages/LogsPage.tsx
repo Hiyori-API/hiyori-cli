@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchHistory, type Job, type SlowEntry, type ValidationEvent } from '@/lib/api'
+import { jobPhase, fetchHistory, type Job, type SlowEntry, type ValidationEvent } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { timeStr } from '@/lib/format'
@@ -26,7 +26,7 @@ export function LogsPage() {
   const { data, error } = useStatus()
   const { settings } = useSettings()
   const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
-  const { failures } = useFailures()
+  const { failures, total: failureTotal } = useFailures()
   const [history, setHistory] = useState<Record<string, Job> | null>(null)
   const [srcFilter, setSrcFilter] = useState('all')
 
@@ -96,7 +96,7 @@ export function LogsPage() {
       </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Validation log" icon={ListChecks} badge={<Badge variant="outline">{validation.length}</Badge>}>
+        <Section title="Validation log" icon={ListChecks} badge={<Badge variant="outline" title={`${failureTotal} logged; showing the newest ${failures.length}`}>{failureTotal > failures.length ? `${validation.length}/${failureTotal}` : validation.length}</Badge>}>
           <div className="mb-2 flex items-center justify-end">
             <Select value={srcFilter} onValueChange={v => setSrcFilter(v ?? 'all')}>
               <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
@@ -158,7 +158,7 @@ function ValidationTable({ rows, tz }: { rows: ValidationEvent[]; tz: Tz }) {
       id: 'ts',
       header: 'Time',
       accessorFn: r => r.ts ?? '',
-      cell: info => <span className="tabular-nums text-muted-foreground">{timeStr(info.row.original.ts, tz)}</span>,
+      cell: info => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{timeStr(info.row.original.ts, tz)}</span>,
       sortingFn: 'basic',
       meta: { align: 'left' } as const,
     },
@@ -174,9 +174,11 @@ function ValidationTable({ rows, tz }: { rows: ValidationEvent[]; tz: Tz }) {
       id: 'title',
       header: 'Title',
       accessorFn: r => r.title ?? '',
-      cell: info => <span className="truncate">{info.row.original.title ?? ''}</span>,
+      // Without `truncate` a long title overflows its cell and paints over the
+      // Errors column (the table has no fixed layout).
+      cell: info => <span className="block truncate" title={info.row.original.title ?? ''}>{info.row.original.title ?? ''}</span>,
       sortingFn: 'basic',
-      meta: { align: 'left' } as const,
+      meta: { align: 'left', truncate: true } as const,
     },
     {
       id: 'errors',
@@ -211,7 +213,7 @@ function RunHistoryTable({ rows, tz }: { rows: RunRow[]; tz: Tz }) {
     runHelper.accessor('key', {
       id: 'phase',
       header: 'Phase',
-      cell: ({ row }) => <Badge variant={row.original.job.phase === 'done' ? 'secondary' : 'outline'}>{row.original.job.phase ?? 'idle'}</Badge>,
+      cell: ({ row }) => <Badge variant={jobPhase(row.original.job) === 'done' ? 'secondary' : 'outline'}>{jobPhase(row.original.job)}</Badge>,
     }),
     runHelper.accessor(r => r.job.processed ?? 0, {
       id: 'processed',
