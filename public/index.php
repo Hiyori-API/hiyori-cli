@@ -332,6 +332,60 @@ function coverage(MongoClient $client, ?array $totals = null): array
     return $out;
 }
 
+/**
+ * Resolve a merged record's reference shorthands to the titles each source
+ * actually holds, so a reviewer can judge a merge without leaving the page.
+ *
+ * Only shorthands with a local source collection are resolved; an unknown one
+ * (e.g. `t` for trakt) still comes back as a row with a null title, so the
+ * reviewer sees that the record references a source the dashboard cannot show.
+ *
+ * @param array<string, mixed> $refs shorthand => source id
+ *
+ * @return list<array{shorthand: string, id: string, title: ?string, year: ?int, type: ?string}>
+ */
+function sampleSourceTitles(MongoClient $client, array $refs): array
+{
+    static $tables = null;
+    if ($tables === null) {
+        $tables = [];
+        /** @var array<string, array{table: string, shorthand: string}> $configs */
+        $configs = require dirname(__DIR__) . '/src/Config/Sources.php';
+        foreach ($configs as $config) {
+            $tables[$config['shorthand']] = $config['table'];
+        }
+    }
+
+    $db = $client->selectDatabase('hiyori');
+    $rows = [];
+    foreach ($refs as $shorthand => $id) {
+        $shorthand = (string) $shorthand;
+        $id = is_scalar($id) ? (string) $id : '';
+        $row = ['shorthand' => $shorthand, 'id' => $id, 'title' => null, 'year' => null, 'type' => null];
+
+        $table = $tables[$shorthand] ?? null;
+        if ($table !== null && $id !== '') {
+            $doc = $db->selectCollection($table)->findOne(
+                ['reference_ids.' . $shorthand => $id],
+                ['projection' => ['title' => 1, 'year' => 1, 'type' => 1]],
+            );
+            if ($doc !== null) {
+                $doc = json_decode(json_encode($doc), true);
+                $title = $doc['title'] ?? null;
+                if (is_array($title)) {
+                    $title = $title['romaji'] ?? $title['english'] ?? reset($title);
+                }
+                $row['title'] = is_scalar($title) ? (string) $title : null;
+                $row['year'] = isset($doc['year']) ? (int) $doc['year'] : null;
+                $row['type'] = isset($doc['type']) && is_scalar($doc['type']) ? (string) $doc['type'] : null;
+            }
+        }
+        $rows[] = $row;
+    }
+
+    return $rows;
+}
+
 function readBenchmarkLog(string $file): array
 {
     $rows = [];
@@ -1093,7 +1147,16 @@ if ($path === '/api/sample') {
     }
     $pipeline[] = ['$sample' => ['size' => 1]];
     $doc = $client->selectDatabase('hiyori')->selectCollection($collection)->aggregate($pipeline)->toArray()[0] ?? null;
-    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null, 'min' => $min, 'field' => $field]);
+    $sample = $doc === null ? null : json_decode(json_encode($doc), true);
+    // The source titles behind the reference keys: a reviewer cannot judge a
+    // merge from the merged title alone.
+    $refs = is_array($sample['reference_ids'] ?? null) ? $sample['reference_ids'] : [];
+    sendJson([
+        'sample' => $sample,
+        'refs' => sampleSourceTitles($client, $refs),
+        'min' => $min,
+        'field' => $field,
+    ]);
 }
 
 if ($path === '/api/labels') {

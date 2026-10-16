@@ -185,10 +185,27 @@ export async function fetchBenchmark(): Promise<{ recorded?: BenchmarkRow[]; sou
   return r.json()
 }
 
-export async function fetchSample(collection: string, minConfidence = -1): Promise<{ sample?: Record<string, unknown> | null }> {
+/** A merged record's reference, with the title the source itself holds. */
+export interface SampleRef {
+  shorthand: string
+  id: string
+  title: string | null
+  year: number | null
+  type: string | null
+}
+
+export interface SampleResponse {
+  sample?: Record<string, unknown> | null
+  /** Per-source titles for `sample.reference_ids`, for judging the merge. */
+  refs?: SampleRef[]
+  min?: number
+  field?: string
+}
+
+export async function fetchSample(collection: string, minConfidence = -1): Promise<SampleResponse> {
   const q = minConfidence >= 0 ? `&min=${minConfidence}` : ''
   const r = await fetch(`/api/sample?collection=${encodeURIComponent(collection)}${q}`)
-  return r.json() as Promise<{ sample?: Record<string, unknown> | null }>
+  return r.json() as Promise<SampleResponse>
 }
 
 export interface PairLabel {
