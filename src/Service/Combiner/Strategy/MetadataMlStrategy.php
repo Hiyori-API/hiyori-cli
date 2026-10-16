@@ -78,6 +78,10 @@ final class MetadataMlStrategy extends CombinerStrategy
         $mlScores = [];
         $totalMerged = 0;
         $totalPassthrough = 0;
+        // Distinct documents written. `$totalMerged` counts matched sources, and
+        // an entry that matches both myanimelist and kitsu upserts the same
+        // document twice, so the two numbers are not interchangeable.
+        $mergedDocs = 0;
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
@@ -167,6 +171,10 @@ final class MetadataMlStrategy extends CombinerStrategy
                 $merged = true;
             }
 
+            if ($merged) {
+                $mergedDocs++;
+            }
+
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && !$merged && $baseId !== '') {
@@ -182,9 +190,10 @@ final class MetadataMlStrategy extends CombinerStrategy
         $console->io()->info('Metadata ML merge complete. Total Merged: ' . $totalMerged);
         if ($passthrough) {
             $console->io()->text(sprintf(
-                'Passthrough: %d single-source records kept (documents: %d)',
+                'Documents: %d (%d merged, %d single-source kept)',
+                $mergedDocs + $totalPassthrough,
+                $mergedDocs,
                 $totalPassthrough,
-                $totalMerged + $totalPassthrough,
             ));
         }
         $console->io()->text(\sprintf('Model: %s (threshold %.2f, metadata floor %.1f)', $model->version(), $mlThreshold, $metadataFloor));
@@ -194,7 +203,7 @@ final class MetadataMlStrategy extends CombinerStrategy
             'base' => $tableName,
             'merges' => $totalMerged,
             'passthrough' => $totalPassthrough,
-            'documents' => $totalMerged + $totalPassthrough,
+            'documents' => $mergedDocs + $totalPassthrough,
             'ml_threshold' => $mlThreshold,
             'metadata_floor' => $metadataFloor,
             'ml_model_version' => $model->version(),
