@@ -172,8 +172,11 @@ php hiyori combine anilist --strategy metadata_fuzzy --into bench_metadata_fuzzy
 
 A passthrough record carries **no `confidence`** — it is not a merge, and a `0.0`
 would park it in the bottom histogram bin and feed it to the spot-check sampler
-as though a merge had been scored and failed. Its `reference_ids` has a single
-key, the base source, which is how a consumer can tell the two apart.
+as though a merge had been scored and failed. That absent field is what marks a
+record as single-source: `reference_ids` is the base entry's own reference set,
+which is one key for a minority of records and several for the rest, because
+sources ship cross-references on the entries themselves (AniList carries
+`mal`/`yt`/`tx`/`nf`/`ttv`/`cr`/`ap`).
 
 `combine` warns before the run when the target is `organized`/`organized_manga`
 and `--passthrough` is off, because that combination silently drops coverage.

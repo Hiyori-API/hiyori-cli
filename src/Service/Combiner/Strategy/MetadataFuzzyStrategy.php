@@ -91,6 +91,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $scores = [];
         $totalMerged = 0;
         $totalPassthrough = 0;
+        // Distinct documents written. `$totalMerged` counts matched sources, and
+        // an entry that matches both myanimelist and kitsu upserts the same
+        // document twice, so the two numbers are not interchangeable.
+        $mergedDocs = 0;
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
@@ -133,6 +137,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $score = (float) $bestMatch['_score'];
                     unset($bestMatch['_score']);
                     $scores[] = $score;
+                    // The upsert key is the entry's own reference, so the first
+                    // matched source writes this document and later sources
+                    // rewrite it: only the first one is a new document.
+                    $firstMatchForEntry = $bestForEntry === 0.0;
                     $bestForEntry = max($bestForEntry, $score);
                     $mergedSources[$currentSource->getTable()] = ($mergedSources[$currentSource->getTable()] ?? 0) + 1;
 
@@ -163,6 +171,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                             $extra,
                         );
                         $totalMerged++;
+                        if ($firstMatchForEntry) {
+                            $mergedDocs++;
+                        }
                     }
                 }
             }
@@ -182,9 +193,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $console->io()->info('Metadata Fuzzy merge complete. Total Merged: ' . $totalMerged . ' (threshold: ' . round($threshold, 1) . '%)');
         if ($passthrough) {
             $console->io()->text(sprintf(
-                'Passthrough: %d single-source records kept (documents: %d)',
+                'Documents: %d (%d merged, %d single-source kept)',
+                $mergedDocs + $totalPassthrough,
+                $mergedDocs,
                 $totalPassthrough,
-                $totalMerged + $totalPassthrough,
             ));
         }
 
@@ -228,7 +240,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'base' => $source->get()->getTable(),
             'merges' => $totalMerged,
             'passthrough' => $totalPassthrough,
-            'documents' => $totalMerged + $totalPassthrough,
+            'documents' => $mergedDocs + $totalPassthrough,
             'threshold' => round($threshold, 1),
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,

@@ -87,6 +87,10 @@ final class FellegiSunterStrategy extends CombinerStrategy
 
         $totalMerged = 0;
         $totalPassthrough = 0;
+        // Distinct documents written. `$totalMerged` counts matched sources, and
+        // an entry that matches both myanimelist and kitsu upserts the same
+        // document twice, so the two numbers are not interchangeable.
+        $mergedDocs = 0;
         $scores = [];
         $mergedSources = [];
         $candidatesExamined = 0;
@@ -137,6 +141,10 @@ final class FellegiSunterStrategy extends CombinerStrategy
                 }
             }
 
+            if ($merged) {
+                $mergedDocs++;
+            }
+
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && !$merged && $baseId !== '') {
@@ -152,9 +160,10 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $console->io()->info('Fellegi–Sunter merge complete. Merged: ' . $totalMerged);
         if ($passthrough) {
             $console->io()->text(sprintf(
-                'Passthrough: %d single-source records kept (documents: %d)',
+                'Documents: %d (%d merged, %d single-source kept)',
+                $mergedDocs + $totalPassthrough,
+                $mergedDocs,
                 $totalPassthrough,
-                $totalMerged + $totalPassthrough,
             ));
         }
         $telemetry->update('combine-latest', [
@@ -162,7 +171,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
             'base' => $tableName,
             'merges' => $totalMerged,
             'passthrough' => $totalPassthrough,
-            'documents' => $totalMerged + $totalPassthrough,
+            'documents' => $mergedDocs + $totalPassthrough,
             'threshold' => $threshold,
             'agreement_cutoff' => $cutoff,
             'candidates_examined' => $candidatesExamined,
