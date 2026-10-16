@@ -85,6 +85,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `ml:export-pairs` | Export labelled candidate pairs (JSONL) for ML training / benchmarking |
 | `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
 | `labels` | Add / inspect human pair labels (agree/disagree) that override the organized ground truth |
+| `rejections` | Work the rejection buffer — review turned-down pairs (approve/reject/unsure) and promote decided ones into training labels |
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
 | `combine:dupes` / `dupes` | Detect duplicate reference keys in combined collections (release gate: `mal`/`al` must stay unique) |
 | `combine:dedupe` / `dedupe` | Resolve duplicate identity keys in place (release-gate unblocker; keeps the key on its base-corroborated owner, never deletes documents) |
@@ -324,6 +325,13 @@ php hiyori labels add --base-source mal --base-id 1 --candidate-source al --cand
 php hiyori labels stats
 php hiyori labels list --base-source mal --base-id 1
 
+# Work the rejection buffer: review turned-down pairs, then promote the decided
+# ones into training labels (approve -> agree, reject -> disagree; unsure skipped).
+php hiyori rejections add --base-source mal --base-id 1 --candidate-source al --candidate-id 2 --decision reject
+php hiyori rejections list
+php hiyori rejections stats
+php hiyori rejections promote
+
 # Export labelled candidate pairs for ML (human labels win over the organized collection).
 # --holdout writes a deterministic, group-safe -train/-holdout pair of files:
 php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first] [--holdout 30]
@@ -510,6 +518,8 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/benchmark` | Recorded strategy rows (from the benchmark script's log) + latest combine + ML gate report |
 | `/api/alerts` | Anomaly evaluation (circuit open, low tokens, API down); posts to `WEBHOOK_URL` when set |
 | `/api/sample` | Random doc for the merge sampler (`?collection=&min=&field=`, defaults to `confidence`); also returns `refs`, the title each source holds for the record's references |
+| `/api/rejections` | Rejection-buffer stats + newest rows (`?decision=&limit=`) |
+| `/api/rejections/promote` | POST — copy decided pairs into `_labels` (approve→agree, reject→disagree; `unsure` skipped) |
 | `/api/slow` | Request latency extremes (>2s) |
 | `/api/schedule` | Scheduled-run info |
 | `/api/histogram` | Score/confidence histogram (`?collection=&field=`, 10 bins) |
