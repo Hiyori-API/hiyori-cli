@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -13,6 +14,8 @@ use MongoDB\Collection;
 
 final class MetadataFuzzyStrategy extends CombinerStrategy
 {
+    use MergesEntries;
+
     public const NAME = 'metadata_fuzzy';
 
     /**
@@ -71,6 +74,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? self::DEFAULT_TITLE_FLOOR);
+        $passthrough = (bool) ($strategy->getConfig('passthrough') ?? false);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -86,6 +90,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
 
         $scores = [];
         $totalMerged = 0;
+        $totalPassthrough = 0;
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
@@ -139,7 +144,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                         $mergedEntry = Helper::mergeEntries($tableName, $entryArray, $bestMatch);
 
                         // Ensure stable hiyori_id: reuse if refs already known, else allocate new.
-                        $kind = $collection === 'organized_manga' ? 'manga' : 'anime';
+                        $kind = self::targetKind($collection);
                         $slug = \Hiyori\Service\Exporter::slugify((string) $mergedEntry->getTitle());
                         $refs = $mergedEntry->getReferenceIds();
                         try {
@@ -161,11 +166,27 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     }
                 }
             }
+
+            // Nothing matched: keep the entry itself (see persistPassthrough)
+            // so the run cannot drop a base entry and orphan its registry id.
+            if ($passthrough && $bestForEntry === 0.0 && $baseId !== '') {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                    $totalPassthrough++;
+                }
+            }
+
             $progressBar->advance();
         }
         $progressBar->finish();
 
         $console->io()->info('Metadata Fuzzy merge complete. Total Merged: ' . $totalMerged . ' (threshold: ' . round($threshold, 1) . '%)');
+        if ($passthrough) {
+            $console->io()->text(sprintf(
+                'Passthrough: %d single-source records kept (documents: %d)',
+                $totalPassthrough,
+                $totalMerged + $totalPassthrough,
+            ));
+        }
 
         // Confidence summary
         if ($scores !== []) {
@@ -206,6 +227,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'strategy' => self::NAME,
             'base' => $source->get()->getTable(),
             'merges' => $totalMerged,
+            'passthrough' => $totalPassthrough,
+            'documents' => $totalMerged + $totalPassthrough,
             'threshold' => round($threshold, 1),
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\ExportConfig;
@@ -31,6 +32,8 @@ use RuntimeException;
  */
 final class MetadataMlStrategy extends CombinerStrategy
 {
+    use MergesEntries;
+
     public const NAME = 'metadata_ml';
 
     public static function process(
@@ -47,6 +50,7 @@ final class MetadataMlStrategy extends CombinerStrategy
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
+        $passthrough = (bool) ($strategy->getConfig('passthrough') ?? false);
 
         $modelPath = (string) ($strategy->getConfig('ml_model') ?? ExportConfig::rootDir() . '/storage/state/ml-model.json');
         $model = LogisticModel::load($modelPath);
@@ -73,6 +77,7 @@ final class MetadataMlStrategy extends CombinerStrategy
         $scores = [];
         $mlScores = [];
         $totalMerged = 0;
+        $totalPassthrough = 0;
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
@@ -83,6 +88,7 @@ final class MetadataMlStrategy extends CombinerStrategy
             $entryArray = Helper::convertMongoResultToArray($entry);
             $baseShorthand = $source->get()->getShorthand();
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
+            $merged = false;
 
             foreach ($availableSources as $currentSource) {
                 if ($currentSource->getTable() === $tableName) {
@@ -138,7 +144,7 @@ final class MetadataMlStrategy extends CombinerStrategy
 
                 $entryArray['reference_ids'][$baseShorthand] = $baseId;
                 $mergedEntry = Helper::mergeEntries($tableName, $entryArray, $bestMatch);
-                $kind = $collection === 'organized_manga' ? 'manga' : 'anime';
+                $kind = self::targetKind($collection);
                 $slug = Exporter::slugify((string) $mergedEntry->getTitle());
                 $refs = $mergedEntry->getReferenceIds();
 
@@ -158,18 +164,37 @@ final class MetadataMlStrategy extends CombinerStrategy
 
                 $db->mergeIntoOrganized($mergedEntry, $baseShorthand, $baseId, $collection, $extra);
                 $totalMerged++;
+                $merged = true;
             }
+
+            // Nothing matched: keep the entry itself (see persistPassthrough)
+            // so the run cannot drop a base entry and orphan its registry id.
+            if ($passthrough && !$merged && $baseId !== '') {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                    $totalPassthrough++;
+                }
+            }
+
             $progressBar->advance();
         }
         $progressBar->finish();
 
         $console->io()->info('Metadata ML merge complete. Total Merged: ' . $totalMerged);
+        if ($passthrough) {
+            $console->io()->text(sprintf(
+                'Passthrough: %d single-source records kept (documents: %d)',
+                $totalPassthrough,
+                $totalMerged + $totalPassthrough,
+            ));
+        }
         $console->io()->text(\sprintf('Model: %s (threshold %.2f, metadata floor %.1f)', $model->version(), $mlThreshold, $metadataFloor));
 
         $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
             'merges' => $totalMerged,
+            'passthrough' => $totalPassthrough,
+            'documents' => $totalMerged + $totalPassthrough,
             'ml_threshold' => $mlThreshold,
             'metadata_floor' => $metadataFloor,
             'ml_model_version' => $model->version(),

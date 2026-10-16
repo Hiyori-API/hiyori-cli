@@ -6,6 +6,7 @@ use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\ExportConfig;
 use Hiyori\Service\Exporter;
+use Hiyori\Service\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\LockableTrait;
@@ -39,6 +40,7 @@ final class CombinerCommand extends Command
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
             ->addOption('config', null, InputOption::VALUE_OPTIONAL, 'Extra strategy config as JSON (e.g. {"ml_threshold":0.6,"metadata_floor":55})')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
+            ->addOption('passthrough', null, InputOption::VALUE_NEGATABLE, 'Keep base entries that matched nothing as their own single-source records. Required for an id-stable rebuild of `organized`; off by default so benchmark runs measure merging alone')
             ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
@@ -88,6 +90,26 @@ final class CombinerCommand extends Command
                 return Command::FAILURE;
             }
             $config = array_merge($config, $decoded);
+        }
+
+        if ($input->getOption('passthrough') !== null) {
+            $config['passthrough'] = (bool) $input->getOption('passthrough');
+        }
+
+        // Warn before, not after: a run without passthrough drops every base
+        // entry that matched nothing. On a merged collection that already holds
+        // single-source records that is silent coverage loss, and the registry
+        // rows behind those entries are left without a document.
+        $target = (string) $input->getOption('into');
+        if (!($config['passthrough'] ?? false) && in_array($target, Migrator::KINDS, true)) {
+            $existing = $this->hiyori->getDatabase()->getCollection($target)->countDocuments();
+            if ($existing > 0) {
+                $output->writeln(sprintf(
+                    '<comment>Note:</comment> %s holds %d documents and <comment>--passthrough is off</comment> — base entries that match nothing will be dropped (their hiyori_ids left without a document). Add --passthrough to keep one record per base entry.',
+                    $target,
+                    $existing,
+                ));
+            }
         }
 
         $this->hiyori->combine($base, $strategy, $config);
