@@ -86,6 +86,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
 | `combine:dupes` / `dupes` | Detect duplicate reference keys in combined collections (release gate: `mal`/`al` must stay unique) |
 | `combine:dedupe` / `dedupe` | Resolve duplicate identity keys in place (release-gate unblocker; keeps the key on its base-corroborated owner, never deletes documents) |
+| `combine:consensus` / `consensus` | Rank every strategy against one shared pair sample: F1 vs consensus, vs `organized`, and vs human labels |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |
@@ -135,7 +136,7 @@ php hiyori combine {base} [--strategy {strategy}]
 
 | Option | Description |
 |--------|-------------|
-| `--strategy`, `-s` | One of the six strategies below. **Default: `metadata_fuzzy`** |
+| `--strategy`, `-s` | One of the seven strategies below. **Default: `metadata_fuzzy`** |
 | `--threshold`, `-t` | `metadata_fuzzy` score threshold, 0–100 (default: `70`) |
 | `--weights`, `-w` | `metadata_fuzzy` field weights as JSON, e.g. `{"title":25,"tags":20}` |
 | `--into` | Collection to merge into (e.g. `organized_manga`). Default: `organized` |
@@ -166,6 +167,100 @@ Example — build the manga collection separately from the anime merge:
 ```console
 php hiyori combine anilist_manga --strategy metadata_fuzzy --into organized_manga
 ```
+
+#### Which strategy should I pick?
+
+All seven strategies were benchmarked side by side on **2026-10-16**: same base
+(`anilist`, 15,015 entries), same revision, each merged into its own scratch collection so
+the live `organized` was never touched. Method, caveats, raw artifacts and the full
+write-up live in [`docs/combiner-strategy-benchmark.md`](docs/combiner-strategy-benchmark.md).
+
+Three KPIs matter and they disagree with each other, so pick by what you are optimising for.
+
+**KPI 1 · Accuracy.** F1 over 7,494 shared candidate pairs (873 `organized`-positive),
+scored both against the shipped `organized` labels and against a consensus majority vote of
+all seven strategies:
+
+![Merge accuracy by strategy](docs/charts/strategy-accuracy.svg)
+
+**KPI 2 · Coverage & linkage.** Documents produced by one fresh run, and how many of them
+carry all three identity sources (`al` + `mal` + `k`):
+
+![Coverage and linkage by strategy](docs/charts/strategy-coverage.svg)
+
+**KPI 3 · Cost.** Wall-clock and peak memory. The benchmark host was shared, so compare the
+strategies against each other rather than quoting absolute minutes:
+
+![Wall-clock and memory by strategy](docs/charts/strategy-cost.svg)
+
+**All three at once** — coverage vs accuracy; bubble area is peak memory:
+
+![Coverage vs accuracy trade-off](docs/charts/strategy-tradeoff.svg)
+
+##### The numbers
+
+| strategy | docs | wall | peak RSS | triple-linked | avg refs | dup `mal` | new ids | F1 (organised) | F1 (consensus) | gate |
+|----------|-----:|-----:|---------:|--------------:|---------:|----------:|--------:|---------------:|---------------:|:----:|
+| `relational_mapping` | 6,805 | 4m06s | 75 MB | 75.1 % | 3.34 | 2 | 386 | 0.468 | 0.572 | ✗ |
+| `relational_fuzzy` | 11,506 | 42m54s | 75 MB | 52.1 % | 3.31 | 6 | 684 | 0.787 | 0.882 | ✗ |
+| `fellegi_sunter` | 8,743 | 52m19s | 76 MB | 71.3 % | 3.54 | 0 | 4 | 0.804 | 0.992 | ✓ |
+| `metadata_fuzzy` | 8,894 | 70m17s | 76 MB | 71.0 % | 3.53 | 0 | 4 | **0.812** | 0.998 | ✓ |
+| `metadata_ml` | 8,984 | 51m42s | 76 MB | 71.4 % | 3.53 | 3 | 117 | 0.810 | 0.996 | ✗ |
+| `semantic_rerank` | 8,978 | 53m03s | **500 MB** | 71.2 % | 3.53 | 2 | 84 | 0.806 | 0.995 | ✗ |
+| `graph_merge` | 8,896 | **91m51s** | 76 MB | 71.3 % | 3.54 | 0 | 5 | **0.812** | 0.998 | ✓ |
+| *live `organized` (cumulative)* | *13,719* | — | — | *80.4 %* | *3.72* | *0* | — | — | — | ✓ |
+
+**`gate`** is the release gate (`combine:dupes`): a strategy that mints duplicate `mal`/`al`
+identity keys needs `combine:dedupe` before it can ship. **`F1 (organised)`** is the honest
+one — it scores against labels the strategies did not produce; **`F1 (consensus)`** is a
+majority vote of the strategies themselves, so it compresses the top five.
+
+> **Coverage caveat.** A *single* fresh run tops out at 11,506 documents, while live
+> `organized` holds 13,719 — because `organized` accumulates across bases and runs. Use the
+> doc counts to compare strategies with each other, not against `organized`.
+
+##### So which one?
+
+| if you optimise for… | use | why |
+|---|---|---|
+| **default, best accuracy** | `metadata_fuzzy` | Highest gate-passing F1 (0.812), byte-identical on a re-run, lowest registry churn (4 new ids), and it is what the live collection was built with. |
+| **speed / CI** | `fellegi_sunter` | Fastest of the accurate cluster (52m vs 70m) and gate-clean, for 0.008 F1. |
+| **the ML track** | `metadata_ml` | Within 0.002 F1 of the default, ~27 % faster, and properly calibrated (scores 0.51–1.00). Blocked only by 3 duplicate keys. |
+| **reach over precision** | `relational_fuzzy` | +29 % documents over the default — but they are `anilist`-only, it fails the gate and it is the slowest per document. |
+| **nothing — experiments only** | `graph_merge`, `semantic_rerank`, `relational_mapping` | See below. |
+
+##### Recommended set
+
+**Keep three — `metadata_fuzzy`, `fellegi_sunter`, `metadata_ml`.**
+
+* **`metadata_fuzzy`** — the default stays. Nothing measured beats it on gate-passing
+  accuracy, it is byte-for-byte deterministic, and it mints almost no new ids. It is also
+  the slowest of the accurate cluster, which is exactly why it needs a cheaper sibling.
+* **`fellegi_sunter`** — the fast accurate path. 52m vs 70m for `metadata_fuzzy`, 0.008 F1
+  behind it, gate-clean. This is the one to reach for in CI or on a laptop.
+* **`metadata_ml`** — the successor. Matches the default on accuracy, ~27 % faster,
+  calibrated, and the only strategy with a training loop. Its 3 duplicate keys are a
+  `combine:dedupe`-shaped bug rather than a modelling problem, so it is the one worth
+  investing in.
+
+**Drop four — `relational_mapping`, `relational_fuzzy`, `semantic_rerank`, `graph_merge`.**
+
+* **`relational_mapping`** — recall 0.412. It found fewer than half the true merges; it is an
+  ID-join, not a combiner. Remove it.
+* **`relational_fuzzy`** — coverage without linkage. Its 2,612 extra documents over
+  `metadata_fuzzy` are ~20 points weaker on triple-linkage; it fails the gate with 6
+  duplicate keys, mints 684 new ids (~170× the default), and is the slowest per document.
+  Its "reach" is the weakest kind of merge.
+* **`semantic_rerank`** — 6.6× the memory (500 MB) for F1 between `fellegi_sunter` and
+  `metadata_ml`, and it fails the gate. The local n-gram fallback does not pay for itself;
+  revisit only if a hosted embedding backend is added.
+* **`graph_merge`** — the *closest* call. It ties `metadata_fuzzy` on accuracy and passes the
+  gate, but costs +31 % wall-clock (91m51s — the slowest run) for no measurable gain. Keep it
+  only if transitive A↔B↔C clustering is an explicit product requirement; otherwise it is
+  strictly dominated.
+
+Net: three strategies cover every measured requirement — accuracy (`metadata_fuzzy`), speed
+(`fellegi_sunter`) and the ML track (`metadata_ml`).
 
 ### Utilities
 
