@@ -8,6 +8,7 @@ use Hiyori\Helper;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\Ml\RejectionStore;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
 use MongoDB\Collection;
@@ -75,6 +76,15 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? self::DEFAULT_TITLE_FLOOR);
         $passthrough = (bool) ($strategy->getConfig('passthrough') ?? false);
+        // Opt-in rejection buffer: title-floor rejections whose metadata score
+        // still clears the floor are borderline false-negatives — exactly the
+        // pairs a reviewer should check. Written to `pair_rejections`.
+        $rejectionBuffer = (bool) ($strategy->getConfig('rejection_buffer') ?? false);
+        $rejectionBufferFloor = (float) ($strategy->getConfig('rejection_buffer_floor') ?? $threshold);
+        $rejectionStore = $rejectionBuffer ? RejectionStore::create($db) : null;
+        if ($rejectionStore !== null) {
+            $rejectionStore->ensureIndexes();
+        }
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -99,6 +109,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
         $rejectedTitle = 0;
+        $bufferedRejections = 0;
         $telemetry = new \Hiyori\Service\Telemetry();
 
         foreach ($cursor as $id => $entry) {
@@ -127,10 +138,15 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $anchorYearTolerance,
                     $anchorEpisodes,
                     $titleFloor,
+                    $rejectionStore,
+                    $rejectionBufferFloor,
+                    $baseShorthand,
+                    $currentSource->getShorthand(),
                 );
                 $candidatesExamined += $match['examined'];
                 $rejectedAnchor += $match['rejected_anchor'];
                 $rejectedTitle += $match['rejected_title'];
+                $bufferedRejections += $match['buffered'];
                 $bestMatch = $match['best'];
 
                 if ($bestMatch !== null) {
@@ -245,6 +261,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
             'rejected_title' => $rejectedTitle,
+            'buffered' => $bufferedRejections,
             'title_floor' => $titleFloor,
             'merged_sources' => $mergedSources,
             'anchor_rejection' => $anchorRejection,
@@ -269,6 +286,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
             'rejected_title' => $rejectedTitle,
+            'buffered' => $bufferedRejections,
         ]);
     }
 
@@ -308,8 +326,12 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      *
      * @param list<array<string, mixed>> $candidates
      * @param array<string, float>       $weights
+     * @param RejectionStore|null        $rejectionStore  opt-in sink for borderline rejections
+     * @param float                       $rejectionBufferFloor  metadata score that makes a title-floor rejection "borderline"
+     * @param string                      $baseShorthand     base source shorthand (for the buffer pair key)
+     * @param string                      $candidateShorthand candidate source shorthand (for the buffer pair key)
      *
-     * @return array{best: ?array<string, mixed>, examined: int, rejected_anchor: int, rejected_title: int}
+     * @return array{best: ?array<string, mixed>, examined: int, rejected_anchor: int, rejected_title: int, buffered: int}
      */
     public static function match(
         array $entry,
@@ -319,12 +341,17 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         bool $anchorRejection = true,
         int $yearTolerance = 1,
         bool $rejectEpisodes = false,
-        float $titleFloor = self::DEFAULT_TITLE_FLOOR
+        float $titleFloor = self::DEFAULT_TITLE_FLOOR,
+        ?RejectionStore $rejectionStore = null,
+        float $rejectionBufferFloor = 0.0,
+        string $baseShorthand = '',
+        string $candidateShorthand = ''
     ): array {
         $bestScore = 0.0;
         $bestMatch = null;
         $rejected = 0;
         $rejectedTitle = 0;
+        $buffered = 0;
 
         foreach ($candidates as $candidateArray) {
             if ($anchorRejection && self::isAnchorRejected($entry, $candidateArray, $yearTolerance, $rejectEpisodes)) {
@@ -335,6 +362,25 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
 
             if (self::isTitleRejected($entry, $candidateArray, $titleFloor)) {
                 $rejectedTitle++;
+                // Opt-in: a title-floor rejection whose metadata score still clears
+                // the floor is a borderline false-negative — the pairs a reviewer
+                // most needs to see. Only scored when the buffer is enabled.
+                if ($rejectionStore !== null && $rejectionBufferFloor > 0.0) {
+                    $score = self::calculateScore($entry, $candidateArray, $weights);
+                    if ($score >= $rejectionBufferFloor) {
+                        $rejectionStore->upsert([
+                            'base_source' => $baseShorthand,
+                            'base_id' => Helper::resolveReferenceId($entry, $baseShorthand),
+                            'candidate_source' => $candidateShorthand,
+                            'candidate_id' => Helper::resolveReferenceId($candidateArray, $candidateShorthand),
+                            'decision' => 'reject',
+                            'source' => 'combiner',
+                            'score' => $score,
+                            'notes' => 'title-floor rejection',
+                        ]);
+                        $buffered++;
+                    }
+                }
 
                 continue;
             }
@@ -355,6 +401,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'examined' => count($candidates),
             'rejected_anchor' => $rejected,
             'rejected_title' => $rejectedTitle,
+            'buffered' => $buffered,
         ];
     }
 

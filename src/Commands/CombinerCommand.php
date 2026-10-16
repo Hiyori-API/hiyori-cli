@@ -41,6 +41,8 @@ final class CombinerCommand extends Command
             ->addOption('config', null, InputOption::VALUE_OPTIONAL, 'Extra strategy config as JSON (e.g. {"ml_threshold":0.6,"metadata_floor":55})')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
             ->addOption('passthrough', null, InputOption::VALUE_NEGATABLE, 'Keep base entries that matched nothing as their own single-source records. Required for an id-stable rebuild of `organized`; off by default so benchmark runs measure merging alone')
+            ->addOption('rejection-buffer', null, InputOption::VALUE_NEGATABLE, 'Write borderline title-floor rejections to the rejection buffer (pair_rejections) for later review')
+            ->addOption('rejection-buffer-floor', null, InputOption::VALUE_OPTIONAL, 'Metadata score that makes a title-floor rejection borderline (default: the combine threshold)')
             ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
@@ -94,6 +96,13 @@ final class CombinerCommand extends Command
 
         if ($input->getOption('passthrough') !== null) {
             $config['passthrough'] = (bool) $input->getOption('passthrough');
+        }
+
+        if ($input->getOption('rejection-buffer') !== null) {
+            $config['rejection_buffer'] = (bool) $input->getOption('rejection-buffer');
+        }
+        if ($input->getOption('rejection-buffer-floor') !== null) {
+            $config['rejection_buffer_floor'] = (float) $input->getOption('rejection-buffer-floor');
         }
 
         // Warn before, not after: a run without passthrough drops every base
