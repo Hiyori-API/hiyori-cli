@@ -190,7 +190,7 @@ and `--passthrough` is off, because that combination silently drops coverage.
 
 - **`graph_merge`** — transitive connected-component merge over low-confidence candidates (catches A↔B↔C pairs that `metadata_fuzzy` misses).
 - **`fellegi_sunter`** — probabilistic record linkage with configurable `m`/`u` field probabilities.
-- **`semantic_rerank`** — `metadata_fuzzy` candidates re-ranked with local embeddings (`ML_EMBED_COMMAND` sidecar; deterministic n-gram fallback).
+- **`semantic_rerank`** — `metadata_fuzzy` candidates re-ranked with local embeddings (`ML_EMBED_COMMAND` sidecar; deterministic n-gram fallback). Vectors are cached in the `embeddings` Mongo collection (read/write-through, keyed by `(content_hash, model, model_version)`); the JSON file cache is the fallback when no database is injected.
 - **`metadata_ml`** — `metadata_fuzzy` candidate chain + anchor rejection, scored by a logistic-regression model trained on labelled pairs (`ml:export-pairs` → `ml:train`). Merges carry `ml_score`/`ml_model`/`ml_model_version`/`ml_decision`/`ml_decided_at`. Requires a trained model (hard error otherwise).
   | field | weight | | field | weight |
   |---|---|---|---|---|
