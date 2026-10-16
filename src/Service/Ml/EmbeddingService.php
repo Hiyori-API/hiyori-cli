@@ -53,7 +53,7 @@ final class EmbeddingService
     ) {
         $this->dimensions = max(16, $dimensions);
         $this->command = $command ?? (getenv('ML_EMBED_COMMAND') ?: null);
-        $this->cacheFile = $cacheFile ?? dirname(__DIR__, 3) . '/storage/state/ml-embeddings.json';
+        $this->cacheFile = $cacheFile ?? dirname(__DIR__, 3) . '/storage/ml/embeddings.json';
         $this->model = $model ?? (getenv('ML_MODEL') ?: ($this->isExternal()
             ? 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
             : 'local-ngram'));

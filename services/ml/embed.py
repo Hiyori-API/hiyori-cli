@@ -14,7 +14,7 @@ be set with the `ML_MODEL` environment variable, otherwise it falls back to
 Models are loaded lazily and cached per process, so a single sidecar instance
 can serve several model names without reloading. `EmbeddingService` starts a
 fresh process per title and caches vectors in
-`storage/state/ml-embeddings.json` keyed by `(model, model_version, text)`.
+`storage/ml/embeddings.json` keyed by `(model, model_version, text)`.
 
 Install (free, local only)::
 

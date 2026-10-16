@@ -70,11 +70,9 @@ final class HealthCheck
 
     private function checkExternalAPIs(): array
     {
-        $results = [];
-        $allHealthy = true;
-        $allReachable = true;
-
-        $httpClient = HttpClient::create(['timeout' => 10]);
+        // max_redirects=0: a 3xx (e.g. MAL throttling -> error.json) is a
+        // reachable-but-degraded signal, not an outage; don't chase redirects.
+        $httpClient = HttpClient::create(['timeout' => 10, 'max_redirects' => 0]);
 
         $endpoints = [
             'anilist' => [
@@ -94,28 +92,33 @@ final class HealthCheck
             ],
         ];
 
+        // Start every probe before reading any of them: the curl transport runs
+        // them in parallel, so the whole check costs one round trip instead of
+        // the sum of three. Reading the bodies afterwards is what waits.
+        $pending = [];
+        $startedAt = microtime(true);
+        foreach ($endpoints as $name => $config) {
+            $options = [];
+            if (!empty($config['headers'])) {
+                $options['headers'] = $config['headers'];
+            }
+            if (!empty($config['body'])) {
+                $options['body'] = $config['body'];
+            }
+            $pending[$name] = $httpClient->request($config['method'], $config['url'], $options);
+        }
+
         $results = [];
         $allHealthy = true;
         $allReachable = true;
 
-        foreach ($endpoints as $name => $config) {
+        foreach ($pending as $name => $response) {
             try {
-                $start = microtime(true);
-
-                $options = [];
-                if (!empty($config['headers'])) {
-                    $options['headers'] = $config['headers'];
-                }
-                if (!empty($config['body'])) {
-                    $options['body'] = $config['body'];
-                }
-
-                // max_redirects=0: a 3xx (e.g. MAL throttling -> error.json) is a
-                // reachable-but-degraded signal, not an outage; don't chase redirects.
-                $httpClient = \Symfony\Component\HttpClient\HttpClient::create(['timeout' => 10, 'max_redirects' => 0]);
-                $response = $httpClient->request($config['method'], $config['url'], $options);
-                $duration = microtime(true) - $start;
                 $status = $response->getStatusCode();
+                $info = $response->getInfo();
+                // curl reports per-transfer time; fall back to wall clock for
+                // other transports (and for probes that resolved immediately).
+                $duration = (float) ($info['total_time'] ?? (microtime(true) - $startedAt));
 
                 // Reachable = the API answered at all. Degraded-but-reachable
                 // (rate limited 429, 404, 5xx) is NOT the same as unreachable.

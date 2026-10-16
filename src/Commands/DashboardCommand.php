@@ -72,7 +72,7 @@ final class DashboardCommand extends Command
         // nothing answers. Mirror the systemd unit's worker pool. POSIX only;
         // PHP_CLI_SERVER_WORKERS is ignored on Windows.
         if (PHP_OS_FAMILY !== 'Windows') {
-            $env['PHP_CLI_SERVER_WORKERS'] = (string) max(1, (int) (getenv('PHP_CLI_SERVER_WORKERS') ?: 6));
+            $env['PHP_CLI_SERVER_WORKERS'] = (string) max(1, (int) (getenv('PHP_CLI_SERVER_WORKERS') ?: 8));
         }
         if ($token !== '') {
             $env['DASHBOARD_TOKEN'] = $token;
@@ -97,7 +97,7 @@ final class DashboardCommand extends Command
         }
         $io->writeln('Endpoints: /api/status  /api/counts  /api/jobs  /api/health  /api/validate  /metrics');
         if (PHP_OS_FAMILY !== 'Windows') {
-            $io->writeln('Workers: ' . $env['PHP_CLI_SERVER_WORKERS'] . ' (concurrent polls + SSE; override with PHP_CLI_SERVER_WORKERS)');
+            $io->writeln('Workers: ' . $env['PHP_CLI_SERVER_WORKERS'] . ' (each realtime/SSE tab holds one; override with PHP_CLI_SERVER_WORKERS)');
         }
         $io->writeln('Press Ctrl+C to stop.');
 
