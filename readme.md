@@ -263,7 +263,7 @@ majority vote of the strategies themselves, so it compresses the top five.
 |---|---|---|
 | **default, best accuracy** | `metadata_fuzzy` | Highest gate-passing F1 (0.812), byte-identical on a re-run, lowest registry churn (4 new ids), and it is what the live collection was built with. |
 | **speed / CI** | `fellegi_sunter` | Fastest of the accurate cluster (52m vs 70m) and gate-clean, for 0.008 F1. |
-| **the ML track** | `metadata_ml` | Within 0.002 F1 of the default, ~27 % faster, and properly calibrated (scores 0.51–1.00). Blocked only by 3 duplicate keys. |
+| **the ML track** | `metadata_ml` | Within 0.002 F1 of the default, ~27 % faster, and properly calibrated (scores 0.51–1.00). Blocked by 3 duplicate keys *and* by the F1 gate: the 2026-10-16 holdout re-run put it **+1.2 pts** over the default (0.988 vs 0.976 best-vs-best), short of the required 2. |
 | **reach over precision** | `relational_fuzzy` | +29 % documents over the default — but they are `anilist`-only, it fails the gate and it is the slowest per document. |
 | **nothing — experiments only** | `graph_merge`, `semantic_rerank`, `relational_mapping` | See below. |
 
@@ -279,7 +279,10 @@ majority vote of the strategies themselves, so it compresses the top five.
 * **`metadata_ml`** — the successor. Matches the default on accuracy, ~27 % faster,
   calibrated, and the only strategy with a training loop. Its 3 duplicate keys are a
   `combine:dedupe`-shaped bug rather than a modelling problem, so it is the one worth
-  investing in.
+  investing in — but it is not a swap away from shipping: on the 2026-10-16 held-out
+  split it beat the default by **1.2 F1 points** (0.9880 vs 0.9760, best-vs-best)
+  where the gate wants 2, so the default has not moved
+  (`docs/dashboard-roadmap.md` → release gate).
 
 **Drop four — `relational_mapping`, `relational_fuzzy`, `semantic_rerank`, `graph_merge`.**
 
