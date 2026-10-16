@@ -37,8 +37,16 @@ final class CombinerPassthroughFlowTest extends TestCase
 
     private static Database $db;
 
+    private static string $telemetryDir = '';
+
     public static function setUpBeforeClass(): void
     {
+        // Running the strategy writes telemetry, and the live directory is what
+        // the dashboard polls: without this, `phpunit` leaves "the latest
+        // combine" pointing at a three-document test collection.
+        self::$telemetryDir = sys_get_temp_dir() . '/hiyori-telemetry-' . getmypid();
+        putenv('HIYORI_TELEMETRY_DIR=' . self::$telemetryDir);
+
         $envFile = __DIR__ . '/../../.env';
         if (is_file($envFile)) {
             (new \Symfony\Component\Dotenv\Dotenv())->load($envFile);
@@ -53,6 +61,12 @@ final class CombinerPassthroughFlowTest extends TestCase
         foreach ([self::BASE, self::CANDIDATE, self::OUT] as $name) {
             self::$client->hiyori->selectCollection($name)->drop();
         }
+
+        putenv('HIYORI_TELEMETRY_DIR');
+        foreach (glob(self::$telemetryDir . '/*') ?: [] as $file) {
+            @unlink($file);
+        }
+        @rmdir(self::$telemetryDir);
     }
 
     /** @param array<string, mixed> $overrides */

@@ -24,7 +24,12 @@ final class Telemetry
 
     public function __construct(?string $dir = null)
     {
-        $this->dir = $dir ?? dirname(__DIR__, 2) . '/storage/state';
+        // Tests run the real strategies against throwaway collections; an
+        // explicit override keeps their telemetry out of the live state
+        // directory the dashboard polls, where it would otherwise be served as
+        // the latest combine.
+        $override = getenv('HIYORI_TELEMETRY_DIR');
+        $this->dir = $dir ?? (is_string($override) && $override !== '' ? $override : dirname(__DIR__, 2) . '/storage/state');
     }
 
     public function stateDir(): string
