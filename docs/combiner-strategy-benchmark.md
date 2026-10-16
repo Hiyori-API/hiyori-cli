@@ -104,6 +104,21 @@ Two things stand out:
   more. Uncovered-registry-id counts are just the inverse of coverage (low coverage ⇒ many
   ids with no doc), not corruption.
 
+### Determinism
+
+`metadata_fuzzy` re-run into a fresh scratch collection reproduced its output **identically**:
+
+```
+bench_metadata_fuzzy        docs=8894  sha256=88a49d8b4035d369…
+bench_metadata_fuzzy_rerun  docs=8894  sha256=88a49d8b4035d369…
+```
+
+Fingerprint = SHA-256 over every document's `hiyori_id` + `title` + `reference_ids`, sorted by
+`hiyori_id`. The strategies iterate `find()` with no explicit sort and use no sampling, so
+document order is stable; this single re-run is consistent with the combiner being
+deterministic. **Only `metadata_fuzzy` (the production default) was re-run** — the other six
+were not.
+
 ## 4 · Accuracy (7,494 pairs — 873 `organized`-positive, 6,621 negative)
 
 | # | strategy | predicted | agreement | P | R | F1 vs consensus | **F1 vs `organized`** |
@@ -171,7 +186,7 @@ score = w_acc · F1(organized) + w_cov · (docs / max_docs)     [default w_acc =
 * Accuracy is measured on `metadata_fuzzy`'s candidate pool (see caveats).
 * No human labels yet; the `human F1` column is unpopulated.
 * Manga (`anilist_manga`, 38,097) was **not** benchmarked in this run.
-* Determinism re-run is in flight at time of writing (`storage/logs/determinism.log`).
+* Determinism verified for `metadata_fuzzy` only (a re-run hash-matched exactly); the other six strategies were not re-run.
 
 ---
 
