@@ -242,12 +242,17 @@ triple-linked, duplicate `al_manga` keys). The **final** strategy result
 
 ## PWA + real-time (2026-10)
 
-- **PWA caching**: web/public/sw.js upgraded to `hiyori-v3` —
-  - /api/* GET: stale-while-revalidate → page reloads return the last-known
-    payload instantly, refreshed in the background (no full reload graph).
+- **PWA caching**: web/public/sw.js is at `hiyori-v4` —
+  - /api/* GET: **network-first**, with the cache used only as an offline
+    fallback. (v3 was stale-while-revalidate, which served the previous payload
+    on every load: harmless for polling surfaces, but it pinned stale data for
+    the whole session on one-shot reads like `/api/sample`, `/api/failures` and
+    `/api/benchmark` — clicking "Draw a sample" could return a superseded body.)
   - /api/events (SSE): network only. Navigation + hashed assets: cache-first
     (offline-capable). Cache versioning + cleanup; skipWaiting/clients.claim.
   - SW registration guarded to skip the Vite dev port (5173).
+  - Note: after a rebuild the first load may still be served by the *previous*
+    worker until the new one activates (the SW-update toast offers the reload).
 - **Real-time option**: `/api/events` SSE stream. StatusProvider gains a
   `realtime` mode (Settings pref): full payload + slow 15s heartbeat, with
   counts/jobs pushed instantly over SSE and merged into the UI. A **Live/Live
@@ -791,7 +796,22 @@ First like-for-like measurement of all seven combiner strategies — same base (
   - `combine-latest` telemetry **merges rather than replaces** (`Telemetry::update` is last-write-wins per field), so shared keys leak across strategies in `bench-telemetry-*.json` — only `merges` is trustworthy per strategy.
 - [x] **Default unchanged.** Nothing measured justifies switching off `metadata_fuzzy`; `metadata_ml` is the one to revisit (matches fuzzy within 0.002 F1, ~27 % faster, calibrated scores) once its 3 duplicate keys are resolved.
 - [ ] Manga (`anilist_manga`, 38,097) not benchmarked.
-- [ ] Human labels still empty; `combine:consensus`'s `human F1` column awaits reviewer input.
+- [~] Human labels: the loop works and holds the first 3 entries (see the UI pass below); `combine:consensus`'s `human F1` column needs enough labels to be meaningful.
+
+## Dashboard UI/functionality pass (2026-10-16)
+
+- [x] **Six endpoints the SPA already called did not exist** — `/api/failures`, `/api/audit`, `/api/history`, `/api/limits` (GET+POST), `/api/backups`, `/api/restore`. Management's Backups / Audit / Rate-limiter / Validation-failure panels and Logs' run history were permanently empty, and every page load logged 404s.
+  - `/api/failures` + `/api/audit` return newest-first JSONL tails (500/200) **plus `total`**, so the badge reads "500/2,377" rather than passing the cap off as everything.
+  - `/api/limits` persists to `ui.json → limits`, and `src/Bootstrap.php` now applies that override ahead of `RATE_LIMIT_*`, so the Management "Save" actually reaches the next ingest (it was a no-op). Verified: POST `150/120` → `ui.json` → GET `source: override` → audit `limits.update` → reset to the 100/60 default.
+  - `/api/restore` is restricted to `.gz` archives already listed in `storage/backups/` (`basename` + regex + `is_file`): traversal, missing files, sub-paths and non-`.gz` names are all rejected with 400. **Not executed** — it is destructive (`restore … --drop`).
+  - The backup glob widened to `*.gz`, so manual snapshots (`pre-rebuild-*.gz`) are listed too.
+- [x] **`/api/sample` never matched a document.** It filtered on `score`, but merged records carry `confidence` (0-100) — so the spot-check sampler returned `{sample:null}` at every min ≥ 0 and the Quality page could only say "No organized records found". This is why `_labels` had never received a row and every `ml:export-pairs` run silently fell back to `organized` ground truth. It now matches `confidence` (overridable with `field=`, validated against the `/api/histogram` set).
+- [x] **Labelling loop verified end to end — first human labels.** draw → "Looks right" → 3 pairs in `_labels` (`k/4332 × mal/5909`, `× t/56419`, `× al/5909`, `source=human`, `label=1`); `/api/labels` reports total 3 / positives 3 / human 3; `ml:export-pairs` reads them via `LabelStore::forBase('k','4332')`. The merge checks out: kitsu 4332, myanimelist 5909 and anilist 5909 are all "Seitokai no Ichizon" (`hiyori_id` 4095). Verdicts now only count in the session feed when a pair was really stored, and single-source draws disable the buttons and say why.
+- [x] **Stale telemetry (systemic).** The service worker answered `/api/*` GETs with stale-while-revalidate, so the first load of every page rendered the *previous* response. Polling surfaces hid it; one-shot reads (`/api/sample`, `/api/failures`, `/api/benchmark`) kept a stale body for the whole session. `/api/*` and `/metrics` are now **network-first** with the cache used only as an offline fallback; cache version `hiyori-v4`.
+- [x] **Job staleness.** A `running` ingest state that stopped reporting is now `stale` (`jobPhase`, 90s), so dead processes no longer read as live: their frozen speed/ETA is blanked and the "ingest rate" KPI only sums live jobs. Derived on read, since a killed ingest cannot write a terminal phase.
+- [x] **Chart / layout correctness.** `SeriesChartCard` put `<Area>` inside `<LineChart>`, so the ingestion-rate chart drew nothing (now `ComposedChart`); x-axis labels follow the real sample cadence and MAX matches the largest selectable window. The pipeline strip reports `sources → merged` instead of `totalDocs - violations` (an arithmetic no-op that read as 125K → 125K). The merged-score histogram y-axis is no longer clipped. Validation tables truncate long titles instead of painting over the Errors column. Coverage views share one collection list (no derived `organized*`, no `_*`), fixing the badge/footer mismatch, and the `_counters`/`_migrations` bookkeeping collections start hidden.
+- [x] **Honest benchmark panel.** `/api/benchmark` no longer merges a hardcoded seed over the benchmark log — the log stores `total`, which never mapped to the seeded `merges`, so every strategy displayed a fabricated merge count. Only recorded rows are returned now, labelled with their source log and date, pointing at `docs/combiner-strategy-benchmark.md` for the full comparison. The ML gate badge spells out its margin ("+0.107 vs baseline") instead of a bare number.
+- [x] **Memory gauge.** `HealthCheck::checkMemory()` reported PHP's per-request footprint (~2 MB of a 512 MB limit) to the Memory gauge — a permanent 0% and an empty ring. It now reports host memory from `/proc/meminfo`, matching `checkDiskSpace()`'s host scope; PHP's own figures stay under `php_*`.
 
 ## Security notes (2026-10-15)
 

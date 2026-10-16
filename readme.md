@@ -466,12 +466,16 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/health` | External API latency + Mongo + disk/mem |
 | `/api/validate` | Recent validation violations |
 | `/api/coverage` | Reference-shorthand coverage matrix per collection |
-| `/api/benchmark` | Seeded 3-strategy comparison + latest combine |
+| `/api/benchmark` | Recorded strategy rows (from the benchmark script's log) + latest combine + ML gate report |
 | `/api/alerts` | Anomaly evaluation (circuit open, low tokens, API down); posts to `WEBHOOK_URL` when set |
-| `/api/sample` | Random doc for the merge sampler |
+| `/api/sample` | Random doc for the merge sampler (`?collection=&min=&field=`, defaults to `confidence`) |
 | `/api/slow` | Request latency extremes (>2s) |
 | `/api/schedule` | Scheduled-run info |
-| `/api/histogram` | Score/confidence histogram (`?collection=`, 10 bins) |
+| `/api/histogram` | Score/confidence histogram (`?collection=&field=`, 10 bins) |
+| `/api/failures` | Validation-log tail (newest 500) + `total` line count |
+| `/api/audit` | Audit-log tail (newest 200) + `total` line count |
+| `/api/history` | Per-source ingest run history (which runs started/finished) |
+| `/api/limits` | Rate-limit overrides (`GET`, `POST {max,window}` → persisted to `ui.json`, applied at next ingest start) |
 | `/api/meta` | Collection counts, fields, per-field missingness |
 | `/api/explore` | Explorer queries (search, sort, facets, numeric ranges) |
 | `/api/explore/update` | Inline single-field `$set` / `$unset` |
@@ -481,7 +485,7 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/env` | Environment manager: list (masked secrets), `GET ?reveal=KEY`, `POST` upsert/remove |
 | `/api/settings` | Dashboard preferences (GET/POST, token rotate, webhook test) |
 | `/api/backups` | Backup archive list |
-| `/api/restore` | Trigger a restore from an archive |
+| `/api/restore` | Restore from an archive already listed by `/api/backups` (`.gz` only; destructive — drops collections) |
 | `/api/action?job=&cmd=pause\|resume\|retry` | Control jobs |
 | `/api/backup?run=1` | Trigger async `mongodump` |
 | `/api/events` | SSE stream of status snapshots |
