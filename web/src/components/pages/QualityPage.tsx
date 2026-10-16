@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow, type MlBenchmark,
+  downloadExport, fetchBenchmarkManga, fetchSample, postLabel, type BenchmarkRow, type MlBenchmark, type SampleRef,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
@@ -169,6 +169,9 @@ export function QualityPage() {
 
   useEffect(() => { void fetchBenchmarkManga().then(r => setBenchManga(r.benchmark ?? [])) }, [benchKey])
   const [sample, setSample] = useState<Record<string, unknown> | null | undefined>(undefined)
+  const [sampleRows, setSampleRows] = useState<SampleRef[]>([])
+  // Reference shorthand:id -> the verdict written for that pair on this draw.
+  const [verdicts, setVerdicts] = useState<Record<string, 0 | 1>>({})
   const [minConf, setMinConf] = useState(0)
   const [feed, setFeed] = useState({ right: 0, wrong: 0 })
   const weights: Record<string, number> = { ...DEFAULT_WEIGHTS, ...(settings.prefs?.weights ?? {}) }
@@ -214,26 +217,42 @@ export function QualityPage() {
   }, [failures])
 
   const sampled = sample
-  const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
-  // Persist the human judgement as pair labels so `ml:export-pairs` can use it.
-  // A whole-record verdict maps to every cross-source reference pair in the doc,
-  // which needs at least two refs — a single-source record has no pair to judge,
-  // so it is offered as "next" only instead of silently recording nothing.
+  const draw = (min = minConf) => void fetchSample('organized', min).then(r => {
+    setSample(r.sample ?? null)
+    setSampleRows(r.refs ?? [])
+    setVerdicts({})
+  })
+  // A verdict belongs to a *pair*, not to the record. A merged document can
+  // hold one wrong reference beside three correct ones, and a whole-record
+  // "wrong" was previously written against every reference in it — including
+  // the correct ones, which is how a review pass can teach the trainer the
+  // wrong lesson. The first reference is the base; every other reference is
+  // judged against it individually.
   const sampleDoc = (sampled ?? {}) as { title?: string; confidence?: number; score?: number; reference_ids?: Record<string, string> }
-  const sampleRefs = Object.entries(sampleDoc.reference_ids ?? {})
-    .filter(([, v]) => v != null && String(v) !== '')
-    .map(([k]) => k)
-  const sampleLabelable = sampleRefs.length >= 2
-  const labelSample = (doc: Record<string, unknown>, label: 0 | 1): boolean => {
-    const refs = (doc.reference_ids ?? {}) as Record<string, string>
-    const entries = Object.entries(refs).filter(([, v]) => v != null && String(v) !== '')
-    if (entries.length < 2) return false
-    const [baseSource, baseId] = entries[0]
-    for (const [source, id] of entries.slice(1)) {
-      void postLabel({ base_source: baseSource, base_id: String(baseId), candidate_source: source, candidate_id: String(id), label })
-    }
-    return true
+  const sampleRefRows = sampleRows.filter(r => r.id !== '')
+  // Prefer a base reference the dashboard can actually show: a reference whose
+  // source the local database does not hold gives the reviewer nothing to
+  // compare against.
+  const sampleBase = sampleRefRows.find(r => r.title !== null) ?? sampleRefRows[0]
+  // Only references with a resolvable title can be judged; the rest are shown
+  // but carry no controls, so a review pass cannot record a verdict it could
+  // not have reached.
+  const samplePairs = sampleRefRows.filter(r => r !== sampleBase && r.title !== null)
+  const pairKey = (r: SampleRef) => `${r.shorthand}:${r.id}`
+  const recordVerdict = (r: SampleRef, label: 0 | 1) => {
+    if (!sampleBase) return
+    void postLabel({
+      base_source: sampleBase.shorthand,
+      base_id: sampleBase.id,
+      candidate_source: r.shorthand,
+      candidate_id: r.id,
+      label,
+      source: 'human',
+    })
+    setVerdicts(v => ({ ...v, [pairKey(r)]: label }))
+    setFeed(f => (label === 1 ? { ...f, right: f.right + 1 } : { ...f, wrong: f.wrong + 1 }))
   }
+  const labelAllRight = () => samplePairs.forEach(r => { if (verdicts[pairKey(r)] === undefined) recordVerdict(r, 1) })
   const reloadAnalysis = () => {
     setBenchKey(k => k + 1)
     void refreshFailures()
@@ -370,28 +389,65 @@ export function QualityPage() {
                 <div className="space-y-2 text-sm">
                   <div className="rounded-lg border p-2">
                     <div className="font-medium">{sampleDoc.title ?? '(no title)'}</div>
-                    <div className="text-xs text-muted-foreground">confidence: {sampleDoc.confidence?.toFixed?.(1) ?? sampleDoc.score?.toFixed?.(1) ?? '—'}</div>
                     <div className="text-xs text-muted-foreground">
-                      refs: {sampleRefs.join(', ') || 'none'}
-                      {!sampleLabelable && ' · single-source, nothing to judge as a pair'}
+                      confidence: {sampleDoc.confidence?.toFixed?.(1) ?? sampleDoc.score?.toFixed?.(1) ?? '—'}
+                      {sampleRefRows.length < 2 && ' · single-source record: no pair to judge'}
+                    </div>
+                    {/* The per-source titles are the thing actually being judged: a
+                        merge is only correct if every reference describes the same
+                        work, and the merged title alone cannot show that. */}
+                    <div className="mt-1.5 space-y-1 border-t pt-1.5">
+                      {sampleRows.length === 0 && (
+                        <div className="text-xs text-muted-foreground">no reference ids on this record</div>
+                      )}
+                      {sampleRows.map(r => {
+                        const isBase = r === sampleBase
+                        const verdict = verdicts[pairKey(r)]
+                        return (
+                          <div key={pairKey(r)} className="flex items-center gap-2 text-xs">
+                            <span className="w-9 shrink-0 font-mono text-muted-foreground">{r.shorthand}</span>
+                            <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{r.id || '—'}</span>
+                            <span className={`min-w-0 flex-1 truncate ${r.title ? '' : 'italic text-muted-foreground'}`} title={r.title ?? undefined}>
+                              {r.title ?? 'not in a local source'}
+                            </span>
+                            {r.year ? <span className="shrink-0 tabular-nums text-muted-foreground">{r.year}</span> : null}
+                            {isBase ? (
+                              <span className="w-16 shrink-0 text-right text-muted-foreground">base</span>
+                            ) : r.title === null ? (
+                              <span className="w-16 shrink-0 text-right text-muted-foreground" title="This source's record is not in the local database, so there is nothing to compare">
+                                no data
+                              </span>
+                            ) : (
+                              <span className="flex w-16 shrink-0 justify-end gap-1">
+                                <button
+                                  type="button"
+                                  aria-label={`${r.shorthand} ${r.id} is the same work`}
+                                  title="Same work as the base reference"
+                                  onClick={() => recordVerdict(r, 1)}
+                                  className={`rounded border px-1.5 leading-5 ${verdict === 1 ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600' : 'text-muted-foreground hover:bg-muted'}`}
+                                >✓</button>
+                                <button
+                                  type="button"
+                                  aria-label={`${r.shorthand} ${r.id} is a different work`}
+                                  title="A different work — this reference does not belong"
+                                  onClick={() => recordVerdict(r, 0)}
+                                  className={`rounded border px-1.5 leading-5 ${verdict === 0 ? 'border-destructive bg-destructive/15 text-destructive' : 'text-muted-foreground hover:bg-muted'}`}
+                                >✗</button>
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       className="flex-1"
-                      disabled={!sampleLabelable}
-                      title={sampleLabelable ? undefined : 'A pair label needs at least two reference sources.'}
-                      onClick={() => { if (labelSample(sampled, 1)) setFeed(f => ({ ...f, right: f.right + 1 })); draw(minConf) }}
-                    >Looks right</Button>
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      variant="destructive"
-                      disabled={!sampleLabelable}
-                      title={sampleLabelable ? undefined : 'A pair label needs at least two reference sources.'}
-                      onClick={() => { if (labelSample(sampled, 0)) setFeed(f => ({ ...f, wrong: f.wrong + 1 })); draw(minConf) }}
-                    >Wrong</Button>
+                      disabled={samplePairs.length === 0}
+                      title={samplePairs.length === 0 ? 'A pair label needs at least two reference sources.' : undefined}
+                      onClick={labelAllRight}
+                    >All look right</Button>
                     <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
                   </div>
                   {(feed.right + feed.wrong) > 0 && (
