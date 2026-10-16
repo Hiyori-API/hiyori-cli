@@ -1,34 +1,39 @@
 /* Hiyori dashboard PWA service worker.
  *
- *  - /api/* GET: STALE-WHILE-REVALIDATE — a reload returns the last-known
- *    payload instantly, then refreshes in the background.
+ *  - /api/* GET: NETWORK-FIRST, cached only as an offline fallback. This used to
+ *    be stale-while-revalidate, which meant every page load rendered the payload
+ *    from the *previous* request. Polling surfaces hid that (the next 3s tick
+ *    replaced it), but one-shot reads — /api/sample, /api/failures, /api/benchmark
+ *    — kept serving the stale body for the whole session, so a click could return
+ *    a result the server had already superseded.
  *  - /api/events: SSE, network only.
  *  - Navigation + hashed assets: cache-first (offline-capable, fast reloads).
  */
-const CACHE = 'hiyori-v3'
-const API_SWR_CACHE = 'hiyori-api-v3'
+const CACHE = 'hiyori-v4'
+const API_CACHE = 'hiyori-api-v4'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE && k !== API_SWR_CACHE).map((k) => caches.delete(k))),
+      Promise.all(keys.filter((k) => k !== CACHE && k !== API_CACHE).map((k) => caches.delete(k))),
     ).then(() => self.clients.claim()),
   )
 })
 
-async function staleWhileRevalidate(request) {
-  const cached = await caches.match(request)
-  const network = fetch(request)
-    .then((r) => {
-      if (r && r.ok) {
-        const clone = r.clone()
-        caches.open(API_SWR_CACHE).then((c) => c.put(request, clone))
-      }
-      return r
-    })
-    .catch(() => cached || Response.error())
-  return cached || network
+async function networkFirst(request) {
+  try {
+    const res = await fetch(request)
+    if (res && res.ok) {
+      const clone = res.clone()
+      caches.open(API_CACHE).then((c) => c.put(request, clone))
+    }
+    return res
+  } catch (err) {
+    const hit = await caches.match(request)
+    if (hit) return hit
+    throw err
+  }
 }
 
 self.addEventListener('fetch', (e) => {
@@ -39,7 +44,7 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname === '/api/events') return
 
   if (url.pathname.startsWith('/api/') || url.pathname === '/metrics') {
-    e.respondWith(staleWhileRevalidate(e.request))
+    e.respondWith(networkFirst(e.request))
     return
   }
 
