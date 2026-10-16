@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hiyori\Tests\Integration;
 
+use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\Database;
 use Hiyori\Service\Ml\LabelStore;
 use Hiyori\Service\Ml\RejectionStore;
@@ -136,5 +137,84 @@ final class RejectionStoreTest extends TestCase
         $again = $this->store->promote(null, null, self::LABELS);
         $this->assertSame(0, $again['promoted']);
         $this->assertSame(0, $again['labels']);
+    }
+
+    /**
+     * A pair whose metadata matches perfectly (type/episodes/status/season/year)
+     * but whose titles are unrelated: the title floor vetoes the merge, yet the
+     * metadata score still clears the threshold — the borderline false-negative
+     * the rejection buffer exists to surface.
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function borderlinePair(): array
+    {
+        $entry = [
+            'title' => 'Cowboy Bebop', 'synonyms' => [], 'type' => 'TV', 'episodes' => 26,
+            'status' => 'finished', 'season' => 'spring', 'year' => 1998, 'tags' => ['Action'],
+            'reference_ids' => ['mal' => '1'],
+        ];
+        $candidate = [
+            'title' => 'Naruto', 'synonyms' => [], 'type' => 'TV', 'episodes' => 26,
+            'status' => 'finished', 'season' => 'spring', 'year' => 1998, 'tags' => ['Adventure'],
+            'reference_ids' => ['al' => '2'],
+        ];
+
+        return [$entry, $candidate];
+    }
+
+    public function testMatchBuffersBorderlineTitleFloorRejections(): void
+    {
+        $store = RejectionStore::create($this->store->db(), self::COLLECTION);
+        $store->ensureIndexes();
+        [$entry, $candidate] = $this->borderlinePair();
+
+        $result = MetadataFuzzyStrategy::match(
+            $entry,
+            [$candidate],
+            MetadataFuzzyStrategy::DEFAULT_WEIGHTS,
+            70.0,
+            true,
+            1,
+            false,
+            0.30,
+            $store,
+            70.0,
+            'mal',
+            'al',
+        );
+
+        $this->assertNull($result['best']);
+        $this->assertSame(1, $result['rejected_title']);
+        $this->assertSame(1, $result['buffered']);
+
+        $rows = $store->list();
+        $this->assertCount(1, $rows);
+        $this->assertSame('combiner', $rows[0]['source']);
+        $this->assertSame('reject', $rows[0]['decision']);
+        $this->assertSame('mal', $rows[0]['base_source']);
+        $this->assertSame('1', $rows[0]['base_id']);
+        $this->assertSame('al', $rows[0]['candidate_source']);
+        $this->assertSame('2', $rows[0]['candidate_id']);
+        $this->assertGreaterThanOrEqual(70.0, (float) $rows[0]['score']);
+    }
+
+    public function testMatchWithoutBufferWritesNothing(): void
+    {
+        [$entry, $candidate] = $this->borderlinePair();
+
+        $result = MetadataFuzzyStrategy::match(
+            $entry,
+            [$candidate],
+            MetadataFuzzyStrategy::DEFAULT_WEIGHTS,
+            70.0,
+            true,
+            1,
+            false,
+            0.30,
+        );
+
+        $this->assertSame(0, $result['buffered']);
+        $this->assertSame(0, $this->store->count());
     }
 }

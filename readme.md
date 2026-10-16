@@ -78,7 +78,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 |---|---|
 | `ingest <source>` | Begin ingestion from a source (`myanimelist`, `anilist`, `kitsu`) |
 | `ingest:all` | Run ingestion for all available sources sequentially |
-| `combine <base>` | Merge all source datasets into one collection (`--passthrough` keeps entries that matched nothing) |
+| `combine <base>` | Merge all source datasets into one collection (`--passthrough` keeps entries that matched nothing; `--rejection-buffer` writes borderline title-floor rejections to `pair_rejections`) |
 | `validate` | Validate existing data against the Hiyori schema |
 | `sweep` | Clean up orphaned, duplicate or incomplete entries |
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
