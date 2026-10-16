@@ -776,6 +776,23 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
   - **Full-coverage rebuild is viable but is a product choice.** A non-destructive rebuild still merges to ~8,894 docs because unmatched base entries are dropped, which would orphan **4,830** registry ids. Verified analytically: a single-source **passthrough** (persist every base entry) would orphan **0** ids (every registry `refs.al` exists in `anilist`) and add **1,292** new ids (anilist base entries with no registry row). That is a deliberate coverage increase, not yet switched on — so the live collection was fixed in place instead of swapped.
 - [~] Release gate: default switch still pending — holdout run (250 MAL bases, 30% grouped holdout) measured `metadata_ml` best F1 **0.931** vs `metadata_fuzzy` **0.824**. These numbers predate the title-guard fix; re-run `ml:export-pairs --holdout 30` → `ml:train` → `combine:benchmark` before promoting, then a clean rebuild of `organized`/`organized_manga` to confirm `duplicate keys = 0` end-to-end (the default is still `metadata_fuzzy`).
 
+## All-strategy benchmark (2026-10-16)
+
+First like-for-like measurement of all seven combiner strategies — same base (`anilist`, 15,015), same revision, same candidate machinery. Full write-up: `docs/combiner-strategy-benchmark.md`.
+
+- [x] **Harness.** `scripts/benchmark-strategies-all.sh` runs every strategy into its own `bench_<strategy>` scratch collection, snapshotting and restoring `_hiyori_ids`/`_counters` (mongosh document copy — this host's `mongodump` lacks `--nsInclude`) before each run, so each strategy starts from an identical registry and `organized`/sources are never written. 6 h 28 m for the full sweep.
+- [x] **Accuracy without circular labels.** `combine:consensus` replays one `ml:export-pairs` sample (7,494 pairs, 873 `organized`-positive) against every `bench_*` collection and scores each strategy vs *consensus* (majority vote of the strategies), vs *organized*, and vs *human* review labels (column unpopulated — `_labels` is empty). Validated against synthetic data.
+- [x] **Findings** (details in the write-up):
+  - Coverage spans **6,805 → 11,506** docs; `relational_fuzzy` wins on volume but its extra docs are `anilist`-only (52.1 % triple-linked vs 71.1 % for `metadata_fuzzy`).
+  - Accuracy clusters: `metadata_fuzzy` / `graph_merge` **0.812**, `metadata_ml` 0.810, `semantic_rerank` 0.806, `fellegi_sunter` 0.804, then `relational_fuzzy` 0.787 and `relational_mapping` **0.468** (recall 0.412).
+  - **Four of seven mint duplicate `mal` keys** (`relational_mapping` 2, `relational_fuzzy` 6, `semantic_rerank` 2, `metadata_ml` 3) and would need `combine:dedupe` before release. `metadata_fuzzy`, `graph_merge`, `fellegi_sunter` pass the gate clean.
+  - `metadata_fuzzy`/`graph_merge`/`fellegi_sunter` allocate ~4–5 new `hiyori_id`s; the relational strategies allocate 386/684 — ~100× more registry churn.
+  - `semantic_rerank` peaks at **500 MB** (6.6×) for middling accuracy; the local n-gram fallback is not paying for itself.
+  - `combine-latest` telemetry **merges rather than replaces** (`Telemetry::update` is last-write-wins per field), so shared keys leak across strategies in `bench-telemetry-*.json` — only `merges` is trustworthy per strategy.
+- [x] **Default unchanged.** Nothing measured justifies switching off `metadata_fuzzy`; `metadata_ml` is the one to revisit (matches fuzzy within 0.002 F1, ~27 % faster, calibrated scores) once its 3 duplicate keys are resolved.
+- [ ] Manga (`anilist_manga`, 38,097) not benchmarked.
+- [ ] Human labels still empty; `combine:consensus`'s `human F1` column awaits reviewer input.
+
 ## Security notes (2026-10-15)
 
 - **Dependabot high × 7 (`web/`) — accepted, no upstream fix.** `npm audit` reports 7 high advisories, all one chain: `shadcn@4.21.4` → `fast-glob` → `micromatch` → `braces@3.0.3` (GHSA-vfj7-8cjw-p6xm, stack-exhaustion DoS via deeply nested patterns). `braces@3.0.3` is the latest published release and is *still* in the vulnerable range, so there is nothing to bump to; npm's only suggested "fix" is a semver-major downgrade to `shadcn@1.0.0`. The package is build-time only (the `shadcn/tailwind.css` import is compiled into `web/dist` by Vite, so nothing ships to the browser) and the affected glob code only ever sees local file paths. Revisit when upstream publishes `braces > 3.0.3` or `shadcn` drops `fast-glob`.
