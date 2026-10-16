@@ -103,6 +103,7 @@ $app->addCommands([
     new \Hiyori\Commands\LabelsCommand($hiyori),
     new \Hiyori\Commands\CombineDupesCommand($hiyori),
     new \Hiyori\Commands\CombineDedupeCommand($hiyori),
+    new \Hiyori\Commands\CombineConsensusCommand($hiyori),
 ]);
 
 /**
