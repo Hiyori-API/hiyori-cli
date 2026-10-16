@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  fetchAudit, fetchBackups, fetchLimits, postAction, postLimits, restoreBackup,
+  fetchAudit, fetchBackups, fetchLimits, jobPhase, postAction, postLimits, restoreBackup,
   runBackup, type AuditItem, type BackupItem,
 } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
@@ -51,11 +51,11 @@ export function ManagementPage() {
   const { data } = useStatus()
   const { settings, update } = useSettings()
   const [backups, setBackups] = useState<BackupItem[]>([])
-  const { failures, refresh: refreshFailures } = useFailures()
+  const { failures, total: failureTotal, refresh: refreshFailures } = useFailures()
   const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
   const [audit, setAudit] = useState<AuditItem[]>([])
   const [auditFilter, setAuditFilter] = useState('all')
-  const [limits, setLimits] = useState<{ max?: number; window?: number }>({})
+  const [limits, setLimits] = useState<{ max?: number; window?: number; source?: string }>({})
   const [confirm, setConfirm] = useState<{ cmd: string; src: string } | null>(null)
   const [restorePick, setRestorePick] = useState<string | null>(null)
   const [max, setMax] = useState(100)
@@ -63,11 +63,15 @@ export function ManagementPage() {
   const [showAllFailures, setShowAllFailures] = useState(false)
   const [showAcked, setShowAcked] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [auditTotal, setAuditTotal] = useState(0)
 
   const loadAll = useCallback(() => {
     void fetchBackups().then(r => setBackups(r.backups ?? []))
     void refreshFailures()
-    void fetchAudit().then(r => setAudit(r.audit ?? []))
+    void fetchAudit().then(r => {
+      setAudit(r.audit ?? [])
+      setAuditTotal(r.total ?? (r.audit?.length ?? 0))
+    })
     void fetchLimits().then(r => {
       setLimits(r.limits ?? {})
       setMax(r.limits?.max ?? 100)
@@ -155,7 +159,7 @@ export function ManagementPage() {
             <div className="space-y-2">
               {SOURCES.map(src => {
                 const job = data?.jobs[`ingest-${src}`]
-                const phase = job?.phase ?? 'idle'
+                const phase = jobPhase(job)
                 const paused = data?.controls?.[`ingest-${src}`]?.paused
                 return (
                   <div key={src} className="flex items-center gap-2 rounded-lg border px-3 py-2">
@@ -248,7 +252,7 @@ export function ManagementPage() {
                 </div>
                 <Button size="sm" variant="outline" onClick={() => void saveLimits()}>Save</Button>
               </div>
-              <p className="mt-2 text-[10px] text-muted-foreground">current: {limits.max ?? '—'} req / {limits.window ?? '—'}s{limits.max ? ' · active env' : ''}</p>
+              <p className="mt-2 text-[10px] text-muted-foreground">current: {limits.max ?? '—'} req / {limits.window ?? '—'}s{limits.source ? ` · ${limits.source}` : ''}</p>
             </div>
           </div>
         </Section>
@@ -278,7 +282,7 @@ export function ManagementPage() {
         </Section>
 
         {/* M4: Validation failures */}
-        <Section title="Validation failures" icon={ListChecks} badge={<Badge variant="outline">{failures.length}</Badge>}>
+        <Section title="Validation failures" icon={ListChecks} badge={<Badge variant="outline" title={`${failureTotal} logged; showing the newest ${failures.length}`}>{failureTotal > failures.length ? `${failures.length}/${failureTotal}` : failures.length}</Badge>}>
           {failureGroups.length === 0 ? (
             <EmptyState icon={ListChecks} title="No validation issues" description="Failed entries and violations appear here for retry." />
           ) : (
@@ -289,7 +293,7 @@ export function ManagementPage() {
                     <div key={`${g.source}-${g.title}-${i}`} className="rounded-lg border px-2 py-1.5">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{g.source}</Badge>
-                        <span className="flex-1 truncate">{g.title}</span>
+                        <span className="min-w-0 flex-1 truncate" title={g.title}>{g.title}</span>
                         <Badge variant="secondary" title={`${g.count} entries`}>×{g.count}</Badge>
                         <Button size="icon-xs" variant="ghost" title="Retry source" onClick={() => void run('retry', g.source === '?' ? 'anilist' : g.source)}><RotateCcw className="h-3 w-3" /></Button>
                       </div>
@@ -322,7 +326,7 @@ export function ManagementPage() {
                 </SelectContent>
               </Select>
             </div>
-            <AuditTable audit={visibleAudit} total={audit.length} tz={tz} />
+            <AuditTable audit={visibleAudit} total={auditTotal} tz={tz} />
           </div>
         )}
       </Section>

@@ -19,9 +19,24 @@ $app->setAutoExit(true);
  */
 $container = new \Symfony\Component\DependencyInjection\ContainerBuilder();
 
+// Rate limits: a dashboard override (storage/state/ui.json → limits) wins over
+// the RATE_LIMIT_* env vars, so the Management page's "Save" really applies to
+// the next ingest process. Mirrors rateLimits() in public/index.php.
+$rateMax = (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100);
+$rateWindow = (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60);
+$uiStateFile = dirname(__DIR__) . '/storage/state/ui.json';
+if (is_file($uiStateFile)) {
+    $uiState = json_decode((string) file_get_contents($uiStateFile), true);
+    $override = is_array($uiState) ? ($uiState['limits'] ?? null) : null;
+    if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
+        $rateMax = (int) $override['max'];
+        $rateWindow = (int) $override['window'];
+    }
+}
+
 // Set parameters
-$container->setParameter('rate_limit.max_requests', (int)($_ENV['RATE_LIMIT_MAX'] ?? 100));
-$container->setParameter('rate_limit.time_window', (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60));
+$container->setParameter('rate_limit.max_requests', $rateMax);
+$container->setParameter('rate_limit.time_window', $rateWindow);
 
 // Register Serializer as a service using a static method
 class SerializerFactory
@@ -62,8 +77,8 @@ $container->autowire(\Hiyori\Service\HealthCheck::class)
     ->setArguments([
         '$mongoClient' => new \MongoDB\Client($_ENV['MONGODB_URL']),
         '$rateLimiter' => new \Hiyori\Service\RateLimiter(
-            (int)($_ENV['RATE_LIMIT_MAX'] ?? 100),
-            (int)($_ENV['RATE_LIMIT_WINDOW'] ?? 60),
+            $rateMax,
+            $rateWindow,
         ),
     ]);
 $container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);

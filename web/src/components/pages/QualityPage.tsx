@@ -18,6 +18,7 @@ import { CompletenessRadar, DensityHistogram } from '../chartcard'
 import { COLORS } from '../charts'
 import { EmptyState } from '../empty'
 import { fmt, fmtCompact, fmtSec } from '@/lib/format'
+import { tzDateTime, type Tz } from '@/lib/time'
 import { PageHead, Section } from '../widgets'
 
 const FULL_COLS = ['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'cr', 'nf', 'sb', 'ttv', 't', 'adb', 'tx', 'b', 'fm', 'yt', 'ap', 'tvt']
@@ -32,13 +33,25 @@ interface CoverageMatrixRow {
   counts: Record<string, number | undefined>
 }
 
+/**
+ * Collections worth comparing in coverage views.
+ *
+ * Drops derived `organized*` outputs (the combiner's own product, not a
+ * reference source) and the internal `_*` bookkeeping collections
+ * (`_counters`, `_migrations`, `_hiyori_ids`) which carry no reference ids.
+ * Used for both the section badge and the matrix so the two cannot drift.
+ */
+function coverageCollections(coverage: Record<string, Record<string, number | undefined>>): string[] {
+  return Object.keys(coverage)
+    .filter(c => (coverage[c]?.total ?? 0) > 0 && !c.includes('organized') && !c.startsWith('_'))
+    .sort()
+}
+
 /** Enriched, sortable coverage matrix built on the shared DataTable (Q1: empty shorthand columns are hidden). */
 function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<string, number | undefined>> }) {
   const rows = useMemo<CoverageMatrixRow[]>(
     () =>
-      Object.keys(coverage)
-        .filter(c => (coverage[c]?.total ?? 0) > 0 && !c.includes('organized'))
-        .sort()
+      coverageCollections(coverage)
         .map(name => ({ name, total: coverage[name]?.total ?? 0, counts: coverage[name] ?? {} })),
     [coverage],
   )
@@ -145,8 +158,9 @@ function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
 export function QualityPage() {
   const { data } = useStatus()
   const { settings, update } = useSettings()
+  const tz: Tz = settings.prefs?.tz === 'utc' ? 'utc' : 'local'
   const [benchKey, setBenchKey] = useState(0)
-  const bench = useCachedFetch<{ seeded?: BenchmarkRow[]; latest?: unknown; ml?: MlBenchmark | null }>('/api/benchmark', benchKey)
+  const bench = useCachedFetch<{ recorded?: BenchmarkRow[]; source?: string | null; recorded_at?: string | null; latest?: unknown; ml?: MlBenchmark | null }>('/api/benchmark', benchKey)
   const hist = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram', benchKey)
   const histManga = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?collection=organized_manga', benchKey)
   const histMl = useCachedFetch<{ histogram?: Record<string, number>; bins?: number[] }>('/api/histogram?field=ml_score', benchKey)
@@ -165,7 +179,7 @@ export function QualityPage() {
   }, 400)
 
   const coverage = (data?.coverage ?? {}) as Record<string, Record<string, number | undefined>>
-  const cols = Object.keys(coverage).filter(c => (coverage[c]?.total ?? 0) > 0).sort()
+  const cols = coverageCollections(coverage)
 
   const radarData = useMemo(() => {
     if (!cols.length) return []
@@ -272,9 +286,19 @@ export function QualityPage() {
             <TabsTrigger value="manga">Manga</TabsTrigger>
           </TabsList>
           <TabsContent value="anime" className="space-y-3 pt-3">
-            {!bench.data?.seeded?.length ? <Skeleton className="h-40 w-full" /> : <BenchmarkTable rows={bench.data.seeded} />}
+            {!bench.data ? (
+              <Skeleton className="h-40 w-full" />
+            ) : bench.data.recorded?.length ? (
+              <BenchmarkTable rows={bench.data.recorded} />
+            ) : (
+              <EmptyState icon={Scale} title="No benchmark recorded" description="Runs appear here once a benchmark script writes its log." />
+            )}
             <p className="text-xs text-muted-foreground">
-              sensitivity sweep: run <code className="rounded bg-muted px-1">combine --threshold</code> to populate
+              {bench.data?.recorded_at && (
+                <>Recorded from <code className="rounded bg-muted px-1">{bench.data.source}</code> ({tzDateTime(bench.data.recorded_at, tz)}). </>
+              )}
+              The canonical multi-strategy comparison lives in{' '}
+              <code className="rounded bg-muted px-1">docs/combiner-strategy-benchmark.md</code>.
             </p>
           </TabsContent>
           <TabsContent value="manga" className="space-y-3 pt-3">
@@ -306,8 +330,13 @@ export function QualityPage() {
                       metadata_ml · F1 {Number(best.f1).toFixed(3)} · P {Number(best.precision).toFixed(2)} / R {Number(best.recall).toFixed(2)} · {best.predicted} merges
                     </span>
                     {gate?.comparable && (
-                      <Badge variant={gate.passed ? 'default' : 'secondary'}>
-                        {gate.passed ? 'gate passed' : 'gate not met'} ({Number(gate.margin ?? 0).toFixed(3)})
+                      <Badge
+                        variant={gate.passed ? 'default' : 'secondary'}
+                        title={gate.baseline_f1 != null && gate.ml_f1 != null
+                          ? `metadata_ml F1 ${Number(gate.ml_f1).toFixed(3)} vs best baseline ${Number(gate.baseline_f1).toFixed(3)}; requires +${Number(gate.required_margin ?? 0).toFixed(3)}`
+                          : undefined}
+                      >
+                        {gate.passed ? 'gate passed' : 'gate not met'} · {Number(gate.margin ?? 0) >= 0 ? '+' : ''}{Number(gate.margin ?? 0).toFixed(3)} vs baseline
                       </Badge>
                     )}
                   </div>

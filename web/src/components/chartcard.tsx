@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Funnel, FunnelChart,
-  LabelList, Legend, Line, LineChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar,
+  LabelList, Legend, Line, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar,
   RadarChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { ChartLine, ChartNoAxesCombined, Logs } from 'lucide-react'
@@ -14,12 +14,12 @@ export interface SeriesDef { key: string; color: string }
 export type SeriesData = Array<Record<string, number | string>>
 
 /** Align multiple equally-pushed series by trailing index and produce chart rows. */
-export function alignSeries(series: { key: string; data: number[] }[], stepLabel = 's'): SeriesData {
+export function alignSeries(series: { key: string; data: number[] }[], stepSeconds = 3): SeriesData {
   const max = Math.max(0, ...series.map(s => s.data.length))
   if (!max) return []
   const rows: SeriesData = []
   for (let i = 0; i < max; i++) {
-    const row: Record<string, number | string> = { label: `-${(max - i) * 3}${stepLabel}` }
+    const row: Record<string, number | string> = { label: `-${Math.round((max - i) * stepSeconds)}s` }
     series.forEach(s => {
       const idx = s.data.length - max + i
       row[s.key] = idx >= 0 ? (s.data[idx] ?? 0) : 0
@@ -59,7 +59,7 @@ export function SeriesChartCard({ title, series, data, emptyMsg, helper, icon }:
         <div className="h-52">
           {data.length ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+              <ComposedChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} minTickGap={40} />
                 <YAxis scale={log ? 'log' : 'auto'} domain={log ? ['auto', 'auto'] : [0, 'auto']} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
@@ -69,7 +69,7 @@ export function SeriesChartCard({ title, series, data, emptyMsg, helper, icon }:
                     ? <Area key={s.key} type="monotone" dataKey={s.key} stroke={s.color} fill={s.color} fillOpacity={0.14} dot={false} strokeWidth={2} />
                     : <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} dot={false} strokeWidth={2} />
                 )}
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
           ) : <EmptyState icon={ChartNoAxesCombined} title="Waiting for data" description={emptyMsg} />}
         </div>
@@ -230,9 +230,11 @@ export function DensityHistogram({ title, bins, counts, color = ['#4fb3ff', '#7a
         {data.some(d => d.n > 0) ? (
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -14 }}>
+              <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <XAxis dataKey="bin" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={30} />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={40} />
+                {/* Counts here run into the thousands, so the axis keeps its full
+                    width — a negative left margin clipped the tick labels. */}
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Bar dataKey="n" name="records" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                   {data.map(d => <Cell key={d.idx} fill={color[d.idx % color.length]} />)}

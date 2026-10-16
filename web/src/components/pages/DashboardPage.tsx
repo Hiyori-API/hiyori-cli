@@ -16,14 +16,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { COLORS } from '../charts'
-import { postAction, type HealthCheck, type Job } from '@/lib/api'
+import { isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, SeriesChartCard } from '../chartcard'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 
-const MAX = 120
+const MAX = 300
+
+/** Collections written by the ingesters — the input side of the pipeline. */
+const SOURCE_COLLECTIONS = ['anilist', 'anilist_manga', 'myanimelist', 'myanimelist_manga', 'kitsu', 'kitsu_manga']
 
 const WINDOWS = [
   { label: '1m', value: 20 },
@@ -72,10 +75,12 @@ export function DashboardPage() {
   const counts = data?.counts ?? {}
   const jobs = data?.jobs ?? {}
   const jobKeys = Object.keys(jobs).filter(k => (jobs[k] as Job)?.source).sort()
-  const activeJobs = jobKeys.filter(k => (jobs[k] as Job).phase !== 'done' && (jobs[k] as Job).phase !== 'idle')
+  const activeJobs = jobKeys.filter(k => isJobLive(jobs[k] as Job))
   const totalDocs = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts])
   const totalErrors = useMemo(() => jobKeys.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0), [jobs, jobKeys])
-  const activeRate = useMemo(() => jobKeys.reduce((a, k) => a + ((jobs[k] as Job).per_second ?? 0), 0), [jobs, jobKeys])
+  // Only live jobs contribute to the combined rate; a stale run's last
+  // per_second would otherwise keep the KPI non-zero forever.
+  const activeRate = useMemo(() => jobKeys.reduce((a, k) => a + (isJobLive(jobs[k] as Job) ? ((jobs[k] as Job).per_second ?? 0) : 0), 0), [jobs, jobKeys])
 
   const dataset = useMemo(() => {
     const keys = Object.keys(counts).sort().filter(k => !hiddenCollections.includes(k))
@@ -92,8 +97,12 @@ export function DashboardPage() {
     return keys.map((k, i) => ({ key: k, color: COLORS[i % COLORS.length], data: (countSeries[k] ?? []).slice(-win) }))
   }, [countSeries, hiddenCollections, win])
 
-  const ratesRows = useMemo(() => alignSeries(rateSeriesArr), [rateSeriesArr])
-  const countsRows = useMemo(() => alignSeries(countSeriesArr), [countSeriesArr])
+  // Sample cadence: the SSE stream pushes every 3s, otherwise it follows the
+  // smart-poll interval. Drives the x-axis labels and keeps MAX >= the largest
+  // selectable window (15m) so that option can actually fill.
+  const stepSec = realtime ? 3 : Math.max(1, Math.round(intervalMs / 1000))
+  const ratesRows = useMemo(() => alignSeries(rateSeriesArr, stepSec), [rateSeriesArr, stepSec])
+  const countsRows = useMemo(() => alignSeries(countSeriesArr, stepSec), [countSeriesArr, stepSec])
 
   const h = data?.health
   const health = h?.checks
@@ -105,9 +114,13 @@ export function DashboardPage() {
   const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})
   const extApis = Object.entries(health?.external_apis?.endpoints ?? {})
 
-  const violations = data?.validation?.length ?? 0
-  const merged = Math.max(0, totalDocs - violations)
-  const organized = data?.db?.collections?.organized ?? 0
+  // Funnel over the pipeline itself: raw source collections in, combiner outputs
+  // out. Internal `_`-prefixed collections (registry/counters/migrations) are
+  // storage bookkeeping, so they are excluded rather than inflating "sources".
+  const ingested = SOURCE_COLLECTIONS.reduce((a, k) => a + (counts[k] ?? 0), 0)
+  const animeDocs = counts.organized ?? 0
+  const mangaDocs = counts.organized_manga ?? 0
+  const merged = animeDocs + mangaDocs
   const lastCombine = data?.combine?.strategy
     ? { strategy: data.combine.strategy, ago: ago(data.combine.completed_at) }
     : null
@@ -167,14 +180,14 @@ export function DashboardPage() {
 
           {visible('pipeline') && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
-              <span>ingest</span>
-              <span className="font-semibold tabular-nums text-foreground">{cx(totalDocs)}</span>
+              <span>sources</span>
+              <span className="font-semibold tabular-nums text-foreground">{cx(ingested)}</span>
               <span className="text-muted-foreground/60">→</span>
               <span>merged</span>
               <span className="font-semibold tabular-nums text-foreground">{cx(merged)}</span>
-              <span className="text-muted-foreground/60">→</span>
-              <span>organized</span>
-              <span className="font-semibold tabular-nums text-foreground">{cx(organized)}</span>
+              <span className="text-muted-foreground/50">
+                ({cx(animeDocs)} anime · {cx(mangaDocs)} manga)
+              </span>
               {lastCombine && (
                 <span className="ml-auto min-w-0 truncate">
                   · last combine <span className="font-medium text-foreground">{lastCombine.strategy}</span> {lastCombine.ago}
@@ -333,14 +346,17 @@ function SourcesTable({
       {
         id: 'phase',
         header: 'Phase',
-        accessorFn: r => r.job.phase ?? 'idle',
+        accessorFn: r => jobPhase(r.job),
         sortingFn: 'basic',
         meta: { align: 'left' } as const,
-        cell: ({ row }) => (
-          <Badge variant={row.original.job.phase === 'done' ? 'secondary' : 'outline'}>
-            {row.original.job.phase ?? 'idle'}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const phase = jobPhase(row.original.job)
+          return (
+            <Badge variant={phase === 'done' ? 'secondary' : phase === 'stale' ? 'ghost' : 'outline'}>
+              {phase}
+            </Badge>
+          )
+        },
       },
       {
         id: 'progress',
@@ -370,6 +386,11 @@ function SourcesTable({
         meta: { align: 'right' } as const,
         cell: ({ row }) => {
           const job = row.original.job
+          // A stale or finished run's rate/ETA are frozen at their last value;
+          // show nothing rather than a speed the job is no longer achieving.
+          if (!isJobLive(job)) {
+            return <span className="text-xs text-muted-foreground">—</span>
+          }
           const speed = job.per_second != null ? `${job.per_second.toFixed(1)}/s` : '—'
           const eta = job.eta_seconds != null && Number.isFinite(job.eta_seconds) ? `${fmtSec(job.eta_seconds)} left` : null
           return (

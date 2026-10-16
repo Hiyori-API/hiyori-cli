@@ -208,10 +208,36 @@ function dbStats(MongoClient $client, ?array $counts = null): array
     return $out;
 }
 
+/**
+ * Effective rate limits. Dashboard overrides (storage/state/ui.json → limits)
+ * win over the RATE_LIMIT_* env vars, and Bootstrap.php applies the same
+ * precedence when an ingest process starts.
+ *
+ * @return array{max: int, window: int, source: string}
+ */
+function rateLimits(): array
+{
+    $max = (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100);
+    $window = (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60);
+    $source = isset($_ENV['RATE_LIMIT_MAX']) || isset($_ENV['RATE_LIMIT_WINDOW']) ? 'env' : 'default';
+
+    $override = uiSettings()['limits'] ?? null;
+    if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
+        $max = (int) $override['max'];
+        $window = (int) $override['window'];
+        $source = 'override';
+    }
+
+    return ['max' => $max, 'window' => $window, 'source' => $source];
+}
+
 function backupInfo(): array
 {
     $dir = dirname(__DIR__) . '/storage/backups';
-    $files = glob($dir . '/hiyori-*.gz') ?: [];
+    // Any .gz in the backups dir is restorable, not just the `hiyori-<ts>.gz`
+    // ones this app writes — manual archives (e.g. pre-rebuild snapshots) are
+    // valid backups too and must show up in the list.
+    $files = glob($dir . '/*.gz') ?: [];
     $last = null;
     foreach ($files as $f) {
         $mtime = filemtime($f);
@@ -333,35 +359,30 @@ function readBenchmarkLog(string $file): array
 
 function benchmarkData(Telemetry $telemetry): array
 {
-    $combine = $telemetry->read('combine-latest');
-    $seed = [
-        ['strategy' => 'relational_mapping', 'wall_s' => 457, 'merges' => 14638, 'organized' => 8417, 'speed' => 32.0, 'dups' => 0],
-        ['strategy' => 'relational_fuzzy', 'wall_s' => 880, 'merges' => 25124, 'organized' => 16492, 'speed' => 28.5, 'dups' => 0],
-        ['strategy' => 'metadata_fuzzy', 'wall_s' => 749, 'merges' => 18291, 'organized' => 14933, 'speed' => 24.4, 'dups' => 0],
-    ];
+    $file = dirname(__DIR__) . '/storage/logs/strategy-benchmark-v2.log';
 
-    // Overlay real measured rows when the anime benchmark log exists.
-    $measured = readBenchmarkLog(dirname(__DIR__) . '/storage/logs/strategy-benchmark-v2.log');
-    $byStrategy = [];
-    foreach ($measured as $row) {
-        $byStrategy[(string) $row['strategy']] = $row;
-    }
+    // Only rows a benchmark run actually wrote are returned. This used to merge
+    // a hardcoded seed table over the log, which fabricated `merges` for every
+    // strategy (the log stores `total`, so the seeded values always won) — the
+    // dashboard showed numbers no run had produced. `wall` is the "wall: 123s"
+    // marker the benchmark script prints just before each strategy's JSON row.
     $out = [];
-    foreach ($seed as $s) {
-        $m = $byStrategy[$s['strategy']] ?? [];
-        if ($m !== []) {
-            $s = array_merge($s, [
-                'wall_s' => (float) ($m['wall'] ?? $m['wall_s'] ?? $s['wall_s']),
-                'merges' => (int) ($m['merges'] ?? $s['merges']),
-                'organized' => (int) ($m['total'] ?? $s['organized']),
-                'speed' => isset($m['wall']) && (float) $m['wall'] > 0 ? round((int) $m['total'] / (float) $m['wall'], 2) : $s['speed'],
-                'dups' => (int) ($m['duplicate_keys'] ?? $s['dups']),
-            ]);
-        }
-        $out[] = $s;
+    foreach (readBenchmarkLog($file) as $row) {
+        $out[] = [
+            'strategy' => (string) ($row['strategy'] ?? ''),
+            'wall_s' => (int) round((float) ($row['wall'] ?? 0)),
+            'merges' => (int) ($row['total'] ?? 0),
+            'dups' => (int) ($row['duplicate_keys'] ?? 0),
+        ];
     }
 
-    return ['seeded' => $out, 'latest' => $combine, 'ml' => mlBenchmarkReport()];
+    return [
+        'recorded' => $out,
+        'source' => $out === [] ? null : 'storage/logs/' . basename($file),
+        'recorded_at' => $out === [] ? null : date('c', (int) filemtime($file)),
+        'latest' => $telemetry->read('combine-latest'),
+        'ml' => mlBenchmarkReport(),
+    ];
 }
 
 /**
@@ -923,6 +944,76 @@ if ($path === '/api/validate') {
     sendJson(['recent' => $telemetry->tail('validation-log', 100), 'timestamp' => date('c')]);
 }
 
+if ($path === '/api/failures') {
+    // Validation-log entries, newest first. The UI groups these by source+title
+    // (Management) and lists them with a source filter (Logs), so return the
+    // full parsed event (ts/source/title/errors) rather than a count. `total`
+    // lets the UI say "newest 500 of N" instead of implying this is the lot.
+    $meta = tailLinesMeta(dirname(__DIR__) . '/storage/state/validation-log.jsonl', 500);
+    sendJson(['failures' => array_reverse($meta['events']), 'total' => $meta['total'], 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/audit') {
+    $meta = tailLinesMeta(dirname(__DIR__) . '/storage/state/audit.jsonl', 200);
+    sendJson(['audit' => array_reverse($meta['events']), 'total' => $meta['total'], 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/history') {
+    // Latest run state per ingest source. State files are last-write-wins, so
+    // there is one entry per source rather than a multi-run log; `runs` stays
+    // empty until per-run records exist.
+    $states = [];
+    foreach ($telemetry->allState() as $key => $value) {
+        if (str_starts_with($key, 'ingest-')) {
+            $states[$key] = $value;
+        }
+    }
+    sendJson(['states' => $states, 'runs' => [], 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/limits') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = readJsonBody();
+        $max = (int) ($body['max'] ?? 0);
+        $window = (int) ($body['window'] ?? 0);
+        if ($max < 1 || $max > 100000 || $window < 1 || $window > 86400) {
+            sendJson(['error' => 'max must be 1..100000 and window 1..86400 seconds'], 400);
+        }
+        $settings = uiSettings();
+        $settings['limits'] = ['max' => $max, 'window' => $window, 'updated_at' => date('c')];
+        saveUiSettings($settings);
+        auditAppend('limits.update', ['max' => $max, 'window' => $window]);
+        sendJson(['limits' => rateLimits(), 'applied' => 'next ingest start']);
+    }
+    sendJson(['limits' => rateLimits(), 'applied' => 'next ingest start']);
+}
+
+if ($path === '/api/backups') {
+    sendJson(['backups' => backupsList(), 'timestamp' => date('c')]);
+}
+
+if ($path === '/api/restore') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    $body = readJsonBody();
+    $file = basename((string) ($body['file'] ?? ''));
+    $archive = dirname(__DIR__) . '/storage/backups/' . $file;
+    // Only archives that the dashboard itself lists may be restored, so a typo
+    // or a crafted path can never point restore at an arbitrary file.
+    if ($file === '' || !preg_match('/^[A-Za-z0-9._-]+\.gz$/', $file) || !is_file($archive)) {
+        sendJson(['error' => 'unknown backup archive'], 400);
+    }
+    $exe = sprintf(
+        'cd %s && php hiyori restore %s --drop >/dev/null 2>&1 &',
+        escapeshellarg(dirname(__DIR__)),
+        escapeshellarg($archive),
+    );
+    @exec($exe);
+    auditAppend('restore', ['file' => $file]);
+    sendJson(['started' => true, 'file' => $file]);
+}
+
 if ($path === '/api/db') {
     sendJson(['db' => dbStats($client), 'timestamp' => date('c')]);
 }
@@ -983,7 +1074,7 @@ if ($path === '/api/benchmark') {
 }
 
 if ($path === '/api/alerts') {
-    sendJson(['alerts' => alerts(ttlCache('health', 20, static fn () => $health->check()), $telemetry), 'timestamp' => date('c')]);
+    sendJson(['alerts' => alerts(ttlCache('health', 60, static fn () => $health->check()), $telemetry), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/sample') {
@@ -1088,8 +1179,17 @@ function uiSettings(): array
 {
     $dir = dirname(__DIR__) . '/storage/state';
     $file = $dir . '/ui.json';
+    $settings = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
 
-    return is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
+    // Defaults. `_counters`/`_migrations` are internal bookkeeping, not dataset
+    // documents, so they start hidden — otherwise the Dataset donut shows
+    // meaningless 1-doc and 4-doc slices. Settings → Collections can unhide them.
+    $settings['prefs'] = ($settings['prefs'] ?? []) + [
+        'realtime' => true,
+        'hiddenCollections' => ['_counters', '_migrations'],
+    ];
+
+    return $settings;
 }
 
 function saveUiSettings(array $s): void
@@ -1115,6 +1215,40 @@ function auditAppend(string $action, array $detail = []): void
     ], JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
 }
 
+/**
+ * Parse the last $n JSON lines of a JSONL file.
+ *
+ * `total` counts every non-empty line in the file, so callers can be honest
+ * about truncation ("newest 500 of 2,377") instead of implying the tail is all.
+ *
+ * @return array{total: int, events: list<array<string, mixed>>}
+ */
+function tailLinesMeta(string $file, int $n): array
+{
+    if (!is_file($file)) {
+        return ['total' => 0, 'events' => []];
+    }
+    $lines = file($file, FILE_IGNORE_NEW_LINES) ?: [];
+    $cut = count($lines) - $n;
+    $total = 0;
+    $events = [];
+    foreach ($lines as $i => $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+        ++$total;
+        if ($i < $cut) {
+            continue;
+        }
+        $decoded = json_decode($line, true);
+        if (is_array($decoded)) {
+            $events[] = $decoded;
+        }
+    }
+
+    return ['total' => $total, 'events' => $events];
+}
+
 function tailLines(string $file, int $n): array
 {
     if (!is_file($file)) {
@@ -1136,7 +1270,10 @@ function tailLines(string $file, int $n): array
 function backupsList(): array
 {
     $dir = dirname(__DIR__) . '/storage/backups';
-    $files = glob($dir . '/hiyori-*.gz') ?: [];
+    // Any .gz in the backups dir is restorable, not just the `hiyori-<ts>.gz`
+    // ones this app writes — manual archives (e.g. pre-rebuild snapshots) are
+    // valid backups too and must show up in the list.
+    $files = glob($dir . '/*.gz') ?: [];
     usort($files, static fn ($a, $b) => filemtime($b) - filemtime($a));
 
     return array_map(static fn ($f) => ['file' => basename($f), 'mtime' => filemtime($f), 'size' => filesize($f)], $files);
