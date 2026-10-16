@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hiyori\Service\Ml;
 
 use Hiyori\Helper;
+use Hiyori\Service\Database;
+use MongoDB\BSON\UTCDateTime;
+use MongoDB\Collection;
 
 /**
  * Level-0, local-only embedding service for the semantic re-rank strategy.
@@ -44,12 +47,25 @@ final class EmbeddingService
 
     private string $modelVersion;
 
+    /**
+     * Optional Mongo cache backend (`embeddings`). When present the service
+     * reads through and writes through to the collection (unique on
+     * `(content_hash, model, model_version)`) instead of the JSON file, so the
+     * cache is shared across processes and does not grow a single unbounded
+     * file. The file cache remains the default when no database is injected.
+     */
+    private ?Database $mongo;
+
+    private string $mongoCollection;
+
     public function __construct(
         private int $dimensions = self::DEFAULT_DIMENSIONS,
         ?string $command = null,
         ?string $cacheFile = null,
         ?string $model = null,
         ?string $modelVersion = null,
+        ?Database $mongo = null,
+        string $mongoCollection = 'embeddings',
     ) {
         $this->dimensions = max(16, $dimensions);
         $this->command = $command ?? (getenv('ML_EMBED_COMMAND') ?: null);
@@ -58,6 +74,8 @@ final class EmbeddingService
             ? 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
             : 'local-ngram'));
         $this->modelVersion = $modelVersion ?? (getenv('ML_EMBED_VERSION') ?: ($this->isExternal() ? 'sidecar-1' : 'local-ngram-1'));
+        $this->mongo = $mongo;
+        $this->mongoCollection = $mongoCollection;
         $this->loadCache();
     }
 
@@ -126,6 +144,17 @@ final class EmbeddingService
             return $this->cache[$key];
         }
 
+        // Read-through: the Mongo cache (when enabled) is checked before paying
+        // for a sidecar call or a local hash.
+        if ($this->mongo !== null) {
+            $cached = $this->fetchFromMongo($text);
+            if ($cached !== null) {
+                $this->cache[$key] = $cached;
+
+                return $cached;
+            }
+        }
+
         $vector = null;
         if ($this->isExternal()) {
             $vector = $this->embedWithCommand($text);
@@ -134,6 +163,10 @@ final class EmbeddingService
 
         $this->cache[$key] = $vector;
         $this->cacheDirty = true;
+
+        if ($this->mongo !== null) {
+            $this->storeInMongo($text, $vector);
+        }
 
         return $vector;
     }
@@ -161,6 +194,9 @@ final class EmbeddingService
 
     public function flush(): void
     {
+        if ($this->mongo !== null) {
+            return; // write-through already persisted every vector
+        }
         if (!$this->cacheDirty) {
             return;
         }
@@ -253,8 +289,66 @@ final class EmbeddingService
         return hash('sha1', $this->model . "\0" . $this->modelVersion . "\0" . $text);
     }
 
+    private function collection(): Collection
+    {
+        return $this->mongo->getCollection($this->mongoCollection);
+    }
+
+    /**
+     * @return array<int, float>|null
+     */
+    private function fetchFromMongo(string $text): ?array
+    {
+        try {
+            $doc = $this->collection()->findOne([
+                'content_hash' => sha1($text),
+                'model' => $this->model,
+                'model_version' => $this->modelVersion,
+            ]);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!is_array($doc)) {
+            return null;
+        }
+        $vector = $doc['vector'] ?? null;
+        if (!is_array($vector)) {
+            return null;
+        }
+
+        return array_map('floatval', array_values($vector));
+    }
+
+    /**
+     * @param array<int, float> $vector
+     */
+    private function storeInMongo(string $text, array $vector): void
+    {
+        try {
+            $this->collection()->updateOne(
+                [
+                    'content_hash' => sha1($text),
+                    'model' => $this->model,
+                    'model_version' => $this->modelVersion,
+                ],
+                ['$set' => [
+                    'vector' => $vector,
+                    'text' => $text,
+                    'dimensions' => count($vector),
+                    'updated_at' => new UTCDateTime(),
+                ]],
+                ['upsert' => true],
+            );
+        } catch (\Throwable) {
+            // a cache write failure must never break embedding
+        }
+    }
+
     private function loadCache(): void
     {
+        if ($this->mongo !== null) {
+            return; // read-through: no preload, vectors are fetched per key
+        }
         if (!is_file($this->cacheFile)) {
             return;
         }

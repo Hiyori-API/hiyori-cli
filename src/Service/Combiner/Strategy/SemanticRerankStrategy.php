@@ -50,6 +50,8 @@ final class SemanticRerankStrategy extends CombinerStrategy
             is_string($strategy->getConfig('embedding_command')) ? $strategy->getConfig('embedding_command') : null,
             null,
             is_string($strategy->getConfig('embedding_model')) ? $strategy->getConfig('embedding_model') : null,
+            null,
+            $db,
         );
 
         $tableName = $source->get()->getTable();
