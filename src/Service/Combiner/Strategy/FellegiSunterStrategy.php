@@ -70,6 +70,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
+        $passthrough = (bool) ($strategy->getConfig('passthrough') ?? false);
 
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -85,6 +86,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $progressBar->start();
 
         $totalMerged = 0;
+        $totalPassthrough = 0;
         $scores = [];
         $mergedSources = [];
         $candidatesExamined = 0;
@@ -93,6 +95,8 @@ final class FellegiSunterStrategy extends CombinerStrategy
 
         foreach ($cursor as $entry) {
             $entryArray = \Hiyori\Helper::convertMongoResultToArray($entry);
+            $baseId = \Hiyori\Helper::resolveReferenceId($entryArray, $baseShorthand);
+            $merged = false;
 
             foreach ($availableSources as $currentSource) {
                 if ($currentSource->getTable() === $tableName) {
@@ -129,17 +133,36 @@ final class FellegiSunterStrategy extends CombinerStrategy
 
                 if (self::persistMerge($db, $source, $entryArray, $best, $collection, $score)) {
                     $totalMerged++;
+                    $merged = true;
                 }
             }
+
+            // Nothing matched: keep the entry itself (see persistPassthrough)
+            // so the run cannot drop a base entry and orphan its registry id.
+            if ($passthrough && !$merged && $baseId !== '') {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                    $totalPassthrough++;
+                }
+            }
+
             $progressBar->advance();
         }
         $progressBar->finish();
 
         $console->io()->info('Fellegi–Sunter merge complete. Merged: ' . $totalMerged);
+        if ($passthrough) {
+            $console->io()->text(sprintf(
+                'Passthrough: %d single-source records kept (documents: %d)',
+                $totalPassthrough,
+                $totalMerged + $totalPassthrough,
+            ));
+        }
         $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
             'merges' => $totalMerged,
+            'passthrough' => $totalPassthrough,
+            'documents' => $totalMerged + $totalPassthrough,
             'threshold' => $threshold,
             'agreement_cutoff' => $cutoff,
             'candidates_examined' => $candidatesExamined,
