@@ -196,8 +196,10 @@ The `content_hash` is the **identity of the dataset**, not the tag name. Tags ar
 - **`latest` consumers:** must record the resolved tag + content_hash in their own lock file;
   never store "latest" as a durable reference.
 - **From source:** checkout the `source_commit` recorded in the release notes, restore the same
-  MongoDB state, run `php hiyori combine ...` + the release script; the resulting
+  MongoDB state, run `php hiyori combine ... --passthrough` + the release script; the resulting
   `content_hash` must agree. If it does not, the pipeline is non-deterministic — file a bug.
+  (`--passthrough` is part of the recipe, not an optimisation: without it a rebuild writes only
+  the entries that matched and the hash can never agree with a release that kept all of them.)
 
 ### 4.4 Rollback
 

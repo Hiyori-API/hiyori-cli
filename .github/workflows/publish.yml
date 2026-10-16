@@ -84,8 +84,10 @@ jobs:
         working-directory: hiyori-cli
         run: |
           # Anime base = anilist; manga base = anilist_manga (see scripts/finalize-merges.sh).
-          php hiyori combine anilist --export=per-entry-json
-          php hiyori combine anilist_manga --into=organized_manga --export=per-entry-json
+          # --passthrough keeps base entries that matched nothing, so the release holds
+          # one document per ingested entry and no registry id is left without a document.
+          php hiyori combine anilist --passthrough --export=per-entry-json
+          php hiyori combine anilist_manga --passthrough --into=organized_manga --export=per-entry-json
 
       - name: Release gate (no duplicate identity keys)
         # Fails the release if any combined collection repeats a `mal`/`al`

@@ -18,7 +18,10 @@ base, in the same code revision, with the same candidate machinery.
    has no `--nsInclude`), and restore them **before every run** so each strategy starts
    from an identical 15,880-row registry and the live registry is left exactly as found.
 2. Drop `bench_<strategy>`, run `combine anilist --strategy <S> --into bench_<strategy>
-   --export=none` under `/usr/bin/time -v` (2 h cap), capture exit code.
+   --export=none` under `/usr/bin/time -v` (2 h cap), capture exit code. Passthrough is
+   deliberately **off**: these runs measure a strategy's ability to *merge*, and keeping
+   unmatched entries would back every collection with one document per base entry and
+   flatten the coverage column into a constant.
 3. Snapshot the strategy's `combine-latest` telemetry.
 4. Measure the scratch collection with one aggregation pass (coverage, linkage, duplicate
    identity keys, duplicate slug/id, new ids, uncovered registry ids).
