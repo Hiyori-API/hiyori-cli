@@ -216,15 +216,23 @@ export function QualityPage() {
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => setSample(r.sample ?? null))
   // Persist the human judgement as pair labels so `ml:export-pairs` can use it.
-  // A whole-record verdict maps to every cross-source reference pair in the doc.
-  const labelSample = (doc: Record<string, unknown>, label: 0 | 1) => {
+  // A whole-record verdict maps to every cross-source reference pair in the doc,
+  // which needs at least two refs — a single-source record has no pair to judge,
+  // so it is offered as "next" only instead of silently recording nothing.
+  const sampleDoc = (sampled ?? {}) as { title?: string; confidence?: number; score?: number; reference_ids?: Record<string, string> }
+  const sampleRefs = Object.entries(sampleDoc.reference_ids ?? {})
+    .filter(([, v]) => v != null && String(v) !== '')
+    .map(([k]) => k)
+  const sampleLabelable = sampleRefs.length >= 2
+  const labelSample = (doc: Record<string, unknown>, label: 0 | 1): boolean => {
     const refs = (doc.reference_ids ?? {}) as Record<string, string>
     const entries = Object.entries(refs).filter(([, v]) => v != null && String(v) !== '')
-    if (entries.length < 2) return
+    if (entries.length < 2) return false
     const [baseSource, baseId] = entries[0]
     for (const [source, id] of entries.slice(1)) {
       void postLabel({ base_source: baseSource, base_id: String(baseId), candidate_source: source, candidate_id: String(id), label })
     }
+    return true
   }
   const reloadAnalysis = () => {
     setBenchKey(k => k + 1)
@@ -361,17 +369,33 @@ export function QualityPage() {
               {sampled && (
                 <div className="space-y-2 text-sm">
                   <div className="rounded-lg border p-2">
-                    <div className="font-medium">{(sampled as { title?: string }).title ?? '(no title)'}</div>
-                    <div className="text-xs text-muted-foreground">score: {(sampled as { score?: number }).score?.toFixed?.() ?? (sampled as { confidence?: number }).confidence ?? '—'}</div>
-                    <div className="text-xs text-muted-foreground">refs: {Object.keys(((sampled as { reference_ids?: Record<string, string> }).reference_ids) ?? {}).join(', ') || 'none'}</div>
+                    <div className="font-medium">{sampleDoc.title ?? '(no title)'}</div>
+                    <div className="text-xs text-muted-foreground">confidence: {sampleDoc.confidence?.toFixed?.(1) ?? sampleDoc.score?.toFixed?.(1) ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground">
+                      refs: {sampleRefs.join(', ') || 'none'}
+                      {!sampleLabelable && ' · single-source, nothing to judge as a pair'}
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" className="flex-1" onClick={() => { setFeed(f => ({ ...f, right: f.right + 1 })); labelSample(sampled, 1); draw(minConf) }}>Looks right</Button>
-                    <Button size="sm" className="flex-1" variant="destructive" onClick={() => { setFeed(f => ({ ...f, wrong: f.wrong + 1 })); labelSample(sampled, 0); draw(minConf) }}>Wrong</Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      disabled={!sampleLabelable}
+                      title={sampleLabelable ? undefined : 'A pair label needs at least two reference sources.'}
+                      onClick={() => { if (labelSample(sampled, 1)) setFeed(f => ({ ...f, right: f.right + 1 })); draw(minConf) }}
+                    >Looks right</Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      variant="destructive"
+                      disabled={!sampleLabelable}
+                      title={sampleLabelable ? undefined : 'A pair label needs at least two reference sources.'}
+                      onClick={() => { if (labelSample(sampled, 0)) setFeed(f => ({ ...f, wrong: f.wrong + 1 })); draw(minConf) }}
+                    >Wrong</Button>
                     <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
                   </div>
                   {(feed.right + feed.wrong) > 0 && (
-                    <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok)</p>
+                    <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok) · pairs written to <code className="rounded bg-muted px-1">_labels</code></p>
                   )}
                 </div>
               )}

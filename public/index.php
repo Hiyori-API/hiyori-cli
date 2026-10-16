@@ -1080,13 +1080,20 @@ if ($path === '/api/alerts') {
 if ($path === '/api/sample') {
     $collection = (string) ($_GET['collection'] ?? 'organized');
     $min = (float) ($_GET['min'] ?? -1);
+    // Merged records carry `confidence` (0-100) — there is no `score` field, so
+    // the old `score` filter matched nothing and "Draw a sample" came back empty
+    // at every min >= 0.
+    $field = (string) ($_GET['field'] ?? 'confidence');
+    if (!in_array($field, ['confidence', 'score', 'ml_score'], true)) {
+        sendJson(['error' => 'field must be one of confidence, score, ml_score'], 400);
+    }
     $pipeline = [];
     if ($min >= 0) {
-        $pipeline[] = ['$match' => ['score' => ['$gte' => $min]]];
+        $pipeline[] = ['$match' => [$field => ['$gte' => $min]]];
     }
     $pipeline[] = ['$sample' => ['size' => 1]];
     $doc = $client->selectDatabase('hiyori')->selectCollection($collection)->aggregate($pipeline)->toArray()[0] ?? null;
-    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null, 'min' => $min]);
+    sendJson(['sample' => $doc ? json_decode(json_encode($doc), true) : null, 'min' => $min, 'field' => $field]);
 }
 
 if ($path === '/api/labels') {
