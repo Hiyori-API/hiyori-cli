@@ -12,6 +12,14 @@ namespace Hiyori\Service;
  */
 final class Telemetry
 {
+    /**
+     * Largest state file `allState()` will inline. The dashboard ships the whole
+     * map in /api/status and on every SSE frame, so a single oversized blob (a
+     * multi-megabyte cache, say) would otherwise turn each poll into tens of
+     * megabytes. Job state is a few KB; anything past this is not job state.
+     */
+    private const MAX_STATE_BYTES = 1_048_576; // 1 MiB
+
     private string $dir;
 
     public function __construct(?string $dir = null)
@@ -119,6 +127,9 @@ final class Telemetry
             return $out;
         }
         foreach (glob($this->dir . '/*.json') ?: [] as $file) {
+            if (@filesize($file) > self::MAX_STATE_BYTES) {
+                continue; // not job state; never inline it into a polled payload
+            }
             $key = basename($file, '.json');
             $out[$key] = $this->read($key);
         }

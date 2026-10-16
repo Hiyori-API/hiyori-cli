@@ -32,7 +32,7 @@ in `src/Service/Ml/EmbeddingService.php` — fully offline and dependency-free.
   `paraphrase-multilingual-MiniLM-L12-v2`, multilingual and small).
 - `ML_EMBED_VERSION` stamps the embedding "version" (default `sidecar-1`);
   bump it when you change preprocessing so cached vectors are invalidated.
-- Vectors are cached in `storage/state/ml-embeddings.json`, keyed by
+- Vectors are cached in `storage/ml/embeddings.json`, keyed by
   `(model, version, sha1(text))`. The cache records the model/version it was
   built with, so switching `ML_MODEL` discards stale vectors instead of mixing
   incompatible embeddings.

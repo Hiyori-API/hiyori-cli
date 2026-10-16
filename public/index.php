@@ -50,6 +50,40 @@ function sendJson(array $payload, int $status = 200): never
     exit;
 }
 
+/**
+ * File-backed TTL cache for expensive derived reads (external health probes,
+ * the coverage matrix). Memoised per request as well, so two consumers in one
+ * request pay for it once. Cached values live under storage/state/ttl/ where
+ * Telemetry::allState() (non-recursive glob) cannot pick them up.
+ */
+function ttlCache(string $name, int $ttlSeconds, callable $produce): array
+{
+    static $memo = [];
+    if (array_key_exists($name, $memo)) {
+        return $memo[$name];
+    }
+
+    $dir = dirname(__DIR__) . '/storage/state/ttl';
+    $file = $dir . '/' . (string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $name) . '.json';
+
+    if (is_file($file) && time() - (int) @filemtime($file) < $ttlSeconds) {
+        $decoded = json_decode((string) @file_get_contents($file), true);
+        if (is_array($decoded)) {
+            return $memo[$name] = $decoded;
+        }
+    }
+
+    $value = $produce();
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0o777, true);
+    }
+    if (false !== @file_put_contents($file . '.tmp', json_encode($value, JSON_UNESCAPED_SLASHES))) {
+        @rename($file . '.tmp', $file);
+    }
+
+    return $memo[$name] = $value;
+}
+
 $token = $_ENV['DASHBOARD_TOKEN'] ?? '';
 if ($token !== '' && ($_GET['token'] ?? '') !== $token && ($_SERVER['HTTP_X_DASHBOARD_TOKEN'] ?? '') !== $token) {
     sendJson(['error' => 'unauthorized'], 403);
@@ -156,23 +190,20 @@ function collectionCounts(MongoClient $client): array
     return $out;
 }
 
-function dbStats(MongoClient $client): array
+function dbStats(MongoClient $client, ?array $counts = null): array
 {
     $db = $client->selectDatabase('hiyori');
     $stats = $db->command(['dbstats' => 1])->toArray()[0] ?? [];
+    // Reuse the caller's counts when it already listed them — this endpoint and
+    // /api/status would otherwise walk every collection twice.
+    $counts ??= collectionCounts($client);
     $out = [
         'dataSize' => (int) ($stats['dataSize'] ?? 0),
         'indexSize' => (int) ($stats['indexSize'] ?? 0),
         'storageSize' => (int) ($stats['storageSize'] ?? 0),
-        'collections' => [],
+        'collections' => $counts,
+        'totalDocuments' => array_sum($counts),
     ];
-    $total = 0;
-    foreach ($db->listCollections() as $col) {
-        $n = $db->selectCollection($col->getName())->countDocuments();
-        $total += $n;
-        $out['collections'][$col->getName()] = $n;
-    }
-    $out['totalDocuments'] = $total;
 
     return $out;
 }
@@ -200,23 +231,75 @@ function controls(string $source): array
     return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
 }
 
-function coverage(MongoClient $client): array
+/**
+ * Per-collection reference coverage.
+ *
+ * @param array<string, int>|null $totals Optional map of collection → doc count
+ *                                        (from collectionCounts()) to avoid
+ *                                        re-counting every collection.
+ */
+function coverage(MongoClient $client, ?array $totals = null): array
 {
     $db = $client->selectDatabase('hiyori');
-    $out = [];
     $shorthands = ['al', 'mal', 'k', 'adb', 'ann', 'b', 'cr', 'fm', 'nf', 'sb', 't', 'ttv', 'tvt', 'tx', 'wpen', 'wpja', 'yt', 'ap'];
+    $totals ??= collectionCounts($client);
+
+    // A doc counts for shorthand <sh> when the *key* is present in its
+    // reference_ids map — what `{reference_ids.<sh>: {$exists: true}}` means.
+    //
+    // Doing that in one pass instead of 22 countDocuments() per collection:
+    // normalise reference_ids to a key/value list, unwind, then count distinct
+    // (doc, key) pairs. The normalisation matters because some ingesters write
+    // `reference_ids: []` (an empty array) rather than `{}` for "no refs", and a
+    // dotted path through an array resolves to [] rather than 'missing', so a
+    // bare $type check would wrongly count every such document.
+    $keyPairs = [
+        '$cond' => [
+            ['$eq' => [['$type' => '$reference_ids'], 'object']],
+            ['$objectToArray' => '$reference_ids'],
+            ['$cond' => [
+                ['$eq' => [['$type' => '$reference_ids'], 'array']],
+                ['$reduce' => [
+                    'input' => '$reference_ids',
+                    'initialValue' => [],
+                    'in' => ['$concatArrays' => ['$$value', ['$cond' => [['$eq' => [['$type' => '$$this'], 'object']], ['$objectToArray' => '$$this'], []]]]],
+                ]],
+                [],
+            ]],
+        ],
+    ];
+    $pipeline = [
+        // $setUnion collapses duplicate keys within a document, so a doc that
+        // lists the same reference twice is still counted once.
+        ['$set' => ['_keys' => ['$setUnion' => [
+            ['$map' => ['input' => $keyPairs, 'as' => 'p', 'in' => '$$p.k']],
+            [],
+        ]]]],
+        ['$unwind' => ['path' => '$_keys', 'preserveNullAndEmptyArrays' => false]],
+        ['$group' => ['_id' => '$_keys', 'n' => ['$sum' => 1]]],
+    ];
+
+    $out = [];
     foreach ($db->listCollections() as $col) {
         $name = $col->getName();
-        $coll = $db->selectCollection($name);
-        $total = $coll->countDocuments();
-        $row = ['total' => $total];
+        $row = ['total' => (int) ($totals[$name] ?? 0)];
         foreach ($shorthands as $sh) {
-            $row[$sh] = $coll->countDocuments(['reference_ids.' . $sh => ['$exists' => true]]);
+            $row[$sh] = 0;
         }
-        // missingness: docs missing the 3 main refs
-        $row['missing_al'] = $coll->countDocuments(['reference_ids.al' => ['$exists' => false]]);
-        $row['missing_mal'] = $coll->countDocuments(['reference_ids.mal' => ['$exists' => false]]);
-        $row['missing_k'] = $coll->countDocuments(['reference_ids.k' => ['$exists' => false]]);
+        try {
+            foreach ($db->selectCollection($name)->aggregate($pipeline) as $r) {
+                $k = (string) $r['_id'];
+                if (array_key_exists($k, $row)) {
+                    $row[$k] = (int) $r['n'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Views and non-document collections report zeros instead of a 500.
+        }
+        // Missingness for the 3 main refs, derived from the same pass.
+        foreach (['al', 'mal', 'k'] as $sh) {
+            $row['missing_' . $sh] = max(0, $row['total'] - $row[$sh]);
+        }
         $out[$name] = $row;
     }
 
@@ -339,10 +422,15 @@ function outageDebounce(Telemetry $telemetry, bool $unreachable): bool
     return $count >= 2 && (time() - (int) ($state['last_failed'] ?? 0)) < 120;
 }
 
-function alerts(HealthCheck $health, Telemetry $telemetry): array
+/**
+ * @param array<string, mixed> $health Result of HealthCheck::check(). Passed in
+ *                                     rather than probed here so /api/status
+ *                                     runs the external health check once.
+ */
+function alerts(array $health, Telemetry $telemetry): array
 {
     $out = [];
-    $h = $health->check();
+    $h = $health;
     $rl = $h['checks']['rate_limiter']['limiters'] ?? [];
     foreach ($rl as $src => $s) {
         if (($s['circuit_state'] ?? 'closed') === 'open') {
@@ -895,7 +983,7 @@ if ($path === '/api/benchmark') {
 }
 
 if ($path === '/api/alerts') {
-    sendJson(['alerts' => alerts($health, $telemetry), 'timestamp' => date('c')]);
+    sendJson(['alerts' => alerts(ttlCache('health', 20, static fn () => $health->check()), $telemetry), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/sample') {
@@ -952,19 +1040,25 @@ if ($path === '/api/status') {
         }
     }
 
+    // The external health probe hits three APIs, so it is TTL-cached: a
+    // fresh-enough view without probing on every 3s/15s poll. Counts and
+    // coverage stay live (one aggregation pass each).
+    $counts = collectionCounts($client);
+    $healthResult = ttlCache('health', 60, static fn () => $health->check());
+
     sendJson([
         'timestamp' => date('c'),
-        'counts' => collectionCounts($client),
-        'db' => dbStats($client),
+        'counts' => $counts,
+        'db' => dbStats($client, $counts),
         'jobs' => $telemetry->allState(),
         'controls' => $controlsMap,
         'backup' => backupInfo(),
         'cache' => $telemetry->read('cache'),
-        'coverage' => coverage($client),
-        'alerts' => alerts($health, $telemetry),
+        'coverage' => coverage($client, $counts),
+        'alerts' => alerts($healthResult, $telemetry),
         'slow' => $telemetry->tail('slow-requests', 30),
         'schedule' => scheduleView($telemetry),
-        'health' => $health->check(),
+        'health' => $healthResult,
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),
     ]);
