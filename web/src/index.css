@@ -175,3 +175,114 @@
   padding-left: 0.5rem !important;
   padding-right: 0.5rem !important;
 }
+
+/* ---------------------------------------------------------------------------
+ * Carbon app shell geometry.
+ *
+ * Carbon's Header/SideNav/Content ship as three sibling regions that Carbon
+ * itself positions with a fixed grid (48px header, 16rem side nav). The
+ * dashboard lays them out itself so the shell can collapse on narrow screens,
+ * so the three numbers Carbon cares about are restated here as the same
+ * custom properties Carbon's own stylesheet reads. Anything that changes Carbon's
+ * geometry must change both, or the regions drift apart.
+ * ------------------------------------------------------------------------- */
+.carbon-shell {
+  --header-height: 3rem;   /* 48px — Carbon's fixed header */
+  --side-nav-width: 16rem; /* 256px — Carbon's fixed side nav */
+}
+
+.carbon-shell > .cds--header {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 8000; /* Carbon's header sits above modals' scrim */
+  height: var(--header-height);
+  /* Carbon's own header paints `var(--cds-background)`, which in g100 is the
+   * same #161616 as the page, so a stock Carbon header is invisible against
+   * its own content area. Carbon's shell-with-side-nav layout uses layer-01 for
+   * the header band, which is what makes the shell read as a shell. */
+  background: var(--card);
+  border-block-end: 1px solid var(--border);
+}
+
+/* The connection chip sits inside a 48px header action, so it is centred in it
+ * and loses its pill border in favour of the action's own hit area. */
+.carbon-shell .cds--header__global .carbon-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  /* Carbon's header action is a fixed 48x48 box; the chip must stay on one
+     line inside it rather than wrapping "live · 3s" onto two. */
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+
+/* Carbon's SideNav draws a 1px inline-start border only when it is a direct
+ * sibling of a fixed header; the brand block above supplies that edge here. */
+.carbon-sidenav {
+  position: fixed;
+  inset-block-start: var(--header-height);
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  width: var(--side-nav-width);
+  max-width: var(--side-nav-width);
+  overflow-y: auto;
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  border-inline-end: 1px solid var(--sidebar-border);
+}
+
+.carbon-sidenav .cds--side-nav__list {
+  padding-block-start: 0;
+}
+
+/* The brand row is not a nav link, so it must not pick up link styling. */
+.carbon-sidenav-brand {
+  list-style: none;
+  border-block-end: 1px solid var(--sidebar-border);
+}
+
+.carbon-content {
+  margin-block-start: var(--header-height);
+  margin-inline-start: var(--side-nav-width);
+  min-height: calc(100vh - var(--header-height));
+  /* Carbon's content region uses the 16px grid gutter, not a 24px page pad. */
+  padding: 0;
+}
+
+/* Carbon draws an outline on every side-nav link in g100 (its `:focus` rule
+ * resolves to a visible ring rather than transparent here), which turns the
+ * whole rail into a stack of boxes. Reset it and put a real focus ring back on
+ * :focus-visible only, so keyboard users still get one. */
+.carbon-sidenav .cds--side-nav__link {
+  outline: none;
+}
+
+.carbon-sidenav .cds--side-nav__link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* Active page: Carbon already tints the selected link; the dashboard adds the
+ * IBM-blue left rail so the current page is identifiable at a glance. */
+.carbon-sidenav .cds--side-nav__link[aria-current='page'] {
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 0 var(--sidebar-primary);
+}
+
+.carbon-sidenav .cds--side-nav__link:hover {
+  background: var(--sidebar-accent);
+  color: var(--foreground);
+}
+
+@media (max-width: 48rem) {
+  .carbon-sidenav {
+    display: none;
+  }
+  .carbon-content {
+    margin-inline-start: 0;
+  }
+}
