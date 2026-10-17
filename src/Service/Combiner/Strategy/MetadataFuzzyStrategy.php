@@ -81,7 +81,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         // pairs a reviewer should check. Written to `pair_rejections`.
         $rejectionBuffer = (bool) ($strategy->getConfig('rejection_buffer') ?? false);
         $rejectionBufferFloor = (float) ($strategy->getConfig('rejection_buffer_floor') ?? $threshold);
-        $rejectionStore = $rejectionBuffer ? RejectionStore::create($db) : null;
+        $rejectionCollection = (string) ($strategy->getConfig('rejection_buffer_collection') ?? RejectionStore::COLLECTION);
+        $rejectionStore = $rejectionBuffer ? RejectionStore::create($db, $rejectionCollection) : null;
         if ($rejectionStore !== null) {
             $rejectionStore->ensureIndexes();
         }

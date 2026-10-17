@@ -175,7 +175,7 @@ final class MlLlmJudgeCommand extends Command
         if (self::$sources === null) {
             self::$sources = [];
             /** @var array<string, array{table: string, shorthand: string}> $configs */
-            $configs = require dirname(__DIR__, 2) . '/Config/Sources.php';
+            $configs = require dirname(__DIR__) . '/Config/Sources.php';
             foreach ($configs as $config) {
                 self::$sources[$config['shorthand']] = $config;
             }
