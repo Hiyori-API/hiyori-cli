@@ -49,13 +49,16 @@
   --chart-3: #f1c21b;
   --chart-4: #8a3ffc;
   --chart-5: #ff832b;
-  --sidebar: #161616;
-  --sidebar-foreground: #f4f4f4;
+  /* Carbon's white shell: the header band is dark, the side nav is light. */
+  --header-bg: #161616;
+  --header-fg: #f4f4f4;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #161616;
   --sidebar-primary: #0f62fe;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #262626;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #393939;
+  --sidebar-accent: #e0e0e0;
+  --sidebar-accent-foreground: #161616;
+  --sidebar-border: #e0e0e0;
   --sidebar-ring: #0f62fe;
 }
 
@@ -86,6 +89,9 @@
   --chart-3: #f1c21b;
   --chart-4: #8a3ffc;
   --chart-5: #ff832b;
+  /* Carbon keeps its header dark in g100 too — only the content layers lift. */
+  --header-bg: #161616;
+  --header-fg: #f4f4f4;
   --sidebar: #161616;
   --sidebar-foreground: #f4f4f4;
   --sidebar-primary: #4589ff;
@@ -199,10 +205,13 @@
   height: var(--header-height);
   /* Carbon's own header paints `var(--cds-background)`, which in g100 is the
    * same #161616 as the page, so a stock Carbon header is invisible against
-   * its own content area. Carbon's shell-with-side-nav layout uses layer-01 for
-   * the header band, which is what makes the shell read as a shell. */
-  background: var(--card);
-  border-block-end: 1px solid var(--border);
+   * its own content area. Carbon's shell keeps a dedicated dark header band in
+   * BOTH themes (that dark bar over light content is the signature Carbon
+   * shell), so the band is driven by its own token pair rather than --card. */
+  background: var(--header-bg);
+  color: var(--header-fg);
+  border-block-end: 1px solid var(--header-fg);
+  border-block-end-color: color-mix(in oklab, var(--header-fg) 20%, transparent);
 }
 
 /* The connection chip sits inside a 48px header action, so it is centred in it
