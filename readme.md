@@ -16,6 +16,7 @@ Hiyori CLI builds and maintains [HiyoriDB](https://github.com/Hiyori-API/HiyoriD
 - **Multi-source ingestion** — MyAnimeList (Official API v2), AniList and Kitsu, for both **anime** and **manga** collections, with per-source rate limiting, circuit breakers and resume support.
 - **Schema normalization** — source-specific values (statuses, types, seasons) are mapped onto the shared [Hiyori Schema](#hiyori-schema) via enums.
 - **Relational mapping** — known source cross-references are parsed into `reference_ids` (`mal`, `al`, `k`, …); supported references are resolved to per-source IDs.
+- **IBM Carbon design system** — `@carbon/react` v11: Carbon `Header`/`SideNav` shell, `Button`, `Tag`, `TextInput`, `Checkbox`, `Accordion`, `Tooltip`; IBM Plex Sans/Mono, `cds--g100` dark and Carbon's white light theme, sharp corners, Carbon's blue-first categorical chart ramp. See `docs/dashboard-roadmap.md` → **IBM Carbon migration**.
 - **Combiner with 7 strategies** — `relational_mapping`, `relational_fuzzy`, **`metadata_fuzzy`** (default, weightage-tuned), `graph_merge`, `fellegi_sunter`, `semantic_rerank` (local embeddings) and `metadata_ml` (trained logistic second-stage scorer).
 - **Live dashboard** — a React + shadcn/ui SPA (PHP `php -S` backend) with dedicated **Explorer, Management, Quality & Analysis, Logs and Settings** pages, realtime SSE, PWA caching and an **Environment manager**.
 - **Backups & restore** — `mongodump`/`mongorestore` based, scriptable and dashboard-triggered.
