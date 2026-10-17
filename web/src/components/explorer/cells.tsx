@@ -271,7 +271,7 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
           <span className="mr-1 hidden max-w-[80px] truncate text-[10px] text-muted-foreground sm:inline">
             {refs.slice(0, 3).map(([sh]) => sh).join('·') || 'no refs'}
           </span>
-          <Button size="icon-xs" variant="ghost" title={fav ? 'Unpin' : 'Pin row'} aria-label={fav ? 'Unpin row' : 'Pin row'} onClick={e => { e.stopPropagation(); ctx.onToggleFav(id) }}>
+          <Button size="icon-xs" variant="ghost" title={fav ? 'Unpin' : 'Pin row'} aria-label={fav ? 'Unpin row' : 'Pin row'} onClick={(e: React.MouseEvent) => { e.stopPropagation(); ctx.onToggleFav(id) }}>
             <Pin className={`h-3 w-3 ${fav ? 'text-primary' : 'text-muted-foreground'}`} />
           </Button>
           <DropdownMenu>
