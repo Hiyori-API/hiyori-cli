@@ -1,0 +1,1 @@
+var e=[`#4589ff`,`#00bcd4`,`#009d9a`,`#8a3ffc`,`#d12771`,`#da1e28`,`#ff832b`,`#f1c21b`,`#42be65`,`#8d8d8d`],t={blue:`#4589ff`,cyan:`#00bcd4`,teal:`#009d9a`,purple:`#8a3ffc`,magenta:`#d12771`,red:`#da1e28`,orange:`#ff832b`,yellow:`#f1c21b`,green:`#42be65`,gray:`#8d8d8d`};export{e as n,t};
