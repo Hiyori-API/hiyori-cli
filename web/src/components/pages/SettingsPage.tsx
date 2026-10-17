@@ -87,7 +87,9 @@ export function SettingsPage() {
 
   const toggleTheme = () => {
     const next = dark ? 'light' : 'dark'
-    document.documentElement.classList.toggle('dark', next === 'dark')
+    // The `useSettings` effect owns applying the theme from the preference, so
+    // this only has to persist the choice; applying it here as well would
+    // reintroduce a second path that can drift from the Carbon class.
     setPref({ theme: next })
   }
   const toggleWidget = (id: string) => {

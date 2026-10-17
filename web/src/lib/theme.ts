@@ -1,24 +1,19 @@
-import { useEffect, useState } from 'react'
-
-export function useTheme() {
-  const [dark, setDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('hiyori-theme')
-    return saved ? saved === 'dark' : true
-  })
-
-  useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', dark)
-    // Carbon's precompiled stylesheet keys its themes off the `cds--g100`
-    // CLASS on <html> — `data-carbon-theme` is only honoured by the Sass build,
-    // which this app does not use. `cds--g100` is Carbon's signature dark
-    // (gray 100 = #161616); without it Carbon components stay on the light
-    // theme, which is how disabled icon colours were resolving to
-    // rgba(22,22,22,0.25) — light-theme black at 25% — on a dark surface.
-    // Driving it from the same toggle keeps `.dark` and Carbon in lockstep.
-    root.classList.toggle('cds--g100', dark)
-    localStorage.setItem('hiyori-theme', dark ? 'dark' : 'light')
-  }, [dark])
-
-  return { dark, toggle: () => setDark(d => !d) }
+/**
+ * The single place the document theme is applied.
+ *
+ * Two class families have to move together or the app renders half-themed:
+ * `dark` drives the Tailwind token layer, and `cds--g100` drives Carbon's own
+ * components (Carbon's precompiled stylesheet keys its themes off that class).
+ *
+ * This is one exported function on purpose. It previously existed alongside a
+ * `useTheme` hook that nothing imported and a second copy of the toggle logic
+ * inside the Settings page; those two copies drifted, and Settings removed
+ * `dark` without removing `cds--g100`, leaving Carbon dark while the rest of
+ * the page went light. There is now one function and one caller
+ * (`useSettings`, which owns the server-side preference).
+ */
+export function applyTheme(dark: boolean): void {
+  const root = document.documentElement
+  root.classList.toggle('dark', dark)
+  root.classList.toggle('cds--g100', dark)
 }
