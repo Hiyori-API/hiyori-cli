@@ -722,10 +722,10 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [x] Venv + pinned `requirements.txt` (`services/ml/requirements.txt`) + smoke test (documented in `services/ml/README.md`)
 
 ### 4.3 LLM-as-judge
-- [ ] OpenAI/Anthropic judge for ambiguous band (70–85), JSON-schema output
-- [ ] Invoke directly from PHP (Option B) with per-run cap + budget guard
-- [ ] `llm_judgements` cache keyed by pair hash
-- [ ] Telemetry for token/cost spend (`llm_tokens`, `llm_cost_usd`)
+- [x] OpenAI/Anthropic judge for ambiguous band (70–85), JSON-schema output — `LlmJudge` sends a compact `{title,synonyms,type,episodes,status,year,season,tags_canonical,source}` pair and parses strict JSON `{match,confidence,reason}` (markdown fences tolerated).
+- [x] Invoke directly from PHP (Option B) with per-run cap + budget guard — `LLM_MAX_PAIRS_PER_RUN` (2000) + `LLM_BUDGET_USD` (5.00), both hard guards; cache hits are consulted *before* the guards so re-runs are free.
+- [x] `llm_judgements` cache keyed by pair hash — `sha256(json_encode([a,b,model,prompt_version]))`; the model is part of the key so switching models cannot serve stale verdicts.
+- [x] Telemetry for token/cost spend (`llm_tokens`, `llm_cost_usd`) — `ml:llm-judge` writes `llm-latest` + appends `llm-judge` with tokens, estimated cost, judged and skipped counts. **Activation still needs `LLM_API_KEY`** (no key = every call is a no-op, the pipeline is unchanged).
 
 ### 4.4 Decision model / classifier
 - [x] Human-in-the-loop label capture (`_labels`; dashboard sampler agree/disagree → `POST /api/labels`; `labels` CLI; `ml:export-pairs` prefers human labels)
