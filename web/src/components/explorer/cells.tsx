@@ -17,7 +17,7 @@ import type { ExploreRow } from '@/lib/api'
 import type { DataTableFeatures } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/ui/tooltip'
 import {
   brandOf, describeField, externalUrl, isImageUrl, isMissing, linkUrl, longestImage,
   refsOf, sourceCollection, stringId, titleOf, type Brand,
@@ -183,9 +183,8 @@ function FieldHeader({ f }: { f: string }) {
   const desc = describeField(f)
   if (!desc) return <span>{f}</span>
   return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="cursor-help underline decoration-dotted underline-offset-2">{f}</span>} />
-      <TooltipContent>{desc}</TooltipContent>
+    <Tooltip label={desc}>
+      <span className="cursor-help underline decoration-dotted underline-offset-2">{f}</span>
     </Tooltip>
   )
 }
