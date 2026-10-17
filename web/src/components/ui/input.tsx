@@ -56,14 +56,10 @@ function Input({
       invalid={invalid}
       invalidText={invalid && invalidText ? invalidText : undefined}
       helperText={!invalid && helperText ? helperText : undefined}
-      className={cn(
-        "[&_input]:h-8 [&_input]:min-h-8 [&_input]:px-3 [&_input]:text-sm",
-        "[&_.cds--text-input__field-wrapper]:h-8",
-        "[&_.cds--text-input__wrapper]:w-full",
-        // A bare field with no label must not reserve Carbon's label gutter.
-        "[&_.cds--label]:hidden",
-        className,
-      )}
+      // Height/padding/label-gutter overrides live in index.css under
+      // `.carbon-input` — Tailwind v4 mis-escapes `__` inside arbitrary
+      // variants, so they cannot be expressed as utilities here.
+      className={cn("carbon-input", className)}
       {...passthrough}
     />
   )

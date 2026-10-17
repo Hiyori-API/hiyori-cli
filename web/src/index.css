@@ -295,3 +295,71 @@
     margin-inline-start: 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Carbon component overrides.
+ *
+ * These live in plain CSS rather than Tailwind arbitrary variants on purpose.
+ * Tailwind v4 reads `__` inside an arbitrary variant as its descendant escape,
+ * so `[&_.cds--accordion__title]` compiles to `.cds--accordion title` — a
+ * descendant *element* named `title`, not Carbon's BEM class. Every
+ * `[&_.cds--xxx__yyy]` override was silently dead. Written as plain selectors
+ * scoped to a hook class of our own, they work and they win: this file is
+ * unlayered, while Carbon's stylesheet sits in @layer carbon.
+ * ------------------------------------------------------------------------- */
+
+/* Carbon sizes its accordion trigger for a 48px row and draws a bordered
+   expando button; these panels are dense and use the Carbon header treatment. */
+/* Carbon resolves --cds-focus to a *visible* ring in g100 and applies it to
+   these elements unconditionally, so the unfocused heading draws a blue box.
+   Reset, and put a real ring back on keyboard focus only. */
+.carbon-accordion .cds--accordion__heading,
+.carbon-accordion .cds--accordion__arrow { outline: none; }
+
+.carbon-accordion .cds--accordion__heading:focus-visible,
+.carbon-accordion .cds--accordion__arrow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.carbon-accordion .cds--accordion__heading { margin: 0; }
+.carbon-accordion .cds--accordion__item { border: 0; background: transparent; }
+.carbon-accordion .cds--accordion__trigger {
+  min-height: 0;
+  padding: 0.75rem 1rem;
+  background: transparent;
+}
+.carbon-accordion .cds--accordion__trigger:hover { background: color-mix(in oklab, var(--muted) 40%, transparent); }
+/* Carbon's expando is a bordered button; the dashboard wants a bare chevron. */
+.carbon-accordion .cds--accordion__arrow {
+  border: 0;
+  background: transparent;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline-start: 0.75rem;
+}
+.carbon-accordion .cds--accordion__title {
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.0625em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.carbon-accordion .cds--accordion__content { padding: 0 1rem 1rem; }
+
+/* Carbon's TextInput is a 40px labelled field; the dashboard runs 32px bare
+   fields with no label gutter. */
+.carbon-input .cds--text-input__wrapper { width: 100%; }
+.carbon-input .cds--text-input__field-wrapper { height: 2rem; }
+.carbon-input .cds--text-input input {
+  height: 2rem;
+  min-height: 2rem;
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+}
+.carbon-input .cds--label { display: none; }
+
+/* Checkboxes sit inside table cells that already carry an accessible name, so
+   Carbon's own label slot is not wanted. */
+.carbon-checkbox .cds--checkbox-label { display: none; }
