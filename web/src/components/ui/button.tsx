@@ -79,8 +79,10 @@ function Button({
       size="sm"
       hasIconOnly={iconOnly}
       className={cn(
-        // Carbon's 2px focus ring and sharp corners come from the component;
-        // these keep the dense sizing and let the icon sit at the old size.
+        // Carbon buttons carry a min-width (icon buttons should be square but
+        // Carbon sizes them like text buttons), and Carbon's own height wins on
+        // its size scale. min-w-0 + the explicit height pin both come from here.
+        "min-w-0",
         SIZE_CLASS[size],
         "max-w-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
         "[&_svg:not([class*='size-'])]:size-3.5",

@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
-import { COLORS } from '../charts'
+import { CARBON, COLORS } from '../charts'
 import { isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
@@ -107,8 +107,8 @@ export function DashboardPage() {
   const h = data?.health
   const health = h?.checks
   const gauges = [
-    { key: 'disk', label: 'Disk', value: health?.disk_space?.used_percent ?? 0, color: '#ff8f6b' },
-    { key: 'mem', label: 'Memory', value: health?.memory?.used_percent ?? 0, color: '#e8b64c' },
+    { key: 'disk', label: 'Disk', value: health?.disk_space?.used_percent ?? 0, color: CARBON.orange },
+    { key: 'mem', label: 'Memory', value: health?.memory?.used_percent ?? 0, color: CARBON.yellow },
     { key: 'mongo', label: 'MongoDB', value: health?.mongodb?.healthy === false ? 0 : health?.mongodb?.latency_ms != null ? Math.min(100, Math.max(10, 100 - health.mongodb.latency_ms / 10)) : 0, color: '#3fd06a' },
   ]
   const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})

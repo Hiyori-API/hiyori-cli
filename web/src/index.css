@@ -1,4 +1,15 @@
-@import "@carbon/styles/css/styles.css";
+/*
+ * Carbon and Tailwind both need to style the same elements (Carbon renders the
+ * real <button>/<input>, Tailwind lays out the page around them).
+ *
+ * Unlayered CSS beats layered CSS in the cascade regardless of specificity, so
+ * importing Carbon's stylesheet normally means Carbon silently wins on every
+ * shared property — that is why a `h-7` override on a Carbon button did
+ * nothing. Declaring the layer order puts Carbon first and Tailwind's
+ * utilities last, so our overrides win where we intend them to.
+ */
+@layer carbon, theme, base, components, utilities;
+@import "@carbon/styles/css/styles.css" layer(carbon);
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
