@@ -84,6 +84,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `weightage <s1> <s2>` | Calculate ideal metadata-fuzzy weights between two sources |
 | `ml:export-pairs` | Export labelled candidate pairs (JSONL) for ML training / benchmarking |
 | `ml:train` | Train the `metadata_ml` logistic-regression scorer from exported pairs |
+| `ml:llm-judge` | Adjudicate pending rejection-buffer pairs with an LLM for the ambiguous 70-85 band (`LLM_API_KEY`-gated; cached in `llm_judgements`) |
 | `labels` | Add / inspect human pair labels (agree/disagree) that override the organized ground truth |
 | `rejections` | Work the rejection buffer — review turned-down pairs (approve/reject/unsure) and promote decided ones into training labels |
 | `combine:benchmark` / `bench` | Offline precision/recall/F1 sweep of `metadata_fuzzy` vs `metadata_ml` from labelled pairs |
@@ -335,6 +336,10 @@ php hiyori rejections promote
 # Export labelled candidate pairs for ML (human labels win over the organized collection).
 # --holdout writes a deterministic, group-safe -train/-holdout pair of files:
 php hiyori ml:export-pairs --base myanimelist [--limit 500] [--negatives 3] [--sample random|first] [--holdout 30]
+
+# Adjudicate pending rejection-buffer pairs with the LLM (env-gated; no-op without LLM_API_KEY).
+# Only the ambiguous band is sent; results are cached in llm_judgements so re-runs are free.
+php hiyori ml:llm-judge [--limit N] [--dry-run] [--json]
 
 # Train the metadata_ml scorer from the newest exported pairs file
 php hiyori ml:train [--in storage/ml/pairs-*.jsonl] [--epochs 400] [--threshold 0.5]
