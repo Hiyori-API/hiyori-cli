@@ -752,7 +752,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 
 ### 4.7 Validation
 - [~] Offline A/B benchmark vs `metadata_fuzzy` (coverage, F1, duplicate keys = 0) — holdout F1 done (+0.107 over fuzzy); duplicate-key gate shipped as `php hiyori combine:dupes` and runs in `.github/workflows/publish.yml` after `combine`. **Correction:** the earlier "all collisions are stale legacy docs" reading was wrong — the `references` array-vs-document shape is a serialization artefact of `array_unique()` (gaps), not a schema generation, so it never distinguished old from new data. A clean rebuild reproduced the *same* `mal` collisions. Root cause and fix in the 2026-10-15 entry below.
-- [ ] Idempotency/content-hash regression test for re-runs
+- [x] Idempotency/content-hash regression test for re-runs — `CombinerPassthroughFlowTest::testRerunningTheSameCombineIsIdempotent` runs the same combine twice over unchanged inputs and asserts the documents (references, title, confidence, hiyori_id) are identical; the test also asserts the run really merged and really kept the unmatched entry, so the comparison cannot pass trivially over two empty outputs.
 - [~] Cost + latency documentation + shipping gate (F1 ≥ baseline +2 pts) — gate is configurable: `combine:benchmark --margin 2 --strict` exits non-zero unless `metadata_ml` beats `metadata_fuzzy` by ≥2 F1 points. Re-run on the fixed scorer 2026-10-16: **+1.2 pts, gate not met** — the earlier `+10.7 pts` compared `metadata_ml`'s best F1 against `metadata_fuzzy` at its default threshold (see the release-gate entry below). Cost/latency write-up still pending
 
 
