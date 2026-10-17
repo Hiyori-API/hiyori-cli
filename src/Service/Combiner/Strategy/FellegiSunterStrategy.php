@@ -7,6 +7,7 @@ namespace Hiyori\Service\Combiner\Strategy;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
+use Hiyori\Service\Ml\FellegiSunterCalibration;
 use Hiyori\Service\SourceConfigurationFactory;
 use Hiyori\Service\StrategyConfigurationFactory;
 use Hiyori\Service\Telemetry;
@@ -55,15 +56,42 @@ final class FellegiSunterStrategy extends CombinerStrategy
         'tags' => 0.45,
     ];
 
+    /**
+     * Agreement cutoff recorded alongside a calibration, if any, else 0.85.
+     *
+     * @param array{m: array<string, float>, u: array<string, float>, agreement_cutoff: float}|null $calibrated
+     */
+    private static function defaultCutoff(?array $calibrated): float
+    {
+        return $calibrated !== null ? $calibrated['agreement_cutoff'] : 0.85;
+    }
+
     public static function process(
         Database $db,
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source,
     ): void {
-        $m = self::normalizeProbabilities($strategy->getConfig('m') ?? self::DEFAULT_M, self::DEFAULT_M);
-        $u = self::normalizeProbabilities($strategy->getConfig('u') ?? self::DEFAULT_U, self::DEFAULT_U);
-        $cutoff = min(1.0, max(0.5, (float) ($strategy->getConfig('agreement_cutoff') ?? 0.85)));
+        // Calibrated m/u (from `combine:fs-calibrate`) take precedence over the
+        // hand-set defaults; an explicit `m`/`u` in the config still wins.
+        $calibrated = null;
+        $muFile = $strategy->getConfig('mu_file');
+        if (is_string($muFile) && $muFile !== '') {
+            $path = str_starts_with($muFile, '/') ? $muFile : \dirname(__DIR__, 3) . '/' . ltrim($muFile, '/');
+            $calibrated = FellegiSunterCalibration::load($path);
+            if ($calibrated === null) {
+                fwrite(\STDERR, "[fellegi_sunter] mu_file not loadable, using defaults: {$muFile}\n");
+            }
+        }
+        $m = self::normalizeProbabilities(
+            $strategy->getConfig('m') ?? $calibrated['m'] ?? self::DEFAULT_M,
+            self::DEFAULT_M,
+        );
+        $u = self::normalizeProbabilities(
+            $strategy->getConfig('u') ?? $calibrated['u'] ?? self::DEFAULT_U,
+            self::DEFAULT_U,
+        );
+        $cutoff = min(1.0, max(0.5, (float) ($strategy->getConfig('agreement_cutoff') ?? self::defaultCutoff($calibrated))));
         $threshold = (float) ($strategy->getConfig('threshold') ?? 60.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
@@ -174,6 +202,12 @@ final class FellegiSunterStrategy extends CombinerStrategy
             'documents' => $mergedDocs + $totalPassthrough,
             'threshold' => $threshold,
             'agreement_cutoff' => $cutoff,
+            // Provenance: a run must record whether it scored with the shipped
+            // defaults or with a fitted calibration, or its numbers are not
+            // comparable to another run's.
+            'mu_source' => $calibrated !== null ? 'calibrated' : 'defaults',
+            'm' => $m,
+            'u' => $u,
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
             'anchor_rejection' => $anchorRejection,

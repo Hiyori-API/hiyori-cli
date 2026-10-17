@@ -764,7 +764,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [ ] Weight recalibration pass: 600+ labeled pairs (anime + manga), store `storage/state/weightage-*.json`, gate on precision/recall thresholds
 - [x] Telemetry upgrade: `rejected_anchor`, `candidates_examined`, per-source counts, `combine-events.jsonl`, `combine-benchmark.jsonl` (additive only)
 - [x] Graph connected-components strategy + unit tests (transitive cluster expansion, link/merge thresholds, cluster telemetry)
-- [x] Fellegi–Sunter probabilistic strategy (configurable m/u; score + registration tests); m/u calibration from benchmark pairs still pending
+- [x] Fellegi–Sunter probabilistic strategy (configurable m/u; score + registration tests); **m/u calibration shipped** — `combine:fs-calibrate` fits P(agree | match) and P(agree | no match) per field from labelled pairs using the strategy's own `agreement_cutoff`, with Laplace smoothing and an m>u clamp, writing `storage/state/fellegi-sunter-calibration.json` (consumed via `mu_file`). Telemetry records `mu_source` so a calibrated run is never mistaken for a defaults run. Fitted on the 2026-10-16 export: title m=0.96/u=0.0015 (far stronger than the hand-set u=0.02), but type u=0.66 and status u=0.88 — those two are much weaker discriminators than the defaults assumed.
 - [x] Semantic re-rank strategy aligned to `docs/ml-augmentation-design.md` (embeddings interface; LLM tie-break/`ml_*` fields still pending)
 - [x] Registration + CLI help for new strategies in `StrategyConfigurationFactory::AVAILABLE_STRATEGIES` (opt-in; default unchanged)
 - [x] Label capture via `/api/sample` agree/disagree for precision/recall tracking (`_labels` + `labels` CLI + `/api/labels`)
