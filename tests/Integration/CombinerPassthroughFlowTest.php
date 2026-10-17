@@ -33,6 +33,8 @@ final class CombinerPassthroughFlowTest extends TestCase
 
     private const OUT = 'combiner_passthrough_out_test';
 
+    private const REJECTIONS = 'pair_rejections_combiner_test';
+
     private static Client $client;
 
     private static Database $db;
@@ -58,7 +60,7 @@ final class CombinerPassthroughFlowTest extends TestCase
 
     public static function tearDownAfterClass(): void
     {
-        foreach ([self::BASE, self::CANDIDATE, self::OUT] as $name) {
+        foreach ([self::BASE, self::CANDIDATE, self::OUT, self::REJECTIONS] as $name) {
             self::$client->hiyori->selectCollection($name)->drop();
         }
 
@@ -169,6 +171,61 @@ final class CombinerPassthroughFlowTest extends TestCase
      * A factory holding only the two synthetic sources, so the strategy never
      * reads a real source collection.
      */
+    /**
+     * `combine --rejection-buffer` writes borderline title-floor rejections to
+     * `pair_rejections`: a candidate whose metadata matches perfectly (so the
+     * weighted score clears the threshold) but whose title is unrelated, which
+     * the title floor vetoes. Those are the pairs a reviewer most needs, and
+     * with no store passed nothing is written.
+     */
+    public function testRejectionBufferCapturesBorderlineTitleFloorRejections(): void
+    {
+        self::$client->hiyori->selectCollection(self::BASE)->drop();
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->drop();
+        self::$client->hiyori->selectCollection(self::OUT)->drop();
+        self::$client->hiyori->selectCollection(self::REJECTIONS)->drop();
+
+        // Same metadata, unrelated titles -> title floor vetoes, metadata score
+        // is ~72 (well above the 70 buffer floor).
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->insertOne(
+            self::entry('900200', 'Totally Unrelated Borderline Title', ['reference_ids' => ['k' => '900200']]),
+        );
+        self::$client->hiyori->selectCollection(self::BASE)->insertOne(
+            self::entry('900201', 'A Completely Different Show', ['reference_ids' => ['al' => '900201']]),
+        );
+
+        MetadataFuzzyStrategy::process(
+            self::$db,
+            ConsoleFactory::create(),
+            StrategyConfigurationFactory::create()
+                ->setStrategy(MetadataFuzzyStrategy::NAME)
+                ->setConfig([
+                    'collection' => self::OUT,
+                    'rejection_buffer' => true,
+                    'rejection_buffer_floor' => 70.0,
+                    'rejection_buffer_collection' => self::REJECTIONS,
+                ]),
+            self::sourceFactory(),
+        );
+
+        $rejections = self::$client->hiyori->selectCollection(self::REJECTIONS)
+            ->find([], ['typeMap' => ['root' => 'array', 'document' => 'array']])
+            ->toArray();
+
+        $this->assertCount(1, $rejections, 'one buffered borderline rejection');
+        $this->assertSame('reject', $rejections[0]['decision']);
+        $this->assertSame('combiner', $rejections[0]['source']);
+        $this->assertSame('al', $rejections[0]['base_source']);
+        $this->assertSame('900201', $rejections[0]['base_id']);
+        $this->assertSame('k', $rejections[0]['candidate_source']);
+        $this->assertSame('900200', $rejections[0]['candidate_id']);
+        $this->assertGreaterThanOrEqual(70.0, (float) $rejections[0]['score']);
+
+        // The buffered pair must not have been merged.
+        $out = self::$client->hiyori->selectCollection(self::OUT)->countDocuments();
+        $this->assertSame(0, $out, 'a title-floor rejection is still not a merge');
+    }
+
     private static function sourceFactory(): SourceConfigurationFactory
     {
         $factory = SourceConfigurationFactory::create();
