@@ -91,6 +91,7 @@ The tool runs as `./hiyori`, `php hiyori` or `php src/run.php`.
 | `combine:dupes` / `dupes` | Detect duplicate reference keys in combined collections (release gate: `mal`/`al` must stay unique) |
 | `combine:dedupe` / `dedupe` | Resolve duplicate identity keys in place (release-gate unblocker; keeps the key on its base-corroborated owner, never deletes documents) |
 | `combine:consensus` / `consensus` | Rank every strategy against one shared pair sample: F1 vs consensus, vs `organized`, and vs human labels |
+| `combine:fs-calibrate` | Fit Fellegi-Sunter `m`/`u` probabilities from labelled pairs; the strategy reads the saved file via `--config '{"mu_file":"..."}'` |
 | `references` | Return all unique reference IDs from the combined DB |
 | `export` | Export data from sources or combined DB (profiles: per-entry-json, bulk-jsonl, tables-csv) |
 | `backup` | Back up the database with `mongodump` |

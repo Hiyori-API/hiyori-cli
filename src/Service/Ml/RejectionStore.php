@@ -133,8 +133,11 @@ final class RejectionStore
         if ($decision !== null && $decision !== '') {
             $filter['decision'] = $decision;
         }
+        // `created_at` has millisecond resolution, so several buffered pairs can
+        // share a timestamp; `_id` (monotonic within a process) breaks the tie so
+        // "newest first" is deterministic rather than whatever the sort lands on.
         $cursor = $this->collection()->find($filter, [
-            'sort' => ['created_at' => -1],
+            'sort' => ['created_at' => -1, '_id' => -1],
             'limit' => max(1, min(500, $limit)),
             'typeMap' => ['root' => 'array', 'document' => 'array'],
         ]);
@@ -212,7 +215,7 @@ final class RejectionStore
             $filter['decision'] = $decision;
         }
         $options = [
-            'sort' => ['created_at' => 1],
+            'sort' => ['created_at' => 1, '_id' => 1],
             'typeMap' => ['root' => 'array', 'document' => 'array'],
         ];
         if ($limit !== null && $limit > 0) {

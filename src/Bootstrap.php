@@ -119,6 +119,7 @@ $app->addCommands([
     new \Hiyori\Commands\CombineDupesCommand($hiyori),
     new \Hiyori\Commands\CombineDedupeCommand($hiyori),
     new \Hiyori\Commands\CombineConsensusCommand($hiyori),
+    new \Hiyori\Commands\CombineFsCalibrateCommand(),
     new \Hiyori\Commands\RejectionsCommand($hiyori),
     new \Hiyori\Commands\MlLlmJudgeCommand($hiyori),
 ]);
