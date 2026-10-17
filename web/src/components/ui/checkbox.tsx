@@ -53,7 +53,9 @@ function Checkbox({
         const next = data as { checked?: boolean; indeterminate?: boolean } | undefined
         onCheckedChange?.(Boolean(next?.checked) && !next?.indeterminate)
       }}
-      className={cn("[&_.cds--checkbox-label]:hidden", className)}
+      // See .carbon-checkbox in index.css: Carbon's label slot is hidden there,
+      // because Tailwind v4 mis-escapes `__` inside arbitrary variants.
+      className={cn("carbon-checkbox", className)}
       {...props}
     />
   )
