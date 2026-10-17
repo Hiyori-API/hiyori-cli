@@ -226,6 +226,74 @@ final class CombinerPassthroughFlowTest extends TestCase
         $this->assertSame(0, $out, 'a title-floor rejection is still not a merge');
     }
 
+    /**
+     * Idempotency / content-hash regression: re-running the same combine over
+     * unchanged inputs must reproduce the same documents — same merges, same
+     * scores, same single-source records. A rebuild that is *not* idempotent is
+     * what silently churns the id registry and flips merge decisions between
+     * runs, so this pins the "same inputs -> same output" contract.
+     */
+    public function testRerunningTheSameCombineIsIdempotent(): void
+    {
+        self::$client->hiyori->selectCollection(self::BASE)->drop();
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->drop();
+        self::$client->hiyori->selectCollection(self::OUT)->drop();
+
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->insertMany([
+            self::entry('900300', 'Idempotent Match One', ['reference_ids' => ['k' => '900300']]),
+            self::entry('900301', 'Idempotent Match Two', ['reference_ids' => ['k' => '900301']]),
+        ]);
+        self::$client->hiyori->selectCollection(self::BASE)->insertMany([
+            self::entry('900302', 'Idempotent Match One'),
+            self::entry('900303', 'Idempotent Match Two'),
+            self::entry('900304', 'Idempotent Lonely One'),
+        ]);
+
+        $run = function (): array {
+            self::$client->hiyori->selectCollection(self::OUT)->drop();
+            MetadataFuzzyStrategy::process(
+                self::$db,
+                ConsoleFactory::create(),
+                StrategyConfigurationFactory::create()
+                    ->setStrategy(MetadataFuzzyStrategy::NAME)
+                    ->setConfig(['collection' => self::OUT, 'passthrough' => true]),
+                self::sourceFactory(),
+            );
+
+            $docs = self::$client->hiyori->selectCollection(self::OUT)
+                ->find([], ['typeMap' => ['root' => 'array', 'document' => 'array']])
+                ->toArray();
+
+            // Sort by base reference so the comparison does not depend on order.
+            $snapshot = [];
+            foreach ($docs as $doc) {
+                $base = (string) ($doc['reference_ids']['al'] ?? $doc['reference_ids']['k'] ?? '');
+                $snapshot[$base] = [
+                    'references' => array_map('strval', $doc['reference_ids'] ?? []),
+                    'title' => (string) ($doc['title'] ?? ''),
+                    'confidence' => isset($doc['confidence']) ? round((float) $doc['confidence'], 6) : null,
+                    'hiyori_id' => $doc['hiyori_id'] ?? null,
+                ];
+            }
+            ksort($snapshot);
+
+            return $snapshot;
+        };
+
+        $first = $run();
+        $second = $run();
+
+        $this->assertCount(3, $first, 'one document per base entry on both runs');
+        $this->assertSame($first, $second, 're-running the combine must reproduce the same documents');
+
+        // Sanity: the run really merged and really kept the unmatched entry, so
+        // the comparison above is not trivially true over two empty outputs.
+        $this->assertSame(['k' => '900300', 'al' => '900302'], $first['900302']['references']);
+        $this->assertNotNull($first['900302']['confidence']);
+        $this->assertSame(['al' => '900304'], $first['900304']['references']);
+        $this->assertNull($first['900304']['confidence']);
+    }
+
     private static function sourceFactory(): SourceConfigurationFactory
     {
         $factory = SourceConfigurationFactory::create();
