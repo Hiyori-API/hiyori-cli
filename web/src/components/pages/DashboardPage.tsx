@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ColumnDef } from '@tanstack/react-table'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import {
-  Activity, Database, Gauge, Hash, Layers, Loader2,
-  Play, Pause, RotateCcw, Timer,
+  Activity, Archive, Clock, Database, Download, Gauge, Hash, Layers, Loader2,
+  Play, Pause, RotateCcw, Terminal, Timer,
 } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from 'cn'
-import { fmt, fmtSec } from '@/lib/format'
+import { ago, fmt, fmtSec, mb } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip as Tip, TooltipContent as TipContent, TooltipProvider as TipProvider, TooltipTrigger as TipTrigger } from '@/components/ui/tooltip'
@@ -18,8 +18,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { Sparkline, useChartColors } from '../charts'
-import { isIngestJob, isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
+import { fetchBackups, isIngestJob, isJobLive, jobPhase, postAction, restoreBackup, runBackup, type BackupItem, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
+import { hiddenWidgets } from '@/lib/widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { MergeQualityPanel } from '../merge-quality'
@@ -56,12 +57,66 @@ function cx(n?: number | null): string {
 
 export function DashboardPage() {
   const { settings } = useSettings()
-  const widgets = settings.prefs?.widgets
-  const visible = (id: string) => !widgets || widgets.includes(id)
+  // Opt-out visibility: a widget added after this preference was saved shows by
+  // default. See lib/widgets.ts for the migration from the old opt-in list.
+  const hidden = hiddenWidgets(settings.prefs ?? {})
+  const visible = (id: string) => !hidden.includes(id)
   const hiddenCollections = settings.prefs?.hiddenCollections ?? []
   const { data, error, intervalMs, realtime } = useStatus()
   const startedAt = useRef(Date.now())
 
+  // Scheduler (read-only config + "run now") and backups, moved off the removed
+  // Ingest page. The scheduler config is read from status/settings; the only
+  // write here is the run-now trigger.
+  const sched = data?.schedule
+  const schedCfg = settings.schedule as { sources?: string; interval_hours?: number; enabled?: boolean } | undefined
+  const scheduleSources = sched?.sources ?? schedCfg?.sources ?? '—'
+  const intervalH = sched?.interval_hours ?? schedCfg?.interval_hours
+  const scheduleEnabled = schedCfg?.enabled
+  const [runnowBusy, setRunnowBusy] = useState(false)
+  const runNow = async () => {
+    setRunnowBusy(true)
+    try {
+      const res = await postAction('schedule', 'runnow')
+      if (res.error) throw new Error(res.error)
+      toast.success('all sources triggered')
+    } catch (e) {
+      toast.error(`could not trigger all sources — ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setRunnowBusy(false)
+    }
+  }
+
+  const [backups, setBackups] = useState<BackupItem[]>([])
+  const [backupsLoading, setBackupsLoading] = useState(true)
+  const [restorePick, setRestorePick] = useState<string | null>(null)
+  const loadBackups = useCallback(
+    () => fetchBackups()
+      .then(r => setBackups(r.backups ?? []))
+      .catch(() => setBackups([]))
+      .finally(() => setBackupsLoading(false)),
+    [],
+  )
+  useEffect(() => { void loadBackups() }, [loadBackups])
+  const doBackup = async () => {
+    await runBackup()
+    toast('backup started')
+    window.setTimeout(() => void loadBackups(), 2000)
+  }
+  const doRestore = async () => {
+    if (!restorePick) return
+    try {
+      const r = await restoreBackup(restorePick)
+      if (r.error) toast.error(r.error)
+      else { toast.success(`restore of ${restorePick} started`); setRestorePick(null) }
+    } catch (e) {
+      toast.error(`restore failed — ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  const lastBackup = useMemo(
+    () => backups.reduce<BackupItem | undefined>((acc, b) => ((b.mtime ?? 0) > (acc?.mtime ?? 0) ? b : acc), undefined),
+    [backups],
+  )
 
   const counts = data?.counts ?? {}
   const jobs = data?.jobs ?? {}
@@ -196,6 +251,19 @@ export function DashboardPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!restorePick} onOpenChange={o => { if (!o) setRestorePick(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restore {restorePick}?</DialogTitle>
+            <DialogDescription>This drops the current hiyori database and replaces it with the backup archive. Proceed with care.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setRestorePick(null)}>Cancel</Button>
+            <Button size="sm" variant="destructive" onClick={() => void doRestore()}>Restore</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <PageHead
         title="Dashboard"
         desc="Live telemetry — one view for the whole pipeline."
@@ -253,18 +321,72 @@ export function DashboardPage() {
 
           {visible('fleet') && (
             <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>} collapsible={false}>
-              {jobKeys.length === 0 ? (
-                <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source from Ingest to see live progress, speed and ETA." />
-              ) : (
-                <SourcesTable
-                  jobs={jobs}
-                  health={data?.health}
-                  controls={data?.controls ?? {}}
-                  onPause={src => setPause(src, true)}
-                  onResume={src => setPause(src, false)}
-                  onRetry={src => setConfirmRetry(src)}
-                />
-              )}
+              <div className="space-y-3">
+                {jobKeys.length === 0 ? (
+                  <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source to see live progress, speed and ETA." />
+                ) : (
+                  <SourcesTable
+                    jobs={jobs}
+                    health={data?.health}
+                    controls={data?.controls ?? {}}
+                    onPause={src => setPause(src, true)}
+                    onResume={src => setPause(src, false)}
+                    onRetry={src => setConfirmRetry(src)}
+                  />
+                )}
+                {/* Scheduler — read-only config plus the "run now" trigger, moved
+                    off the removed Ingest page. Managed via
+                    `hiyori schedule --install` / SCHEDULE_* env. */}
+                <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
+                  <div className="col-span-full text-xs text-muted-foreground">Scheduler</div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Sources</span>
+                    <span className="truncate font-medium">{scheduleSources}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Interval</span>
+                    <span className="font-medium">{intervalH != null ? `${intervalH}h` : '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Enabled</span>
+                    <span className="font-medium">{scheduleEnabled == null ? '—' : scheduleEnabled ? 'yes' : 'no'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span className="text-muted-foreground">Next run</span>
+                    <span className="font-medium">{sched?.next_in != null ? `in ${Math.round(sched.next_in / 60)}m` : '—'}</span>
+                  </div>
+                  <p className="col-span-full text-[10px] text-muted-foreground">Managed via <code>hiyori schedule --install</code> or SCHEDULE_* env vars — edit there, not here.</p>
+                  <Button size="sm" variant="outline" className="col-span-full" disabled={runnowBusy} onClick={() => void runNow()}>
+                    {runnowBusy
+                      ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      : <Terminal className="mr-1.5 h-3.5 w-3.5" />}
+                    {runnowBusy ? 'Triggering…' : 'Run now'}
+                  </Button>
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {visible('backups') && (
+            <Section title="Backups" icon={Archive}>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => void doBackup()}><Archive className="mr-1.5 h-3.5 w-3.5" />Backup now</Button>
+                  <span className="text-xs text-muted-foreground">
+                    {lastBackup?.file
+                      ? <>Last backup: <span className="font-medium">{lastBackup.file}</span> <span className="tabular-nums">({ago(lastBackup.mtime)})</span></>
+                      : 'No backups yet.'}
+                  </span>
+                </div>
+                {backupsLoading ? (
+                  <Skeleton className="h-16 w-full" />
+                ) : backups.length === 0 ? (
+                  <EmptyState icon={Archive} title="No backups yet" description="Run one to protect the dataset." />
+                ) : (
+                  <BackupsTable backups={backups} onRestore={setRestorePick} />
+                )}
+              </div>
             </Section>
           )}
 
@@ -332,7 +454,7 @@ export function DashboardPage() {
             )}
           </div>
 
-          {!visible('dataset') && !visible('fleet') && !visible('kpi') && !visible('health') && (
+          {!visible('dataset') && !visible('fleet') && !visible('kpi') && !visible('health') && !visible('backups') && (
             <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Dashboard widgets." />
           )}
         </>
@@ -745,5 +867,59 @@ function rowTooltip(r: SourceRow): string {
     parts.push(`done ~ ${doneAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
   }
   return parts.join(' · ')
+}
+
+const backupHelper = createColumnHelper<DataTableFeatures, BackupItem>()
+
+function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore: (file: string | null) => void }) {
+  const columns = useMemo<ColumnDef<DataTableFeatures, BackupItem, any>[]>(() => [
+    backupHelper.accessor('file', {
+      id: 'file',
+      header: 'Archive',
+      meta: { truncate: true },
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.file}</span>,
+    }),
+    backupHelper.accessor(r => r.size ?? 0, {
+      id: 'size',
+      header: 'Size',
+      sortFn: 'basic',
+      meta: { align: 'right' },
+      cell: ({ row }) => <span className="tabular-nums">{mb(row.original.size)}</span>,
+    }),
+    backupHelper.accessor(r => r.mtime ?? 0, {
+      id: 'mtime',
+      header: 'Modified',
+      sortFn: 'basic',
+      cell: ({ row }) => <span className="text-muted-foreground">{ago(row.original.mtime)}</span>,
+    }),
+    backupHelper.display({
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row }) => {
+        const file = row.original.file
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <a href={`/storage/backups/${file}`} download={file} aria-label={`Download ${file}`} title={`Download ${file}`} className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
+            <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw className="h-3.5 w-3.5" /></Button>
+          </div>
+        )
+      },
+    }),
+  ], [onRestore])
+
+  return (
+    <DataTable<BackupItem>
+      columns={columns}
+      data={backups}
+      getRowId={(b, i) => b.file ?? `backup-${i}`}
+      initialPageSize={10}
+      pageSizeOptions={[5, 10, 25]}
+      maxHeight="16rem"
+      ariaLabel="Backups"
+      footerLeft={`${backups.length} backups`}
+    />
+  )
 }
 

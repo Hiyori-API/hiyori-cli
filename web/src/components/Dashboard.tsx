@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Activity, Database, LayoutDashboard, Loader2, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
+import { Activity, Database, LayoutDashboard, Loader2, Settings as SettingsIcon } from 'lucide-react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
@@ -14,10 +14,9 @@ import { isIngestJob, isJobLive, type Job } from '@/lib/api'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
-const ManagementPage = lazy(() => import('./pages/ManagementPage').then(m => ({ default: m.ManagementPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
-type View = 'dashboard' | 'explorer' | 'management' | 'settings'
+type View = 'dashboard' | 'explorer' | 'settings'
 
 interface NavItem {
   id: View
@@ -27,20 +26,19 @@ interface NavItem {
 }
 
 /**
- * Flat navigation.
+ * Flat navigation, Settings first.
  *
  * Pipeline stage grouping was useful when seven surfaces competed for attention.
- * With Merge quality, Logs and Publish removed there are four, so the headings
- * became more chrome than structure — a single list is easier to scan at this
- * size. Settings stays pinned in the footer.
+ * With Merge quality, Logs, Publish and Ingest removed there are three, so the
+ * headings became more chrome than structure — a single list is easier to scan
+ * at this size. Settings leads the list because the ingest surface it used to
+ * sit beside is gone: its remaining controls are preferences, not a landing page.
  */
 const NAV: NavItem[] = [
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
-  { id: 'management', label: 'Ingest', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups' },
   { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
 ]
-
-const SETTINGS_ITEM: NavItem = { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' }
 
 function PipelineChipDivider() {
   return <span aria-hidden="true" className="h-4 w-px bg-border" />
@@ -196,13 +194,13 @@ function StatusChip() {
 export function Dashboard() {
   useAppliedPreferences()
   const [view, setView] = useState<View>('dashboard')
-  const nav = [...NAV, SETTINGS_ITEM].find(n => n.id === view) ?? NAV[0]
+  const nav = NAV.find(n => n.id === view) ?? NAV[0]
 
   // Cross-page navigation (e.g. Settings → "Open Publish page") without a router.
   useEffect(() => {
     const onNavigate = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail
-      if ([...NAV, SETTINGS_ITEM].some(n => n.id === detail)) setView(detail as View)
+      if (NAV.some(n => n.id === detail)) setView(detail as View)
     }
     window.addEventListener('hiyori:navigate', onNavigate)
     return () => window.removeEventListener('hiyori:navigate', onNavigate)
@@ -249,14 +247,6 @@ export function Dashboard() {
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton isActive={view === 'settings'} onClick={() => setView('settings')} tooltip="Settings">
-                  <SettingsIcon />
-                  <span>Settings</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
             <div className="px-3 pb-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">hiyori-cli · v2 dashboard</div>
           </SidebarFooter>
           <SidebarRail />
@@ -282,8 +272,7 @@ export function Dashboard() {
             <Suspense fallback={<PageFallback />}>
               {view === 'dashboard' && <DashboardPage />}
               {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
-              {view === 'management' && <ManagementPage />}
-                    {view === 'settings' && <SettingsPage />}
+              {view === 'settings' && <SettingsPage />}
             </Suspense>
           </section>
         </SidebarInset>

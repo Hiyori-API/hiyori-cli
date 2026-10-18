@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, Clock, Copy, Database, Download, KeyRound, LayoutDashboard, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, X } from 'lucide-react'
+import { Check, Clock, Copy, Database, Download, Gauge, KeyRound, LayoutDashboard, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
@@ -9,22 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import {
-  EXPORT_PROFILES, fetchExportConfig, fetchMeta, fetchSettings, postSettings, saveExportConfig,
+  EXPORT_PROFILES, fetchExportConfig, fetchLimits, fetchMeta, fetchSettings, postLimits, postSettings, saveExportConfig,
   type ExportConfig, type UiSettings,
 } from '@/lib/api'
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
+import { useStatus } from '@/lib/status-context'
 import { fmtCompact } from '@/lib/format'
 import { EmptyState } from '../empty'
 import { Notice } from '../notice'
+import { hiddenWidgets, toggleWidgetId, WIDGETS } from '@/lib/widgets'
 import { PageHead, Section } from '../widgets'
 import { EnvSettings } from './settings-env'
 
-export const WIDGETS: Array<[string, string]> = [
-  ['kpi', 'KPI row'],
-  ['fleet', 'Sources fleet'],
-  ['dataset', 'Dataset donut'],
-  ['health', 'Merge quality'],
-]
+export { WIDGETS } from '@/lib/widgets'
 
 /** Compact choice chip / swatch used across the Interface card (S1). */
 function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
@@ -65,12 +62,39 @@ export function SettingsPage() {
   const [refreshLocal, setRefreshLocal] = useState<number>(prefs.refresh ?? 3000)
   const setPre = (k: string, v: unknown) => void update({ prefs: { ...prefs, [k]: v } })
   const persistRefresh = useDebouncedCallback((v: number) => setPre('refresh', v), 400)
-  const widgets = prefs.widgets
+  const hiddenWidgetIds = hiddenWidgets(prefs)
   const dark = prefs.theme !== 'light'
   const density = prefs.density ?? 'compact'
   const tz = prefs.tz ?? 'local'
   const realtime = prefs.realtime !== false
   const hidden = prefs.hiddenCollections ?? []
+
+  // Rate limiter (moved from the removed Ingest page): live circuit state comes
+  // from status health; the overrides are persisted server-side via /api/limits.
+  const { data: status } = useStatus()
+  const circuit = Object.entries(status?.health?.checks?.rate_limiter?.limiters ?? {})
+  const [limits, setLimits] = useState<{ max?: number; window?: number; source?: string }>({})
+  const [max, setMax] = useState(100)
+  const [win, setWin] = useState(60)
+  useEffect(() => {
+    void fetchLimits()
+      .then(r => {
+        setLimits(r.limits ?? {})
+        setMax(r.limits?.max ?? 100)
+        setWin(r.limits?.window ?? 60)
+      })
+      .catch(() => { /* keep defaults until the endpoint answers */ })
+  }, [])
+  const saveLimits = async () => {
+    try {
+      await postLimits({ max, window: win })
+      toast.success('limits saved — applied on next ingest start')
+      const r = await fetchLimits()
+      setLimits(r.limits ?? {})
+    } catch (e) {
+      toast.error(`limits not saved — ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 
   const setPref = (patch: object) => void update({ prefs: { ...prefs, ...patch } })
 
@@ -84,8 +108,7 @@ export function SettingsPage() {
     setPref({ theme: next })
   }
   const toggleWidget = (id: string) => {
-    const cur = widgets ?? WIDGETS.map(w => w[0])
-    setPref({ widgets: cur.includes(id) ? cur.filter(w => w !== id) : [...cur, id] })
+    setPref({ hiddenWidgets: toggleWidgetId(prefs, id) })
   }
   const toggleCol = (c: string) => {
     setPref({ hiddenCollections: hidden.includes(c) ? hidden.filter(x => x !== c) : [...hidden, c] })
@@ -223,7 +246,7 @@ export function SettingsPage() {
           <div className="grid grid-cols-2 gap-2">
             {WIDGETS.map(([id, label]) => (
               <label key={id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch aria-label={`Toggle ${id} widget`} checked={!widgets || widgets.includes(id)} onCheckedChange={() => toggleWidget(id)} />
+                <Switch aria-label={`Toggle ${id} widget`} checked={!hiddenWidgetIds.includes(id)} onCheckedChange={() => toggleWidget(id)} />
                 <span>{label}</span>
               </label>
             ))}
@@ -243,6 +266,35 @@ export function SettingsPage() {
           </div>
         </Section>
       </div>
+
+      <Section title="Rate limiter" icon={Gauge}>
+        <div className="space-y-3 text-sm">
+          {circuit.length === 0 && <p className="text-xs text-muted-foreground">No limiter state reported yet (needs an ingestion run).</p>}
+          {circuit.map(([src, s]) => (
+            <div key={src} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+              <Badge variant={s.circuit_state === 'open' ? 'destructive' : 'secondary'}>{s.circuit_state === 'open' ? 'OPEN' : 'closed'}</Badge>
+              <span className="flex-1 text-xs">{src}</span>
+              <span className="text-right text-xs tabular-nums text-muted-foreground">{s.tokens_available ?? 0}/{s.max_tokens ?? 0} tokens</span>
+            </div>
+          ))}
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium text-muted-foreground">Overrides</p>
+            <p className="mb-2 text-[10px] text-muted-foreground">Applied to ingest processes on start.</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="rate-max" className="text-[10px] text-muted-foreground">Max requests</label>
+                <Input id="rate-max" type="number" value={max} onChange={e => setMax(Number(e.target.value))} className="h-8 w-24 text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="rate-window" className="text-[10px] text-muted-foreground">Window (s)</label>
+                <Input id="rate-window" type="number" value={win} onChange={e => setWin(Number(e.target.value))} className="h-8 w-24 text-xs" />
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void saveLimits()}>Save</Button>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">current: {limits.max ?? '—'} req / {limits.window ?? '—'}s{limits.source ? ` · ${limits.source}` : ''}</p>
+          </div>
+        </div>
+      </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title="Access & integration" icon={KeyRound}>
