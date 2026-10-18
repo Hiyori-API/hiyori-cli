@@ -91,6 +91,30 @@
   html {
     @apply font-sans;
   }
+
+  /* Tailwind v4's preflight sets `cursor: default` on buttons (v3 used
+     `pointer`), so every button in the app — including every icon action —
+     showed an arrow cursor and read as non-interactive. Restore the
+     affordance once, for anything that is genuinely clickable, rather than
+     adding a utility at each call site. */
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  label[for],
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='range']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Disabled controls state it rather than implying a click. The Button
+   * component also sets pointer-events-none, so this is belt-and-braces for
+   * anything that opts out of that. */
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
 }
 
 @theme inline {
