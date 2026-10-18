@@ -4,7 +4,7 @@ import {
   Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
-import { Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from 'cn'
 import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
@@ -22,6 +22,7 @@ import { isIngestJob, isJobLive, jobPhase, postAction, type BackupInfo, type Com
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
+import { ReferenceCoveragePanel } from '../coverage'
 import { EmptyState } from '../empty'
 
 
@@ -267,6 +268,8 @@ export function DashboardPage() {
             </Section>
           )}
 
+          <ReferenceCoveragePanel coverage={data?.coverage ?? {}} />
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {visible('dataset') && (
               <Section title="Dataset" icon={Database} collapsible={false} className="flex flex-col">
@@ -323,7 +326,7 @@ export function DashboardPage() {
             )}
 
             {visible('health') && (
-              <MergeCard combine={data?.combine} backup={data?.backup} coverage={data?.coverage ?? {}} />
+              <MergeCard combine={data?.combine} backup={data?.backup} />
             )}
           </div>
 
@@ -757,12 +760,10 @@ function rowTooltip(r: SourceRow): string {
  * The score histogram is the useful part — an average hides the problem, since
  * a run can average 96 while a fifth of its merges sit near the floor.
  */
-function MergeCard({ combine, backup, coverage }: {
+function MergeCard({ combine, backup }: {
   combine: CombineStats | undefined
   backup: BackupInfo | undefined
-  coverage: Record<string, Record<string, number | undefined>>
 }) {
-  const COLORS = useChartColors()
   if (!combine) {
     return (
       <Section title="Merge" icon={GitMerge} collapsible={false}>
@@ -772,36 +773,19 @@ function MergeCard({ combine, backup, coverage }: {
   }
 
 
-  /**
-   * Completeness of the merged output, as a radar.
-   *
-   * The Merge card showed only confidence — how sure the matcher was about the
-   * pairs it merged. That says nothing about whether the merged records are
-   * actually *rich*: a record can be merged at 99 confidence and still carry a
-   * single reference id. Plotting the two merged collections against the same
-   * axes makes the real state visible at a glance: anime is well covered,
-   * manga is merged but barely enriched.
-   */
-  const mergeRadar = useMemo(() => {
-    const cov = coverage ?? {}
-    const axes = ['al', 'mal', 'k', 'cr', 'tx', 't', 'nf', 'yt']
-    const series = [
-      { key: 'anime', row: 'organized' as const },
-      { key: 'manga', row: 'organized_manga' as const },
-    ].filter(sr => (cov[sr.row]?.total ?? 0) > 0)
-
-    const rows = axes.map(ax => {
-      const row: Record<string, string | number> = { ref: ax }
-      for (const sr of series) {
-        const total = cov[sr.row]?.total ?? 0
-        row[sr.key] = total > 0 ? Math.round(((cov[sr.row]?.[ax] ?? 0) / total) * 100) : 0
-      }
-      return row
-    })
-    // Drop axes nothing carries, so the shape is not padded with dead spokes.
-    const used = rows.filter(r => series.some(sr => Number(r[sr.key]) > 0))
-    return { rows: used.length >= 3 ? used : [], series: series.map(sr => sr.key) }
-  }, [coverage])
+  const bins = useMemo(() => {
+    const segments = [
+      { key: 'p70_80', label: '70–80', color: 'var(--chart-3)', count: Number(combine?.score_histogram?.p70_80 ?? 0) },
+      { key: 'p80_90', label: '80–90', color: 'var(--chart-1)', count: Number(combine?.score_histogram?.p80_90 ?? 0) },
+      { key: 'p90_100', label: '90–100', color: 'var(--chart-6)', count: Number(combine?.score_histogram?.p90_100 ?? 0) },
+    ]
+    const total = segments.reduce((a, b) => a + b.count, 0)
+    return {
+      segments,
+      total,
+      label: `Match confidence: ${segments.map(s => `${s.label} ${s.count} pairs`).join('; ')}`,
+    }
+  }, [combine])
 
   return (
     <Section title="Merge" icon={GitMerge} collapsible={false} className="flex flex-col">
@@ -815,31 +799,22 @@ function MergeCard({ combine, backup, coverage }: {
           </span>
         </div>
 
-        {/* Completeness of the merged output, not just the matcher's certainty.
-            A record can merge at 99 confidence and still carry one reference. */}
-        {mergeRadar.rows.length > 0 && (
-          <div className="mt-2 h-36">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={mergeRadar.rows} cx="50%" cy="50%" outerRadius="72%">
-                <PolarGrid stroke="var(--border)" />
-                <PolarAngleAxis dataKey="ref" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} />
-                <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v) => [`${v}%`]}
-                />
-                {mergeRadar.series.map((key, i) => (
-                  <Radar
-                    key={key}
-                    name={key}
-                    dataKey={key}
-                    stroke={COLORS[i % COLORS.length]}
-                    fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.22}
-                  />
-                ))}
-              </RadarChart>
-            </ResponsiveContainer>
+        {/* How sure the matcher was about the pairs it merged. Completeness of
+            the output lives in the Reference coverage panel above. */}
+        {bins.total > 0 && (
+          <div className="mt-3">
+            <div
+              className="flex h-2 w-full overflow-hidden rounded-sm"
+              role="img"
+              aria-label={bins.label}
+            >
+              {bins.segments.map(seg => seg.count > 0 && (
+                <span key={seg.key} style={{ width: `${(seg.count / bins.total) * 100}%`, background: seg.color }} />
+              ))}
+            </div>
+            <p className="mt-1.5 truncate text-[10px] tabular-nums text-muted-foreground">
+              {bins.segments.map(seg => `${seg.label} ${cx(seg.count)}`).join('  ·  ')}
+            </p>
           </div>
         )}
 

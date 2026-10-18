@@ -221,7 +221,6 @@ function EnvTable({ rows, title, editing, setEditing, editVal, setEditVal, revea
       <div className="overflow-hidden rounded-lg border">
         {rows.map((v, i) => {
           const isEdit = editing === v.key
-          const showVal = revealed.has(v.key) || !v.sensitive
           return (
             <div key={v.key} className={`flex items-center gap-2 px-3 py-2 text-sm ${i > 0 ? 'border-t' : ''}`}>
               <span className="w-52 truncate font-mono text-xs">{v.key}</span>
@@ -229,7 +228,12 @@ function EnvTable({ rows, title, editing, setEditing, editVal, setEditVal, revea
                 <Input value={editVal} onChange={e => setEditVal(e.target.value)} className="h-8 flex-1 font-mono text-xs" autoFocus />
               ) : (
                 <span className="flex-1 truncate font-mono text-xs text-muted-foreground">
-                  {v.value && v.value !== '' ? (v.sensitive && !showVal ? v.masked : v.value) : <em className="text-[10px]">empty</em>}
+                  {/* The list endpoint deliberately returns `value: null` and puts
+                      the displayable form in `masked` — for non-sensitive keys that
+                      is the real value ("prod", "mongodb://…"), for sensitive ones it
+                      is the redacted form. Reading only `value` made every variable
+                      render as "empty", including ones that were definitely set. */}
+                  {(v.value ?? v.masked) ? (v.value ?? v.masked) : <em className="text-[10px]">not set</em>}
                 </span>
               )}
               {v.sensitive && (
