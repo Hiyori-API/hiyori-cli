@@ -49,7 +49,10 @@ jobs:
         run: composer cs
 
       - name: Static Analysis (PHPStan)
-        run: composer lint
+        # Run PHPStan against phpstan.neon rather than `composer lint`, whose
+        # `analyse src` argument overrides the configured paths and would skip
+        # the front controller in public/.
+        run: ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
       - name: Run Unit Tests
         run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Unit --no-coverage
@@ -70,6 +73,36 @@ jobs:
         with:
           name: coverage-report
           path: coverage/
+
+  web:
+    # The served dashboard bundle (web/dist) is committed, so a broken React tree
+    # can ship without any PHP test noticing. Typecheck, lint and build it.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
 
   lint:
     runs-on: ubuntu-latest
