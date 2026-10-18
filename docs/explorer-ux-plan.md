@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > **Status:** the Explorer page shipped (React + TanStack DataTable) with the
-> Dashboard v2 restructure; the backend wave (`/api/explore*`, `/api/histogram`,
+> The dashboard restructure; the backend wave (`/api/explore*`, `/api/histogram`,
 > `/api/meta`, facets, ranges, bulk/undo/import) is complete — see
 > [dashboard-roadmap.md](dashboard-roadmap.md) → “Explorer backend wave”.
 > This file keeps the original UX checklist; unchecked items below are

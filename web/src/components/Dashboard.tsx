@@ -254,7 +254,7 @@ export function Dashboard() {
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
-            <div className="px-3 pb-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">hiyori-cli · v2 dashboard</div>
+            <div className="px-3 pb-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">hiyori-cli · dashboard</div>
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>

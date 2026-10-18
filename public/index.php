@@ -493,7 +493,7 @@ function readBenchmarkLog(string $file): array
 
 function benchmarkData(Telemetry $telemetry): array
 {
-    $file = dirname(__DIR__) . '/storage/logs/strategy-benchmark-v2.log';
+    $file = dirname(__DIR__) . '/storage/logs/strategy-benchmark-anime.log';
 
     // Only rows a benchmark run actually wrote are returned. This used to merge
     // a hardcoded seed table over the log, which fabricated `merges` for every
@@ -1556,7 +1556,7 @@ if ($path === '/api/events') {
     exit;
 }
 
-// ===== Dashboard v2 endpoints =====
+// ===== Dashboard endpoints =====
 /**
  * Whether a combine started from the dashboard is still running.
  *

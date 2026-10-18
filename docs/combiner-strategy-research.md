@@ -13,7 +13,7 @@ The combiner currently offers three strategies:
 2. `relational_fuzzy` — first-hop reference-ID overlap between entries, again no metadata scoring.
 3. `metadata_fuzzy` — cross-source weighted metadata similarity (default; benchmark winner).
 
-`metadata_fuzzy` carries the production load because it has tunable weights (`title`, `type`, `episodes`, `status`, `season`, `year`, `tags`, `synonyms`) and a single threshold (default `70`). It already emits per-merge `confidence` and a telemetry histogram, which makes it the natural substrate for v2.
+`metadata_fuzzy` carries the production load because it has tunable weights (`title`, `type`, `episodes`, `status`, `season`, `year`, `tags`, `synonyms`) and a single threshold (default `70`). It already emits per-merge `confidence` and a telemetry histogram, which makes it the natural substrate for the ML layer.
 
 The principal research findings:
 
@@ -129,7 +129,7 @@ Characteristics:
 - `update(string $key, array $data)` — merges into `storage/state/<key>.json` and stamps `updated_at`.
 - `append()`/`tail()` available for event streams, not currently used by strategies.
 
-The ML design (`docs/ml-augmentation-design.md`) already defines the intended v2 storage convention: keep `confidence` untouched and add `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_reason`, `ml_decided_at`.
+The ML design (`docs/ml-augmentation-design.md`) already defines the intended storage convention: keep `confidence` untouched and add `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_reason`, `ml_decided_at`.
 
 ---
 
@@ -706,9 +706,9 @@ public const AVAILABLE_STRATEGIES = [
     RelationalMappingStrategy::class,
     RelationalFuzzyStrategy::class,
     MetadataFuzzyStrategy::class,
-    \Hiyori\Service\Combiner\Strategy\GraphComponentsStrategy::class,      // v2, optional
-    \Hiyori\Service\Combiner\Strategy\FellegiSunterStrategy::class,      // v2, experimental
-    \Hiyori\Service\Combiner\Strategy\SemanticRerankStrategy::class,     // v2, design-only initially
+    \Hiyori\Service\Combiner\Strategy\GraphComponentsStrategy::class,      // planned, optional
+    \Hiyori\Service\Combiner\Strategy\FellegiSunterStrategy::class,      // planned, experimental
+    \Hiyori\Service\Combiner\Strategy\SemanticRerankStrategy::class,     // design-only initially
 ];
 ```
 

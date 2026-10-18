@@ -5,7 +5,7 @@
 | **dashboard-roadmap.md** (this file) | **Living tracker** | Feature progress for the dashboard, explorer, combiner and manga work, plus engineering notes |
 | [explorer-ux-plan.md](explorer-ux-plan.md) | Plan — largely shipped | Explorer UX overhaul + TanStack DataTable checklist |
 | [live-dashboard-plan.md](live-dashboard-plan.md) | **Shipped — superseded** | Original live-dashboard plan; folded into this roadmap and the readme's [Live dashboard](../readme.md#live-dashboard) section |
-| [ml-augmentation-design.md](ml-augmentation-design.md) | Design — not implemented | v2 (Embeddings + LLM) combine-decision augmentation; tracked as **Batch 4** |
+| [ml-augmentation-design.md](ml-augmentation-design.md) | Design — not implemented | Embeddings + LLM combine-decision augmentation; tracked as **Batch 4** |
 
 ---
 
@@ -63,7 +63,7 @@ Selected items (43) with status. Built = committed.
 - [x] **Hiyori IDs** — migration v3, global sequence, `_hiyori_ids` registry, unique index, `hiyori-id` CLI (report/verify/backfill)
 - [x] **Per-entry JSON dump** — `data/<kind>/<hiyori_id>-<slug>.json` + `manifest.json` (sha256 + content_hash), `index/lookup.json`, `data/*.jsonl`, `data/tables/*.csv`, `CHANGELOG.md`, `schema/hiyori.schema.json`, bundle `.tar.gz`
 - [x] **Merged references** — single `references` object per source with `{id, url?}`; no separate `links` map; `legacy_id` removed
-- [x] **Schema-v2 toggles** — `tags`, `genres`, `synopsis`, `score`, `studios` as opt-in (off by default)
+- [x] **Rich-field toggles** — `tags`, `genres`, `synopsis`, `score`, `studios` as opt-in (off by default)
 - [x] **Export profiles** — `per-entry-json` (default) / `bulk-jsonl` / `tables-csv`; configurable via `hiyori.export.json` + dashboard overrides
 - [x] **Publish CLI** — `php hiyori publish` / `php hiyori db:push`; dry-run, profile selection, `--repo`, `--branch`, `--no-manga`, `--no-gzip`
 - [x] **Publish Dashboard page** — config form (profile/entities/filename/fields/include), live preview, dry-run, run export (409-aware), guarded CLI-copy publish button
@@ -108,7 +108,7 @@ below. What shipped, including where it diverged from the plan:
 - **Auth** — optional `DASHBOARD_TOKEN` (`?token=` or `X-Dashboard-Token`
   header), local-only bind by default (`127.0.0.1`).
 
-## Dashboard v2 — One Dashboard + dedicated pages (2026-10)
+## Dashboard — One Dashboard + dedicated pages (2026-10)
 
 > [!NOTE]
 > **Historical.** This describes the seven-page layout as it was built. It was
@@ -217,7 +217,7 @@ php hiyori combine anilist_manga --strategy metadata_fuzzy --into organized_mang
 bash benchmark-manga.sh
 ```
 
-`benchmark-manga.sh` mirrors `benchmark-v2.sh`: for each strategy it clears
+`benchmark-manga.sh` mirrors `benchmark-anime.sh`: for each strategy it clears
 `organized_manga`, runs `combine anilist_manga --into organized_manga`, then measures
 wall time + `organized_manga` stats (total, has al_manga/mal_manga/k_manga,
 triple-linked, duplicate `al_manga` keys). The **final** strategy result
@@ -232,7 +232,7 @@ triple-linked, duplicate `al_manga` keys). The **final** strategy result
   pre-existing behavior, unchanged here).
 - `metadata_fuzzy` manga merges start from the ~3.1k reference-bearing base rows.
 
-## Benchmark v2 results (anime, base anilist)
+## Benchmark results (anime, base anilist)
 
 | strategy | wall | organized | has MAL | has Kitsu | triple | dups |
 |---|---|---|---|---|---|---|
@@ -703,7 +703,7 @@ the acceptance checks that need a real remote.
 - [ ] `HiyoriDB` `master` no longer contains `data/<kind>/*.json` after migration, but still hosts `schema/` + `.hiyori-release/latest.json`
 
 
-## Batch 4 — ML / Augmentation (v2 Embeddings + LLM)
+## Batch 4 — ML / Augmentation (Embeddings + LLM)
 
 Reference design: [ml-augmentation-design.md](ml-augmentation-design.md). **Level-0 (local, free)** is shipped:
 `EmbeddingService`, `SemanticRerankStrategy`, and the optional `services/ml/embed.py` sidecar.
@@ -736,7 +736,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 ### 4.4 Decision model / classifier
 - [x] Human-in-the-loop label capture (`_labels`; dashboard sampler agree/disagree → `POST /api/labels`; `labels` CLI; `ml:export-pairs` prefers human labels)
 - [ ] LLM bootstrap of training labels
-- [x] Train logistic regression (v2.0, pure PHP `ml:train`) / XGBoost (v2.1, pending) on feature JSONL
+- [x] Train logistic regression (pure PHP `ml:train`) / XGBoost (pending) on feature JSONL
 - [ ] Calibration (isotonic/Platt) so `ml_score` maps to 0–100 threshold
 - [ ] DBSCAN title-clustering helper (optional, behind flag)
 - [ ] Clef/JEB-style external scoring harness over the same feature JSONL
@@ -762,7 +762,7 @@ classifier with XGBoost + migration v4 (Level-2) remain design only.
 - [~] Cost + latency documentation + shipping gate (F1 ≥ baseline +2 pts) — gate is configurable: `combine:benchmark --margin 2 --strict` exits non-zero unless `metadata_ml` beats `metadata_fuzzy` by ≥2 F1 points. Re-run on the fixed scorer 2026-10-16: **+1.2 pts, gate not met** — the earlier `+10.7 pts` compared `metadata_ml`'s best F1 against `metadata_fuzzy` at its default threshold (see the release-gate entry below). Cost/latency write-up still pending
 
 
-## Batch 4 — Combiner v2 (research/design, 2026-10-15)
+## Batch 4 — Combiner additions (research/design, 2026-10-15)
 
 - [x] Research doc delivered: `docs/combiner-strategy-research.md` (baseline, failure modes, tuning grids 65/70/75/80, candidate improvements, three proposed strategies, scaffolds, rollout)
 - [x] Baseline benchmark harness: `ml:export-pairs` gold-pair sampling + `combine:benchmark` threshold sweep (precision/recall/F1 at 60/65/70/75/80/85/90) with a `metadata_ml` vs `metadata_fuzzy` F1 gate report

@@ -1,4 +1,4 @@
-# Hiyori CLI — ML Augmentation Design (v2: Embeddings + LLM)
+# Hiyori CLI — ML Augmentation Design (Embeddings + LLM)
 
 **Status:** Level-0 (local, free) implemented: `EmbeddingService` + `SemanticRerankStrategy` + `services/ml/embed.py`. **Level-0 embeddings hardened:** `ML_MODEL`/`ML_EMBED_VERSION` config, a model/version-namespaced vector cache, pinned `services/ml/requirements.txt` and a documented smoke test. **Level-0.5 implemented:** `ml:export-pairs` (labelled JSONL ground truth), `ml:train` (pure-PHP logistic regression), `FeatureExtractor`/`LogisticModel`, and the `metadata_ml` combine strategy (anchor rejection + ML second stage, `ml_*` fields on merges). Levels 1–2 (LLM judge, calibrated/XGBoost classifier, migration v4) remain design only. Tracked in `docs/dashboard-roadmap.md` → **Batch 4 — ML / Augmentation**.
 **Scope:** Improve the combine decision (merge vs. keep separate) by augmenting `metadata_fuzzy` with lexical features, multilingual embeddings, a cross-source tag taxonomy, a cheap LLM tie-breaker for ambiguous pairs, and a trained (Clef/JEB-style) decision model.
@@ -157,7 +157,7 @@ Once we have ≥ ~2,000 labeled pairs, train a classifier **over the feature vec
 
 - Labels: approve (1) / reject (0) from HITL + high-confidence auto-labels + LLM bootstrap. Keep a separate `unsure` class excluded from training, or treat as soft label 0.5 if the learner supports it.
 - Features: all §3 features + `embedding_cosine`.
-- Models: start with logistic regression (interpretable, CalibratedClassifierCV) for v2.0; evaluate XGBoost in v2.1 against the same feature set.
+- Models: start with logistic regression (interpretable, CalibratedClassifierCV); evaluate XGBoost against the same feature set once the gate is met.
 - Calibration: isotonic/Platt so the output maps to the `0–100` `ml_score` and the threshold is meaningful. Uncalibrated boosting scores are fine for ranking but bad for thresholds.
 - Evaluation: stratified 5-fold, report precision/recall/F1 at threshold 70, ROC-AUC, and confusion matrix. Must beat `metadata_fuzzy` confidence baseline on a fixed hold-out set to ship.
 
@@ -173,7 +173,7 @@ DBSCAN (optional helper): cluster normalized title embeddings per `(type, year)`
 
 ### 4.5 Plugging a model into the existing `metadata_fuzzy` pipeline
 
-Do not replace `metadata_fuzzy` in v2.0. Layer ML **after** candidate generation:
+Do not replace `metadata_fuzzy` yet. Layer ML **after** candidate generation:
 
 ```
 // Shipped (Level-0.5): MetadataMlStrategy
@@ -360,7 +360,7 @@ Recommend a **default monthly budget of $10–$20** with the caps; the judge onl
 | Learned model vs weighted sum | F1 at threshold 70 ≥ baseline +2 pts before promotion | offline benchmark + identical hold-out |
 | Idempotency (content hash) | re-runs produce identical scores (regression) | CI test |
 
-Shipping gate: `metadata_ml` only becomes default if, on a fixed labeled hold-out, it beats `metadata_fuzzy` on F1 at threshold 70 **and** shows no regression in duplicate upsert keys (must stay 0, as in benchmark v2).
+Shipping gate: `metadata_ml` only becomes default if, on a fixed labeled hold-out, it beats `metadata_fuzzy` on F1 at threshold 70 **and** shows no regression in duplicate upsert keys (must stay 0, as in the benchmark).
 
 Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over a labelled JSONL and prints a PASS/FAIL gate line; it is non-destructive (no MongoDB). The F1 margin is configurable (`--margin <points>`) and `--strict` exits non-zero when the gate is not met, so CI can enforce "F1 ≥ baseline + margin". The duplicate-key half of the gate is `php hiyori combine:dupes` (fails when a combined collection repeats an identity key such as `mal`/`al`; franchise keys like `k`/`cr`/`t` may legitimately repeat). For an honest gate use `ml:export-pairs --holdout 30`, which writes a deterministic, **group-safe** `-train`/`-holdout` split (all rows for a `base_source:base_id` land on one side, so no leakage), then `ml:train --in pairs-*-train.jsonl` and `combine:benchmark --in pairs-*-holdout.jsonl`. Benchmarking the training file is in-sample and will overstate the ML score.
 
@@ -386,7 +386,7 @@ Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over 
 | Budget overrun | Hard caps + budget guard; default off for judges; telemetry for spend |
 | Python environment drift | Pinned `requirements.txt`, venv documented, sidecar smoke test in CI |
 | Model drift between runs | Version every artifact (model, prompt, code) as `ml_model_version`; filterable in dashboard |
-| Latency of combine (bench v2 already 1,429 s) | Cache dominates; embeddings batched offline; LLM cap; candidate narrowing unchanged |
+| Latency of combine (the benchmark already reports 1,429 s) | Cache dominates; embeddings batched offline; LLM cap; candidate narrowing unchanged |
 | Privacy of titles (fine) | Only metadata sent; no user identifiers |
 
 ---
@@ -396,7 +396,7 @@ Harness: `php hiyori combine:benchmark` sweeps thresholds for both scorers over 
 1. Pick the **embedding model** via an offline F1 shootout on the labeled hold-out, not by parameter count.
 2. Is **LaBSE** (768-dim) worth 2–4× CPU for JA/KO titles? Measure with the hold-out before deciding.
 3. Store canonical tags on source docs or compute at combine time? (Recommend combine time for P1, backfill in P4.)
-4. Replace logistic regression with **XGBoost** in v2.1 only if calibration (isotonic) keeps threshold meaningful.
+4. Replace logistic regression with **XGBoost** only if calibration (isotonic) keeps the threshold meaningful.
 
 ---
 

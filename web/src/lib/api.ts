@@ -334,7 +334,7 @@ export interface SlowEntry {
   method?: string
 }
 
-// ---- Dashboard v2 API ----
+// ---- Dashboard API ----
 
 export interface ExploreRow { [k: string]: unknown }
 export interface ExploreParams {
@@ -614,21 +614,22 @@ export const EXPORT_PROFILES: Array<{ value: ExportProfile; label: string; hint:
 ]
 
 /**
- * Field inclusion flags. `tags` / `genres` / `synopsis` / `score` are part of
- * schema v2 and are not populated yet — the UI renders them disabled.
+ * Field inclusion flags. `tags` / `genres` / `synopsis` / `score` are richer
+ * fields the current ingesters do not populate yet, so the UI renders them
+ * disabled.
  */
 export interface ExportFieldFlags {
   titles?: boolean
   synonyms?: boolean
   references?: boolean
   links?: boolean
-  /** schema v2 — not populated yet */
+  /** not populated by the current ingesters yet */
   tags?: boolean
-  /** schema v2 — not populated yet */
+  /** not populated by the current ingesters yet */
   genres?: boolean
-  /** schema v2 — not populated yet */
+  /** not populated by the current ingesters yet */
   synopsis?: boolean
-  /** schema v2 — not populated yet */
+  /** not populated by the current ingesters yet */
   score?: boolean
   [k: string]: boolean | undefined
 }

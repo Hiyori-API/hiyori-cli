@@ -2,7 +2,7 @@
 set -u
 cd /home/nekomata/projects/hiyori-cli
 WEIGHTS='{"title":26.4,"episodes":26.2,"year":23.2,"season":16.4,"type":5.7,"tags":1.5,"status":0.6}'
-LOG=storage/logs/strategy-benchmark-v2.log
+LOG=storage/logs/strategy-benchmark-anime.log
 echo "=== Benchmark v2 start $(date) ===" > $LOG
 
 measure() {

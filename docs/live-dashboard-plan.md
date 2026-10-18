@@ -8,7 +8,7 @@
 >   (`dashboard:serve`);
 > - [dashboard-roadmap.md](dashboard-roadmap.md) — the “Live dashboard — plan →
 >   shipped” section and the feature trackers (PWA + real-time, Settings →
->   Environment manager, Explorer backend wave, Dashboard v2).
+>   Environment manager, Explorer backend wave, the dashboard restructure).
 
 ## Original plan (summary)
 

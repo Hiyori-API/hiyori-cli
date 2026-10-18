@@ -10,7 +10,7 @@ use Hiyori\Service\Exporter;
 use Hiyori\Service\SourceConfigurationFactory;
 
 /**
- * Shared "persist a merged record" helper used by the v2 combiner strategies.
+ * Shared "persist a merged record" helper used by the newer combiner strategies.
  */
 trait MergesEntries
 {

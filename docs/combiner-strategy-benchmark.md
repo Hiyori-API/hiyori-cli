@@ -35,7 +35,7 @@ base, in the same code revision, with the same candidate machinery.
 * **The box was not idle.** Load average ~1.3 (a `node` dashboard, `htop`, another php).
   The relational strategies are round-trip bound (two Mongo calls per reference id per
   source), so **wall times are load-sensitive** — compare strategies against each other
-  within this run, not against the older `benchmark-v2` figures.
+  within this run, not against the older benchmark figures.
 * **A single run ≠ live `organized`.** Each scratch collection is dropped first, so these
   are what one fresh `combine anilist` produces. Live `organized` (13,719) was built
   *cumulatively across many bases and runs*, so it carries more Kitsu linkage than any
