@@ -157,16 +157,19 @@ export function Section({ title, icon: Icon, children, defaultOpen = true, badge
   return (
     <Card className={cn('overflow-hidden', className)}>
       {/* The whole header band is the hit target. The negative margins cancel
-          the Card's own padding on all four sides at once so the tint reaches
-          the card edge evenly — bleeding only on the inline axis left the right
-          side visibly short. `py-4` keeps the label on the same baseline as a
-          non-collapsible PanelHead. */}
+          only the vertical padding. The Card sets `py` but no `px` — horizontal
+          padding comes from the head itself — so a negative inline margin had
+          nothing to cancel and pulled the button outside the card: 16px left of
+          the border, and wider than the card on narrow panels, where
+          `overflow-hidden` then clipped the hover tint into a ragged band.
+          `py-4` keeps the label on the same baseline as a non-collapsible
+          PanelHead. */}
       <div className="flex items-stretch">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="-mx-4 -my-4 flex flex-1 items-center gap-2 px-4 py-4 text-left transition-colors hover:bg-muted/40"
+          className="-my-4 flex flex-1 items-center gap-2 px-4 py-4 text-left transition-colors hover:bg-muted/40"
         >
           {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
