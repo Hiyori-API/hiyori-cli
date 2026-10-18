@@ -188,9 +188,24 @@ final class HealthCheck
 
     private function checkDiskSpace(): array
     {
-        $free = disk_free_space('/');
-        $total = disk_total_space('/');
-        $usedPercent = (($total - $free) / $total) * 100;
+        $free = @disk_free_space('/');
+        $total = @disk_total_space('/');
+        // Both return false when the path is unreadable (open_basedir, a missing
+        // mount), which is 0 in the arithmetic: `($total - $free) / $total`
+        // threw DivisionByZeroError and 500'd both /api/status and /api/health
+        // instead of reporting an unhealthy disk.
+        if (!is_float($free) || !is_float($total) || $total <= 0) {
+            return [
+                'healthy' => false,
+                'free_gb' => 0.0,
+                'total_gb' => 0.0,
+                'used_percent' => 0.0,
+                'error' => 'disk space unavailable',
+            ];
+        }
+        // A fresh overlayfs can report more free space than its quota claims;
+        // clamp so the gauge cannot render a negative percentage.
+        $usedPercent = max(0.0, (($total - $free) / $total) * 100);
 
         return [
             'healthy' => $usedPercent < 90,

@@ -31,7 +31,14 @@ if (class_exists(Dotenv::class) && file_exists(__DIR__ . '/../.env')) {
 }
 
 $mongoUrl = $_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017';
-$client = new MongoClient($mongoUrl);
+// With Mongo down the driver's default 30 s server-selection timeout applied to
+// every query: each 3 s status/SSE poll held a worker for half a minute, and a
+// handful of open tabs starved the server. Fail fast instead — the dashboard
+// reports "unreachable" rather than hanging.
+$client = new MongoClient($mongoUrl, [
+    'serverSelectionTimeoutMS' => 3000,
+    'connectTimeoutMS' => 3000,
+]);
 $database = new Database(SerializerBuilder::create()->build());
 $rateLimiter = new RateLimiter(
     (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100),
@@ -293,6 +300,33 @@ function backupInfo(): array
     }
 
     return ['exists' => $last !== null, 'last' => $last, 'count' => count($files)];
+}
+
+/**
+ * Run a command to completion and report its real outcome.
+ *
+ * The backup/restore routes fired `... >/dev/null 2>&1 &` through `@exec`, so
+ * the child's exit status was thrown away: a failed mongodump still answered
+ * `started: true`, and a failed `mongorestore --drop` left the database dropped
+ * and empty while the UI toasted success. Running to completion is what makes
+ * the exit code real.
+ *
+ * @return array{exit_code: int, output: string} output is the tail of
+ *                                               stdout+stderr (bounded so a
+ *                                               chatty run cannot bloat the
+ *                                               JSON response or the audit log)
+ */
+function runShellCommand(string $command): array
+{
+    if (!function_exists('exec')) {
+        return ['exit_code' => 127, 'output' => 'exec() is disabled'];
+    }
+    $lines = [];
+    $code = 127;
+    @exec($command . ' 2>&1', $lines, $code);
+    $tail = array_slice(array_map(static fn ($line): string => substr((string) $line, 0, 500), $lines), -10);
+
+    return ['exit_code' => (int) $code, 'output' => implode("\n", $tail)];
 }
 
 function controls(string $source): array
@@ -827,6 +861,45 @@ function exportNormalizeAliases(array $config): array
     return $config;
 }
 
+/**
+ * Validate the config keys that steer where the exporter writes.
+ *
+ * `ExportConfig::resolve()` only trims `/` off `subdir` and passes `layout`
+ * through untouched, so `{"subdir":"../../../tmp/x"}` (or a `layout` carrying
+ * the same `..`) was joined straight into the write paths and escaped
+ * `storage/publish`. Same rules as hiyoriExportFilenameError(): relative, no
+ * `..`, no backslashes, no leading slash.
+ *
+ * @param array<string, mixed> $config
+ *
+ * @return list<string> validation errors (empty = safe)
+ */
+function exportWritePathErrors(array $config): array
+{
+    $errors = [];
+    foreach (['subdir', 'layout'] as $key) {
+        if (!array_key_exists($key, $config)) {
+            continue;
+        }
+        $value = $config[$key];
+        // `ExportConfig::resolve()` falls back to the profile default for a
+        // missing, null or empty value, so those stay valid here too.
+        if ($value === null || $value === '') {
+            continue;
+        }
+        if (!is_string($value)) {
+            $errors[] = $key . ' must be a string';
+
+            continue;
+        }
+        if (str_contains($value, '..') || str_contains($value, '\\') || str_starts_with($value, '/')) {
+            $errors[] = $key . ' must be a relative path without traversal';
+        }
+    }
+
+    return $errors;
+}
+
 function exportRequireService(): void
 {
     if (!class_exists('Hiyori\\Service\\Exporter')) {
@@ -883,6 +956,7 @@ if ($path === '/api/export-config') {
         }
 
         $errors = hiyoriExportConfigErrors($incoming, hiyoriExportProfiles());
+        $errors = array_merge($errors, exportWritePathErrors($incoming));
         if ($errors !== []) {
             sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
         }
@@ -972,6 +1046,13 @@ if ($path === '/api/export/run') {
     }
 
     $config = exportEffectiveConfig($override);
+    // Validate the merged config, not just the override: a traversal subdir
+    // persisted earlier (or edited into storage/state/export.json by hand)
+    // would otherwise still steer this write.
+    $pathErrors = exportWritePathErrors($config);
+    if ($pathErrors !== []) {
+        sendJson(['error' => 'invalid export config', 'errors' => $pathErrors], 400);
+    }
     try {
         $result = (new \Hiyori\Service\Exporter($client))->write($config);
     } catch (\Throwable $e) {
@@ -1096,6 +1177,9 @@ if ($path === '/api/restore') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendJson(['error' => 'POST required'], 405);
     }
+    // Restore drops and rewrites the whole database, so it must not be
+    // reachable from a page the operator happens to visit.
+    requireSameOrigin();
     $body = readJsonBody();
     $file = basename((string) ($body['file'] ?? ''));
     $archive = dirname(__DIR__) . '/storage/backups/' . $file;
@@ -1104,14 +1188,37 @@ if ($path === '/api/restore') {
     if ($file === '' || !preg_match('/^[A-Za-z0-9._-]+\.gz$/', $file) || !is_file($archive)) {
         sendJson(['error' => 'unknown backup archive'], 400);
     }
-    $exe = sprintf(
-        'cd %s && php hiyori restore %s --drop >/dev/null 2>&1 &',
+    // Run to completion: the old detached `&` + `@exec` returned
+    // `started: true` before mongorestore had read a block, so a failure (no
+    // mongorestore binary, corrupt archive, wrong URI) left the DB dropped and
+    // empty with a success toast. A restore of this dataset takes tens of
+    // seconds; blocking one worker for that is the honest trade.
+    $result = runShellCommand(sprintf(
+        'cd %s && php hiyori restore %s --drop',
         escapeshellarg(dirname(__DIR__)),
         escapeshellarg($archive),
-    );
-    @exec($exe);
-    auditAppend('restore', ['file' => $file]);
-    sendJson(['started' => true, 'file' => $file]);
+    ));
+    $ok = $result['exit_code'] === 0;
+    $telemetry->update('restore-last', [
+        'ok' => $ok,
+        'exit_code' => $result['exit_code'],
+        'file' => $file,
+        'error' => $ok ? null : $result['output'],
+        'updated_at' => date('c'),
+    ]);
+    auditAppend('restore', ['file' => $file, 'ok' => $ok, 'exit_code' => $result['exit_code'], 'error' => $ok ? null : $result['output']]);
+
+    if (!$ok) {
+        sendJson([
+            'started' => true,
+            'ok' => false,
+            'file' => $file,
+            'exit_code' => $result['exit_code'],
+            'error' => 'restore failed (exit ' . $result['exit_code'] . '): ' . ($result['output'] !== '' ? $result['output'] : 'no output'),
+        ], 500);
+    }
+
+    sendJson(['started' => true, 'ok' => true, 'completed' => true, 'file' => $file, 'exit_code' => 0]);
 }
 
 if ($path === '/api/db') {
@@ -1120,26 +1227,78 @@ if ($path === '/api/db') {
 
 if ($path === '/api/backup') {
     if (($_GET['run'] ?? '') === '1') {
+        // Kept as GET for the Ingest page (web/src/lib/api.ts runBackup() calls
+        // it with no method) — the origin check is what closes the cross-site
+        // `<img src="/api/backup?run=1">` hole.
+        requireSameOrigin();
         $out = dirname(__DIR__) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
         if (!is_dir(dirname($out))) {
             mkdir(dirname($out), 0o777, true);
         }
-        $cmd = sprintf('mongodump --uri=%s --db=hiyori --gzip --archive=%s >/dev/null 2>&1 &', escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'), escapeshellarg($out));
-        @exec($cmd);
-        sendJson(['started' => true, 'archive' => basename($out), 'backup' => backupInfo()]);
+        // Synchronous so the exit code is mongodump's, not the shell's: the old
+        // `... >/dev/null 2>&1 &` + `@exec` reported success whatever happened.
+        // A dump of this dataset is seconds, not minutes.
+        $result = runShellCommand(sprintf(
+            'mongodump --uri=%s --db=hiyori --gzip --archive=%s',
+            escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'),
+            escapeshellarg($out),
+        ));
+        $ok = $result['exit_code'] === 0 && is_file($out) && filesize($out) > 0;
+        if (!$ok) {
+            // A truncated archive must not show up in the restorable list.
+            @unlink($out);
+        }
+        $telemetry->update('backup-last', [
+            'ok' => $ok,
+            'exit_code' => $result['exit_code'],
+            'archive' => basename($out),
+            'error' => $ok ? null : $result['output'],
+            'updated_at' => date('c'),
+        ]);
+        auditAppend('backup.run', [
+            'ok' => $ok,
+            'exit_code' => $result['exit_code'],
+            'archive' => basename($out),
+            'error' => $ok ? null : $result['output'],
+        ]);
+
+        if (!$ok) {
+            sendJson([
+                'started' => false,
+                'ok' => false,
+                'exit_code' => $result['exit_code'],
+                'archive' => basename($out),
+                'error' => 'backup failed (exit ' . $result['exit_code'] . '): ' . ($result['output'] !== '' ? $result['output'] : 'mongodump produced no archive'),
+                'backup' => backupInfo(),
+            ], 500);
+        }
+
+        sendJson(['started' => true, 'ok' => true, 'completed' => true, 'exit_code' => 0, 'archive' => basename($out), 'backup' => backupInfo()]);
     }
     sendJson(['backup' => backupInfo(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/action') {
+    // Kept as GET because the Ingest page calls it with fetch() and no method
+    // (web/src/lib/api.ts postAction()) — changing it to POST-only would break
+    // the UI, so the cross-site `<img src="/api/action?...">` vector is closed
+    // by the origin check instead.
+    requireSameOrigin();
     $job = (string) ($_GET['job'] ?? '');
     $cmd2 = (string) ($_GET['cmd'] ?? '');
     if ($job === '' || !in_array($cmd2, ['pause', 'resume', 'retry', 'start', 'runnow'], true)) {
         sendJson(['error' => 'job + cmd (pause|resume|retry|start|runnow) required'], 400);
     }
+    // The job name becomes `control-<source>.json` below, and the source half
+    // becomes an argv value. `../` used to reach files outside storage/state
+    // (and a name starting with `.` would too); source names are plain
+    // identifiers.
+    $sourceName = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
+    if (!preg_match('/^[a-z0-9_-]+$/', $sourceName)) {
+        sendJson(['error' => 'job must be a source name matching [a-z0-9_-]+'], 400);
+    }
     if (in_array($cmd2, ['retry', 'start'], true)) {
-        $src = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
-        $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__)), escapeshellarg($src));
+        $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__)), escapeshellarg($sourceName));
         @exec($exe);
         auditAppend('job.' . $cmd2, ['job' => $job]);
         sendJson(['job' => $job, 'cmd' => $cmd2, 'scheduled' => true]);
@@ -1161,9 +1320,14 @@ if ($path === '/api/action') {
     // `ingest-` prefix. This handler was the only writer using the prefixed job
     // name, so pause wrote control-ingest-<source>.json while the worker waited
     // on control-<source>.json and never saw it. Normalise to the source name.
-    $sourceName = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
+    $stateDir = dirname(__DIR__) . '/storage/state';
+    if (!is_dir($stateDir)) {
+        // A fresh checkout has no storage/state yet; the write below warned
+        // until auditAppend() recreated the directory a line later.
+        mkdir($stateDir, 0o777, true);
+    }
     file_put_contents(
-        dirname(__DIR__) . '/storage/state/control-' . $sourceName . '.json',
+        $stateDir . '/control-' . $sourceName . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
     auditAppend('job.' . $cmd2, ['job' => $job]);
@@ -1185,6 +1349,11 @@ if ($path === '/api/action') {
  * and progress shows up in the normal job telemetry.
  */
 if ($path === '/api/combine') {
+    // Kept as GET because the Quality page calls it with fetch() and no method
+    // (web/src/components/pages/QualityPage.tsx) — the origin check closes the
+    // cross-site `<img src="/api/combine?...">` vector, which would otherwise
+    // let any visited page kick off a write to the merged collections.
+    requireSameOrigin();
     $base = (string) ($_GET['base'] ?? 'anilist');
     $strategy = (string) ($_GET['strategy'] ?? 'metadata_fuzzy');
     if (!preg_match('/^[a-z_]+$/', $base) || !preg_match('/^[a-z_]+$/', $strategy)) {
@@ -1335,10 +1504,14 @@ if ($path === '/api/status') {
     }
 
     // The external health probe hits three APIs, so it is TTL-cached: a
-    // fresh-enough view without probing on every 3s/15s poll. Counts and
-    // coverage stay live (one aggregation pass each).
+    // fresh-enough view without probing on every 3s/15s poll. Coverage is the
+    // other expensive read (a full `$unwind` aggregation over every collection,
+    // ~0.8 s of this endpoint's ~0.9 s) and every open tab polls it every 3 s,
+    // so it is cached the same way — the cached rows (and the `total` they were
+    // derived from) can lag the live $counts by up to 30 s.
     $counts = collectionCounts($client);
     $healthResult = ttlCache('health', 60, static fn () => $health->check());
+    $coverage = ttlCache('coverage', 30, static fn () => coverage($client, $counts));
 
     sendJson([
         'timestamp' => date('c'),
@@ -1348,7 +1521,7 @@ if ($path === '/api/status') {
         'controls' => $controlsMap,
         'backup' => backupInfo(),
         'cache' => $telemetry->read('cache'),
-        'coverage' => coverage($client, $counts),
+        'coverage' => $coverage,
         'alerts' => alerts($healthResult, $telemetry),
         'slow' => $telemetry->tail('slow-requests', 30),
         'schedule' => scheduleView($telemetry),
@@ -1363,9 +1536,13 @@ if ($path === '/api/events') {
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-store');
     while (true) {
+        // The frame used to carry the `counts` map (15 countDocuments) on top
+        // of `jobs`. Counts are still delivered by the 15 s /api/status
+        // heartbeat and the client's own poll; status-context.tsx merges
+        // `ev.counts ?? prev.counts`, so a frame without them keeps the last
+        // known numbers.
         echo 'data: ' . json_encode([
             'timestamp' => date('c'),
-            'counts' => collectionCounts($client),
             'jobs' => $telemetry->allState(),
         ], JSON_UNESCAPED_SLASHES) . "\n\n";
         @ob_flush();

@@ -45,7 +45,15 @@ class Database
 
     public function connect(?Client $client = null)
     {
-        $this->client = $client ?? new Client($_ENV['MONGODB_URL']);
+        $this->client = $client ?? new Client($_ENV['MONGODB_URL'], [
+            // Share the dashboard's fail-fast budget: this client backs the
+            // label/rejection routes too, and the driver default (30 s) turns a
+            // down server into a stalled request. serverSelectionTimeoutMS only
+            // affects selection, not the timeout of operations against a
+            // reachable server, so long CLI jobs are unaffected.
+            'serverSelectionTimeoutMS' => 3000,
+            'connectTimeoutMS' => 3000,
+        ]);
     }
 
     /**

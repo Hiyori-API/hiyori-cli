@@ -159,8 +159,18 @@ final class Exporter
         $changed = 0;
 
         $subdir = (string) $config['subdir'];
+        // Defence in depth: `subdir`, `layout` and `filename` all flow into the
+        // write paths below, and `ExportConfig::resolve()` only trims slashes.
+        // The API rejects traversal with a 400, but the CLI can pass a raw
+        // `--config subdir=../../tmp`, so refuse to write outside the dump dir.
+        if (str_contains($subdir, '..') || str_contains($subdir, '\\') || str_starts_with($subdir, '/')) {
+            throw new \RuntimeException('refusing to write outside the export directory: subdir=' . $subdir);
+        }
 
         $put = function (string $rel, string $content, int $rowCount) use (&$files, &$written, &$changed, $dir): void {
+            if (str_contains($rel, '..') || str_contains($rel, "\0") || str_starts_with($rel, '/')) {
+                throw new \RuntimeException('refusing to write outside the export directory: ' . $rel);
+            }
             if (self::writeIfChanged($dir . '/' . $rel, $content)) {
                 ++$changed;
             }
