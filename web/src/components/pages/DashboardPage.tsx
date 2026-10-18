@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { useChartColors, useSeriesColors } from '../charts'
-import { isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
+import { isIngestJob, isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, SeriesChartCard } from '../chartcard'
@@ -58,7 +58,7 @@ export function DashboardPage() {
     setRateSeries(s => {
       const next: Record<string, number[]> = {}
       Object.keys(data.jobs).forEach(k => {
-        if (!(data.jobs[k] as Job)?.source) return
+        if (!isIngestJob(k, data.jobs[k] as Job)) return
         next[k] = [...(s[k] ?? []), (data.jobs[k] as Job).per_second ?? 0].slice(-MAX)
       })
       return next
@@ -74,7 +74,7 @@ export function DashboardPage() {
 
   const counts = data?.counts ?? {}
   const jobs = data?.jobs ?? {}
-  const jobKeys = Object.keys(jobs).filter(k => (jobs[k] as Job)?.source).sort()
+  const jobKeys = Object.keys(jobs).filter(k => isIngestJob(k, jobs[k] as Job)).sort()
   const activeJobs = jobKeys.filter(k => isJobLive(jobs[k] as Job))
   const totalDocs = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts])
   // Errors are only meaningful for the run you are watching. Summing every job
@@ -339,7 +339,7 @@ function SourcesTable({
   const rows = useMemo<SourceRow[]>(
     () =>
       Object.keys(jobs)
-        .filter(k => (jobs[k] as Job)?.source)
+        .filter(k => isIngestJob(k, jobs[k] as Job))
         .sort()
         .map(k => {
           const job = jobs[k] as Job

@@ -34,6 +34,25 @@ export function jobPhase(job?: Job | null): string {
   return phase
 }
 
+/**
+ * True when a telemetry entry is an *ingest* job, i.e. one this dashboard can
+ * meaningfully show a Sources row and a rate series for.
+ *
+ * `allState()` returns every state file in storage/state, and the filter used to
+ * be "has a `source` field". That is too loose: the Fellegi-Sunter calibration
+ * artifact also carries a `source`, and it is a path to a training .jsonl file
+ * rather than a catalogue source name. It was surfacing as a Sources row reading
+ * "idle" with a bare filesystem path, and as a series in the ingestion-rate
+ * legend.
+ *
+ * Ingest state is always keyed `ingest-<source>` and carries the ingest-only
+ * `processed` counter, so both are checked.
+ */
+export function isIngestJob(key: string, job?: Job | null): boolean {
+  if (!job?.source) return false
+  return key.startsWith('ingest-') && typeof (job as { processed?: unknown }).processed === 'number'
+}
+
 /** True while a job is actively progressing (not done, idle, paused-off or stale). */
 export function isJobLive(job?: Job | null): boolean {
   const phase = jobPhase(job)
