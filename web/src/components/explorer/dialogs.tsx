@@ -71,7 +71,7 @@ export function ExplorerDialogs(props: ExplorerDialogsProps) {
               the one reassurance that matters at this moment untrustworthy. */}
           <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
             Audited, and restorable straight after via <strong>Undo</strong> on the confirmation.
-            Once you delete another batch, this one is gone. Back up first from Management → Backups.
+            Once you delete another batch, this one is gone. Back up first from Ingest → Backups.
           </p>
           <DialogFooter>
             <Button size="sm" variant="outline" onClick={() => onConfirmDelChange(null)}>Cancel</Button>

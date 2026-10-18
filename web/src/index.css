@@ -241,6 +241,20 @@
   .transition-colors {
     transition-duration: 1ms !important;
   }
+
+  /* This block's stated intent is that travel goes away while end states stay.
+   * It only covered `.transition-colors`, so anything moving a transform still
+   * travelled: the Explorer detail sheet slides 2.5rem over 200ms, the sidebar
+   * animates width, and buttons nudge 1px on press. Neutralise transform and
+   * size transitions too — the element still ends where it should, it just
+   * arrives there. */
+  .transition,
+  .transition-all,
+  .transition-transform,
+  [class*='transition-['],
+  [class*='transition-'] {
+    transition-duration: 1ms !important;
+  }
 }
 
 /* ---------------------------------------------------------------------------

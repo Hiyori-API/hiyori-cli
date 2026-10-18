@@ -27,7 +27,7 @@ export function CompletenessRadar({ title, data, series, emptyMsg }: {
                 <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                {series.map(s => <Radar key={s.key} name={s.key} dataKey={s.key} stroke={s.color} fill={s.color} fillOpacity={0.22} />)}
+                {series.map(s => <Radar key={s.key} name={s.key} dataKey={s.key} stroke={s.color} fill={s.color} fillOpacity={0.22} isAnimationActive={false} />)}
               </RadarChart>
             </ResponsiveContainer>
           ) : <EmptyState icon={ChartNoAxesCombined} title="No coverage data" description={emptyMsg} />}

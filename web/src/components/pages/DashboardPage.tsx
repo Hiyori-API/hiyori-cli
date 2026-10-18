@@ -254,7 +254,7 @@ export function DashboardPage() {
           {visible('fleet') && (
             <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>} collapsible={false}>
               {jobKeys.length === 0 ? (
-                <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source (Management → Sources) to see live progress, speed and ETA." />
+                <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source from Ingest to see live progress, speed and ETA." />
               ) : (
                 <SourcesTable
                   jobs={jobs}
@@ -331,7 +331,7 @@ export function DashboardPage() {
           </div>
 
           {!visible('dataset') && !visible('fleet') && !visible('kpi') && !visible('health') && (
-            <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Widgets." />
+            <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Dashboard widgets." />
           )}
         </>
       )}

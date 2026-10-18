@@ -317,7 +317,7 @@ export function SettingsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm">Dump profile</div>
-              <div className="text-xs text-muted-foreground">Shared with the Publish page's export config (GET/POST /api/export-config).</div>
+              <div className="text-xs text-muted-foreground">Used by <code className="rounded bg-muted px-1">php hiyori export</code> (GET/POST /api/export-config).</div>
             </div>
             <Select value={exportProfile} onValueChange={v => saveExportProfile(v ?? 'per-entry-json')}>
               <SelectTrigger className="h-8 w-44" aria-label="Dump profile"><SelectValue /></SelectTrigger>
