@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
@@ -9,6 +9,7 @@ import { cn } from 'cn'
 import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip as Tip, TooltipContent as TipContent, TooltipProvider as TipProvider, TooltipTrigger as TipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -267,8 +268,9 @@ export function DashboardPage() {
                 <SourcesTable
                   jobs={jobs}
                   health={data?.health}
-                  onPause={src => void setPause(src, true)}
-                  onResume={src => void setPause(src, false)}
+                  controls={data?.controls ?? {}}
+                  onPause={src => setPause(src, true)}
+                  onResume={src => setPause(src, false)}
                   onRetry={src => setConfirmRetry(src)}
                 />
               )}
@@ -353,34 +355,130 @@ interface SourceRow {
   status: SourceStatus
   pct: number
   pending: number
+  run: RunState
 }
+
+/**
+ * What is actually true of this run, reconciling what the worker writes with
+ * what the numbers say.
+ *
+ * The table used to show Phase and Progress as independent columns, which
+ * contradicted each other in real data: `myanimelist` sits at phase `done` with
+ * 0% progress (total is unknown, so progress is meaningless), and `anilist`
+ * sits at phase `running` with 100% progress (it finished but never wrote a
+ * terminal phase). `myanimelist_manga` is genuinely live — the process exists
+ * and holds the state file — at 0.03 docs/sec, so it read as "running" for
+ * hours while doing nothing.
+ *
+ * This returns one answer to "what is this source doing", which is what the
+ * operator is actually asking.
+ */
+/** Sort order for the Status column: what needs attention first. */
+const RANK: Record<RunState['kind'], number> = {
+  running: 0,
+  stalled: 1,
+  stale: 1,
+  paused: 2,
+  idle: 3,
+  done: 4,
+}
+
+export type RunState =
+  | { kind: 'done' }
+  | { kind: 'running' }
+  | { kind: 'stalled'; sinceSec: number }
+  | { kind: 'stale'; agoSec: number }
+  | { kind: 'paused' }
+  | { kind: 'idle' }
+
+/** Seconds since the worker last advanced `processed`, tracked across polls. */
+export type ProgressClock = Record<string, { processed: number; since: number }>
 
 /** Source / Phase / Progress / Speed·ETA / Actions — pending + done~ live in the row tooltip. */
 function SourcesTable({
-  jobs, health, onPause, onResume, onRetry,
+  jobs, health, controls, onPause, onResume, onRetry,
 }: {
   jobs: Record<string, Job>
   health: HealthCheck | undefined
-  onPause: (src: string) => void
-  onResume: (src: string) => void
+  controls: Record<string, { paused?: boolean }>
+  onPause: (src: string) => Promise<void>
+  onResume: (src: string) => Promise<void>
   onRetry: (src: string) => void
 }) {
-  const rows = useMemo<SourceRow[]>(
-    () =>
-      Object.keys(jobs)
-        .filter(k => isIngestJob(k, jobs[k] as Job))
-        .sort()
-        .map(k => {
-          const job = jobs[k] as Job
-          const src = String(job.source ?? k)
-          const total = job.total ?? 0
-          const processed = job.processed ?? 0
-          const pct = total ? Math.min(100, (processed / total) * 100) : 0
-          const pending = Math.max(0, total - processed)
-          return { key: k, job, src, status: rowStatus(job, health, src), pct, pending }
-        }),
-    [jobs, health],
-  )
+  // Which action is in flight for which source. A control that spawns a worker
+  // and then looks unchanged for a poll cycle reads as broken, so the button
+  // spins until the next run state arrives.
+  const [pending, setPending] = useState<Record<string, string>>({})
+  const fire = async (src: string, action: string, fn: () => Promise<void> | void) => {
+    setPending(p => ({ ...p, [src]: action }))
+    try { await fn() } finally {
+      // The action spawns a detached worker; give the next poll a moment to
+      // reflect it rather than clearing the spinner immediately.
+      window.setTimeout(() => setPending(p => {
+        const next = { ...p }; delete next[src]; return next
+      }), 2500)
+    }
+  }
+  // Track the last time each source actually advanced. A live phase alone
+  // cannot distinguish "working" from "awake and doing nothing", and at
+  // 0.03 docs/sec the difference matters.
+  const progressClock = useRef<ProgressClock>({})
+  useEffect(() => {
+    const now = Date.now()
+    const next: ProgressClock = {}
+    for (const k of Object.keys(jobs)) {
+      if (!isIngestJob(k, jobs[k] as Job)) continue
+      const processed = (jobs[k] as Job).processed ?? 0
+      const prev = progressClock.current[k]
+      next[k] = prev && prev.processed === processed ? prev : { processed, since: now }
+    }
+    progressClock.current = next
+  }, [jobs])
+
+  const rows = useMemo<SourceRow[]>(() => {
+    const now = Date.now()
+    return Object.keys(jobs)
+      .filter(k => isIngestJob(k, jobs[k] as Job))
+      .sort()
+      .map(k => {
+        const job = jobs[k] as Job
+        const src = String(job.source ?? k)
+        const total = job.total ?? 0
+        const processed = job.processed ?? 0
+        const pct = total ? Math.min(100, (processed / total) * 100) : 0
+        const pending = Math.max(0, total - processed)
+        const status = rowStatus(job, health, src)
+        const phase = jobPhase(job)
+        const clock = progressClock.current[k]
+        const idleSec = clock ? Math.round((now - clock.since) / 1000) : 0
+
+        // Precedence matters: a paused worker is paused even though its phase
+        // still reads `running`, and a run that reached its total is done even
+        // if the worker never wrote `done`.
+        let run: RunState
+        if (controls[k]?.paused) run = { kind: 'paused' }
+        else if (total > 0 && processed >= total) run = { kind: 'done' }
+        else if (phase === 'done') run = { kind: 'done' }
+        else if (phase === 'stale') {
+          const upd = job.updated_at ? Date.parse(job.updated_at) : Number.NaN
+          run = { kind: 'stale', agoSec: Number.isNaN(upd) ? 0 : Math.round((now - upd) / 1000) }
+        } else if (phase === 'running') {
+          // Two signals, because neither alone is enough. The client clock sees
+          // an exact stall but starts over on every page load, so a reload made
+          // a stuck job look healthy again for two minutes. The server's
+          // per_second survives reloads but is a rolling average that lags. A
+          // running job whose rate rounds to 0.0/s is not progressing either way.
+          const rate = job.per_second ?? 0
+          run = idleSec >= 120 || rate < 0.05
+            ? { kind: 'stalled', sinceSec: idleSec }
+            : { kind: 'running' }
+        } else {
+          run = { kind: 'idle' }
+        }
+
+        return { key: k, job, src, status, pct, pending, run }
+      })
+  }, [jobs, health, controls])
 
   const columns = useMemo<ColumnDef<DataTableFeatures, SourceRow, any>[]>(
     () => [
@@ -410,36 +508,85 @@ function SourcesTable({
         },
       },
       {
-        id: 'phase',
-        header: 'Phase',
-        accessorFn: r => jobPhase(r.job),
+        // Phase and Progress used to be two columns that contradicted each
+        // other. One column answers the question the table is asked: what is
+        // this source doing, and how far along is it.
+        id: 'run',
+        header: 'Status',
+        accessorFn: r => RANK[r.run.kind],
         sortingFn: 'basic',
         meta: { align: 'left' } as const,
         cell: ({ row }) => {
-          const phase = jobPhase(row.original.job)
-          return (
-            <Badge variant={phase === 'done' ? 'secondary' : phase === 'stale' ? 'ghost' : 'outline'}>
-              {phase}
-            </Badge>
-          )
-        },
-      },
-      {
-        id: 'progress',
-        header: 'Progress',
-        accessorFn: r => r.pct,
-        sortingFn: 'basic',
-        meta: { align: 'left' } as const,
-        cell: ({ row }) => {
-          const { job, pct } = row.original
+          const { run, job, pct } = row.original
+          const processed = job.processed ?? 0
+          const total = job.total ?? 0
+          const bar = total > 0 ? (
+            <span className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
+              <span className="block h-full bg-primary transition-all" style={{ width: `${pct.toFixed(1)}%` }} />
+            </span>
+          ) : null
+
+          if (run.kind === 'running') {
+            return (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                <span className="text-xs">running</span>
+                {bar}
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                  {total > 0 ? `${Math.round(pct)}% · ` : ''}{cx(processed)}{total > 0 ? `/${cx(total)}` : ''}
+                </span>
+              </span>
+            )
+          }
+
+          // Live worker, nothing moving. At 0.03 docs/sec a run can sit here for
+          // hours while reading as healthy, which is exactly the case that made
+          // "running" untrustworthy.
+          if (run.kind === 'stalled') {
+            return (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                <span className="text-xs text-amber-600 dark:text-amber-400">no progress {fmtSec(run.sinceSec)}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)} processed</span>
+              </span>
+            )
+          }
+
+          if (run.kind === 'paused') {
+            return (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground" />
+                <span className="text-xs">paused</span>
+                {bar}
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)}</span>
+              </span>
+            )
+          }
+
+          if (run.kind === 'stale') {
+            return (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                <span className="text-xs text-amber-600 dark:text-amber-400">stopped {fmtSec(run.agoSec)} ago</span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)} processed</span>
+              </span>
+            )
+          }
+
+          if (run.kind === 'done') {
+            return (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
+                <span className="text-xs text-muted-foreground">done</span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)} records</span>
+              </span>
+            )
+          }
+
           return (
             <span className="flex min-w-0 items-center gap-2">
-              <span className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
-                <span className="block h-full bg-primary transition-all" style={{ width: `${pct.toFixed(1)}%` }} />
-              </span>
-              <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                {pct.toFixed(0)}% · {cx(job.processed)}/{job.total ? cx(job.total) : '?'}
-              </span>
+              <span className="h-2 w-2 shrink-0 rounded-full bg-muted" />
+              <span className="text-xs text-muted-foreground">not started</span>
             </span>
           )
         },
@@ -493,60 +640,80 @@ function SourcesTable({
         enableSorting: false,
         meta: { align: 'right', stickyRight: true } as const,
         cell: ({ row }) => {
-          const { src, job } = row.original
-          // Only offer the action that applies to this job's phase. Rendering
-          // Pause/Resume/Retry on every row let you pause a job that already
-          // finished and resume one that never stopped — both no-ops that read
-          // as broken controls.
-          const phase = jobPhase(job)
-          const live = isJobLive(job)
+          const { src, run } = row.original
+          const kind = run.kind
+          const isPending = !!pending[src]
+
+          // Every action is always present. Hiding the ones that do not apply
+          // made the control set change shape row to row, so you could not
+          // learn where Pause lives — and a hidden button explains nothing,
+          // whereas a disabled one with a reason teaches the state machine.
+          const actions = [
+            {
+              key: 'pause',
+              icon: Pause,
+              label: `Pause ${src}`,
+              enabled: kind === 'running' || kind === 'stalled',
+              hint: kind === 'running' || kind === 'stalled'
+                ? 'Pause after the record in flight. Resume continues from there.'
+                : kind === 'paused'
+                  ? 'Already paused.'
+                  : 'Nothing is running, so there is nothing to pause.',
+              run: () => fire(src, 'pause', () => onPause(src)),
+            },
+            {
+              key: 'resume',
+              icon: Play,
+              label: `Resume ${src}`,
+              enabled: kind === 'paused',
+              hint: kind === 'paused'
+                ? 'Continue this run from where it stopped.'
+                : 'This source is not paused.',
+              run: () => fire(src, 'resume', () => onResume(src)),
+            },
+            {
+              key: 'retry',
+              icon: RotateCcw,
+              label: `Re-ingest ${src}`,
+              enabled: kind !== 'running' && kind !== 'stalled' && kind !== 'paused',
+              hint: kind === 'done'
+                ? 'Re-walk the source from the beginning. Stored documents are skipped, so it costs a full pass.'
+                : kind === 'running' || kind === 'stalled'
+                  ? 'This is already running. Pause it first if you want to restart.'
+                  : kind === 'paused'
+                    ? 'Paused — resume instead of restarting.'
+                    : 'Start ingesting this source from the beginning.',
+              run: () => onRetry(src),
+            },
+          ]
+
           return (
-            <span className="flex items-center justify-end gap-1">
-              {live ? (
-                <>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    title={`Pause ${src}`}
-                    aria-label={`Pause ingestion of ${src}`}
-                    onClick={() => onPause(src)}
-                  >
-                    <Pause className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    title={`Retry ${src}`}
-                    aria-label={`Retry ingestion of ${src}`}
-                    onClick={() => onRetry(src)}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    title={`Resume ${src}`}
-                    aria-label={`Resume ingestion of ${src}`}
-                    onClick={() => onResume(src)}
-                  >
-                    <Play className="h-3.5 w-3.5" />
-                  </Button>
-                  {phase === 'done' && (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      title={`Retry ${src}`}
-                      aria-label={`Retry ingestion of ${src}`}
-                      onClick={() => onRetry(src)}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </>
-              )}
+            <span className="flex items-center justify-end gap-0.5">
+              {actions.map(a => (
+                <Tip key={a.key}>
+                  <TipTrigger
+                    render={
+                      // The wrapper keeps hover alive on a disabled button;
+                      // a disabled button swallows pointer events, which is why
+                      // its title never appeared.
+                      <span className="inline-flex">
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={a.label}
+                          disabled={!a.enabled || isPending}
+                          onClick={() => { if (a.enabled && !isPending) a.run() }}
+                        >
+                          {isPending && pending[src] === a.key
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <a.icon className="h-3.5 w-3.5" />}
+                        </Button>
+                      </span>
+                    }
+                  />
+                  <TipContent>{a.hint}</TipContent>
+                </Tip>
+              ))}
             </span>
           )
         },
@@ -556,16 +723,18 @@ function SourcesTable({
   )
 
   return (
+    <TipProvider delay={250}>
     <DataTable<SourceRow>
       columns={columns}
       data={rows}
       getRowId={r => r.key}
-      initialSorting={[{ id: 'source', desc: false }]}
+      initialSorting={[{ id: 'run', desc: false }]}
       sortDescFirst
       maxHeight="22rem"
       ariaLabel="Ingestion sources"
       showPagination={false}
     />
+      </TipProvider>
   )
 }
 
