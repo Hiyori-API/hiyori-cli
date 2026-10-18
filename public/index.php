@@ -1492,16 +1492,8 @@ if ($path === '/api/rejections/promote') {
     ));
 }
 
-if ($path === '/api/jobsV2') {
-    sendJson(['jobs' => $telemetry->allState(), 'timestamp' => date('c')]);
-}
-
 if ($path === '/api/slow') {
     sendJson(['slow' => $telemetry->tail('slow-requests', 50), 'timestamp' => date('c')]);
-}
-
-if ($path === '/api/schedule') {
-    sendJson(['schedule' => scheduleView($telemetry), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/status') {
