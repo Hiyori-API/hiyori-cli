@@ -22,8 +22,18 @@
 
 /* ---- hover-reveal row actions ---- */
 .explorer-grid .row-reveal {
-  opacity: 0.35;
+  /* 0.35 dropped these to 1.88:1 against the row background — below the 4.5:1
+     floor, so the "quiet until hover" treatment was hiding them entirely rather
+     than de-emphasising them. 0.85 keeps the emphasis shift and clears it. */
+  opacity: 0.85;
   transition: opacity 120ms ease;
+  /* The icons were 9x14px hit targets. 24px is the minimum; the glyph size is
+     unchanged, only the clickable box grows. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
 }
 .explorer-grid tbody tr:hover .row-reveal,
 .explorer-grid tbody tr:focus-within .row-reveal,
@@ -67,7 +77,9 @@
   gap: 3px;
   font-size: 10px;
   line-height: 1;
-  padding: 2px 5px;
+  /* 24px minimum hit target; the visual chip stays small via the inner text. */
+  min-height: 24px;
+  padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--muted-foreground);

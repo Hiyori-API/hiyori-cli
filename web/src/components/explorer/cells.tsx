@@ -131,25 +131,34 @@ function RefAccordion({ v, collections, onOpenRef, mono, maxShow = 4 }: {
         const url = externalUrl(sh, val)
         const target = sourceCollection(sh)
         const canNav = target && collections.includes(target)
-        return (
-          <a
-            key={sh}
-            href={url ?? undefined}
-            target={url && !canNav ? '_blank' : undefined}
-            rel="noreferrer"
-            title={val}
-            onClick={e => {
-              e.stopPropagation()
-              if (canNav) {
-                e.preventDefault()
-                onOpenRef(target as string, val)
-              }
-            }}
-            className={cn('ref-chip', mono && 'font-mono')}
-          >
-            {sh}:{String(val).split('/').filter(Boolean).pop()?.slice(0, 10) ?? val}
-          </a>
-        )
+        const label = `${sh}:${String(val).split('/').filter(Boolean).pop()?.slice(0, 10) ?? val}`
+        const cls = cn('ref-chip', mono && 'font-mono')
+
+        // Three shapes, because one <a> was wrong for two of them. With no URL
+        // it rendered `<a>` without an href — not focusable, not announced as a
+        // link, and flagged as an uncrawlable anchor.
+        const stop = (e: React.MouseEvent) => e.stopPropagation()
+        if (canNav) {
+          return (
+            <button
+              key={sh}
+              type="button"
+              title={val}
+              className={cls}
+              onClick={e => { stop(e); onOpenRef(target as string, val) }}
+            >
+              {label}
+            </button>
+          )
+        }
+        if (url) {
+          return (
+            <a key={sh} href={url} target="_blank" rel="noreferrer" title={val} className={cls} onClick={stop}>
+              {label}
+            </a>
+          )
+        }
+        return <span key={sh} title={val} className={cls}>{label}</span>
       })}
       {entries.length > maxShow && (
         <button
