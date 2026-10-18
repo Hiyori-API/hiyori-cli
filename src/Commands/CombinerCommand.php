@@ -3,6 +3,7 @@
 namespace Hiyori\Commands;
 
 use Hiyori\Hiyori;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\ExportConfig;
 use Hiyori\Service\Exporter;
@@ -25,6 +26,22 @@ final class CombinerCommand extends Command
 {
     use LockableTrait;
 
+    /**
+     * Default coverage floor, as a percent of base rows that must end up as a
+     * document.
+     *
+     * Measured coverage of the seven strategies on the 15,015-row `anilist`
+     * base ranges from 45.3 % (`relational_mapping`, exact-id only) to 76.6 %
+     * (`relational_fuzzy`) — docs/combiner-strategy-benchmark.md §1. A floor
+     * below the lowest known-good run cannot fail a healthy one, so 40 is the
+     * conservative default: it fires only when a run loses more than three base
+     * rows in five, which is the signature of a wrong base, an unresolvable
+     * reference-id population or a wrong target rather than of a scoring
+     * disagreement. `0` disables the percentage comparison (an empty base still
+     * fails).
+     */
+    public const DEFAULT_MIN_COVERAGE = 40;
+
     public function __construct(
         private Hiyori $hiyori
     ) {
@@ -40,6 +57,7 @@ final class CombinerCommand extends Command
             ->addOption('weights', 'w', InputOption::VALUE_OPTIONAL, 'metadata_fuzzy field weights as JSON, e.g. {"title":25,"tags":20}')
             ->addOption('config', null, InputOption::VALUE_OPTIONAL, 'Extra strategy config as JSON (e.g. {"ml_threshold":0.6,"metadata_floor":55})')
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
+            ->addOption('min-coverage', null, InputOption::VALUE_REQUIRED, \sprintf('Fail when fewer than this percent of base rows end up as a document (integer 0-100, default %d). 0 disables the percentage comparison; a run that examines no base rows fails either way', self::DEFAULT_MIN_COVERAGE))
             ->addOption('passthrough', null, InputOption::VALUE_NEGATABLE, 'Keep base entries that matched nothing as their own single-source records. Required for an id-stable rebuild of `organized`; off by default so benchmark runs measure merging alone')
             ->addOption('rejection-buffer', null, InputOption::VALUE_NEGATABLE, 'Write borderline title-floor rejections to the rejection buffer (pair_rejections) for later review')
             ->addOption('rejection-buffer-floor', null, InputOption::VALUE_OPTIONAL, 'Metadata score that makes a title-floor rejection borderline (default: the combine threshold)')
@@ -57,6 +75,18 @@ final class CombinerCommand extends Command
 
         $base = $input->getArgument('base');
         $strategy = $input->getOption('strategy') ?? MetadataFuzzyStrategy::NAME;
+
+        $minCoverage = self::DEFAULT_MIN_COVERAGE;
+        if ($input->getOption('min-coverage') !== null) {
+            $requested = filter_var($input->getOption('min-coverage'), FILTER_VALIDATE_INT);
+            if ($requested === false || $requested < 0 || $requested > 100) {
+                $output->writeln('<error>--min-coverage must be an integer between 0 and 100 (0 disables the percentage check).</error>');
+                $this->release();
+
+                return Command::FAILURE;
+            }
+            $minCoverage = $requested;
+        }
 
         // Pre-flight: migrations must be applied before the combiner touches data.
         $pending = $this->hiyori->getMigrator()->pending();
@@ -121,7 +151,51 @@ final class CombinerCommand extends Command
             }
         }
 
-        $this->hiyori->combine($base, $strategy, $config);
+        // Without this there is no way to tell a 40 %-loss run from a healthy
+        // one, which is the bug this closes.
+        $reported = $this->hiyori->combine($base, $strategy, $config);
+
+        if (!$reported instanceof CombineStats) {
+            $output->writeln('<error>The combiner returned no coverage statistics, so this run cannot be verified as successful.</error>');
+            $this->release();
+
+            return Command::FAILURE;
+        }
+
+        $output->writeln(sprintf(
+            'Coverage: <info>%s</info> of %s base rows covered (%s%%) — merged rows: %s, single-source rows: %s, unmatched rows: %s, skipped rows (no base reference id): %s',
+            number_format($reported->written()),
+            number_format($reported->examined),
+            $reported->coveragePercent(),
+            number_format($reported->merged),
+            number_format($reported->passthrough),
+            number_format($reported->unmatched),
+            number_format($reported->unresolvedBaseId),
+        ));
+
+        if ($reported->failsCoverageGate($minCoverage)) {
+            if ($reported->examined === 0) {
+                $output->writeln(sprintf(
+                    '<error>Coverage gate FAILED: %s examined 0 base rows, so this run proves nothing.</error>',
+                    $reported->base,
+                ));
+            } else {
+                $output->writeln(sprintf(
+                    '<error>Coverage gate FAILED: %s%% is below the %d%% floor (%s of %s base rows produced no document). --passthrough keeps unmatched rows but cannot recover rows with no base reference id (see the skipped count above). Lower the floor with --min-coverage=0 to disable the check.</error>',
+                    $reported->coveragePercent(),
+                    $minCoverage,
+                    number_format($reported->examined - $reported->written()),
+                    number_format($reported->examined),
+                ));
+            }
+            $this->release();
+
+            return Command::FAILURE;
+        }
+
+        if ($minCoverage === 0) {
+            $output->writeln('<comment>Coverage gate disabled (--min-coverage=0).</comment>');
+        }
 
         $this->exportIfRequested($input, $output);
 

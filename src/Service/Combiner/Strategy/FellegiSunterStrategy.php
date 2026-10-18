@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hiyori\Service\Combiner\Strategy;
 
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -71,7 +72,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source,
-    ): void {
+    ): CombineStats {
         // Calibrated m/u (from `combine:fs-calibrate`) take precedence over the
         // hand-set defaults; an explicit `m`/`u` in the config still wins.
         $calibrated = null;
@@ -123,11 +124,18 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $mergedSources = [];
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
+        // Coverage counters (see CombineStats).
+        $examined = 0;
+        $unresolvedBaseId = 0;
         $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
+            $examined++;
             $entryArray = \Hiyori\Helper::convertMongoResultToArray($entry);
             $baseId = \Hiyori\Helper::resolveReferenceId($entryArray, $baseShorthand);
+            if ($baseId === '') {
+                $unresolvedBaseId++;
+            }
             $merged = false;
 
             foreach ($availableSources as $currentSource) {
@@ -227,6 +235,15 @@ final class FellegiSunterStrategy extends CombinerStrategy
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $tableName,
+            $examined,
+            $mergedDocs,
+            $totalPassthrough,
+            $unresolvedBaseId,
+        );
     }
 
     /**

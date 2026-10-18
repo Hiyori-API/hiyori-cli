@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -41,7 +42,7 @@ final class MetadataMlStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
-    ): void {
+    ): CombineStats {
         $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::DEFAULT_WEIGHTS);
         $metadataFloor = (float) ($strategy->getConfig('metadata_floor') ?? 50.0);
         $mlThreshold = (float) ($strategy->getConfig('ml_threshold') ?? 0.5);
@@ -86,12 +87,19 @@ final class MetadataMlStrategy extends CombinerStrategy
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
         $rejectedTitle = 0;
+        // Coverage counters (see CombineStats).
+        $examined = 0;
+        $unresolvedBaseId = 0;
         $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
+            $examined++;
             $entryArray = Helper::convertMongoResultToArray($entry);
             $baseShorthand = $source->get()->getShorthand();
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
+            if ($baseId === '') {
+                $unresolvedBaseId++;
+            }
             $merged = false;
 
             foreach ($availableSources as $currentSource) {
@@ -233,5 +241,14 @@ final class MetadataMlStrategy extends CombinerStrategy
             'rejected_anchor' => $rejectedAnchor,
             'rejected_title' => $rejectedTitle,
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $tableName,
+            $examined,
+            $mergedDocs,
+            $totalPassthrough,
+            $unresolvedBaseId,
+        );
     }
 }

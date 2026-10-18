@@ -3,6 +3,7 @@
 namespace Hiyori;
 
 use Hiyori\Service\Combiner\Combiner;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Database;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\Ingestion\Ingestion;
@@ -50,7 +51,7 @@ class Hiyori
         return new Migrator($this->database, $database);
     }
 
-    public function combine(string $baseSource, string $strategy, array $config = [])
+    public function combine(string $baseSource, string $strategy, array $config = []): CombineStats
     {
         $this->sources
             ->setCurrent($baseSource);
@@ -62,7 +63,7 @@ class Hiyori
             $this->strategy->setConfig($config);
         }
 
-        $this->combiner->start();
+        return $this->combiner->start();
     }
 
     public function getDatabase(): Database

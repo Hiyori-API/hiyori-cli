@@ -4,11 +4,27 @@ declare(strict_types=1);
 
 namespace Hiyori\Service;
 
+use Monolog\Handler\RotatingFileHandler;
+use Monolog\Logger as MonologLogger;
+use Psr\Log\LoggerInterface;
+
 /**
  * Minimal, dependency-free telemetry store for live pipeline state.
  *
  * Writes atomic JSON state files under storage/state/ along with an
  * append-only JSONL log. Readers (the dashboard) poll these cheap files.
+ *
+ * Every mutation is a read-merge-write, so it is serialised with an exclusive
+ * advisory lock taken before the state file is read. Without that, two workers
+ * can read the same old value and the later writer silently drops the other's
+ * field (the ingest-parallel.sh case).
+ *
+ * The lock lives on a sidecar `<file>.lock`, never on `<file>` itself: writes
+ * publish with rename(), which replaces the inode. A lock held on the old
+ * inode would stop guarding the path as soon as another writer renamed a new
+ * file into place, letting two processes hold "the" lock at once. The sidecar
+ * is never renamed, so all writers lock the same inode. Lock files are
+ * deliberately never unlinked: removing one has the same re-inode race.
  */
 final class Telemetry
 {
@@ -20,9 +36,16 @@ final class Telemetry
      */
     private const MAX_STATE_BYTES = 1_048_576; // 1 MiB
 
+    /**
+     * A JSONL log larger than this is rewritten down to its newest lines.
+     */
+    private const APPEND_ROTATE_BYTES = 524_288; // 512 KiB
+
     private string $dir;
 
-    public function __construct(?string $dir = null)
+    private ?LoggerInterface $logger;
+
+    public function __construct(?string $dir = null, ?LoggerInterface $logger = null)
     {
         // Tests run the real strategies against throwaway collections; an
         // explicit override keeps their telemetry out of the live state
@@ -30,6 +53,7 @@ final class Telemetry
         // the latest combine.
         $override = getenv('HIYORI_TELEMETRY_DIR');
         $this->dir = $dir ?? (is_string($override) && $override !== '' ? $override : dirname(__DIR__, 2) . '/storage/state');
+        $this->logger = $logger;
     }
 
     public function stateDir(): string
@@ -42,16 +66,25 @@ final class Telemetry
      */
     public function update(string $key, array $data): void
     {
-        if (!is_dir($this->dir)) {
-            @mkdir($this->dir, 0o777, true);
-        }
-        $merged = array_merge($this->read($key), $data, ['updated_at' => date('c')]);
-        $file = $this->dir . '/' . $key . '.json';
-        $tmp = $file . '.tmp';
-        if (false === @file_put_contents($tmp, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES))) {
-            return;
-        }
-        @rename($tmp, $file);
+        $this->mutate($key, static function (array $state) use ($data): array {
+            return array_merge($state, $data);
+        });
+    }
+
+    /**
+     * Atomically add $amount to the integer field $field in $key.json.
+     *
+     * The read and the write happen inside one lock, so parallel workers
+     * cannot lose each other's increments. Extra fields in $data are merged
+     * like update() does, after the increment.
+     */
+    public function increment(string $key, string $field, int $amount = 1, array $data = []): void
+    {
+        $this->mutate($key, static function (array $state) use ($field, $amount, $data): array {
+            $state[$field] = (int) ($state[$field] ?? 0) + $amount;
+
+            return array_merge($state, $data);
+        });
     }
 
     public function read(string $key): array
@@ -70,18 +103,49 @@ final class Telemetry
      */
     public function append(string $name, array $event, int $maxLines = 2000): void
     {
-        if (!is_dir($this->dir)) {
-            @mkdir($this->dir, 0o777, true);
+        if (!$this->ensureDir()) {
+            return;
         }
+
         $file = $this->dir . '/' . $name . '.jsonl';
         $event['ts'] = date('c');
-        @file_put_contents($file, json_encode($event) . "\n", FILE_APPEND);
+        $line = json_encode($event);
+        if (false === $line) {
+            $this->logFailure('encode', $file);
 
-        if (@filesize($file) > 512 * 1024) {
+            return;
+        }
+
+        $this->withLock($file, function () use ($file, $line, $maxLines): void {
+            error_clear_last();
+            if (false === @file_put_contents($file, $line . "\n", FILE_APPEND)) {
+                $this->logFailure('append', $file);
+
+                return;
+            }
+
+            $size = @filesize($file);
+            if (false === $size || $size <= self::APPEND_ROTATE_BYTES) {
+                return;
+            }
+
             $lines = @file($file, FILE_IGNORE_NEW_LINES) ?: [];
             $lines = array_slice($lines, -$maxLines);
-            @file_put_contents($file, implode("\n", $lines) . "\n");
-        }
+            $tmp = $file . '.tmp';
+            error_clear_last();
+            if (false === @file_put_contents($tmp, implode("\n", $lines) . "\n")) {
+                $this->logFailure('rewrite', $file);
+                @unlink($tmp);
+
+                return;
+            }
+
+            error_clear_last();
+            if (!@rename($tmp, $file)) {
+                $this->logFailure('rename', $file);
+                @unlink($tmp);
+            }
+        });
     }
 
     /**
@@ -111,13 +175,15 @@ final class Telemetry
      */
     public function pushHistory(string $key, float $value, int $maxPoints = 120): void
     {
-        $state = $this->read($key);
-        $history = $state['history'] ?? [];
-        $history[] = ['t' => time(), 'v' => $value];
-        if (count($history) > $maxPoints) {
-            $history = array_slice($history, -$maxPoints);
-        }
-        $this->update($key, ['history' => $history]);
+        $this->mutate($key, static function (array $state) use ($value, $maxPoints): array {
+            $history = $state['history'] ?? [];
+            $history[] = ['t' => time(), 'v' => $value];
+            if (count($history) > $maxPoints) {
+                $history = array_slice($history, -$maxPoints);
+            }
+
+            return array_merge($state, ['history' => $history]);
+        });
     }
 
     /**
@@ -198,5 +264,140 @@ final class Telemetry
             'started_at_ts' => $started,
         ], $extra));
         $t->pushHistory('ingest-' . $source, $rate);
+    }
+
+    /**
+     * Read, transform and write one state file while holding its lock.
+     *
+     * @param callable(array<string, mixed>): array<string, mixed> $mutator
+     */
+    private function mutate(string $key, callable $mutator): void
+    {
+        if (!$this->ensureDir()) {
+            return;
+        }
+
+        $file = $this->dir . '/' . $key . '.json';
+        $this->withLock($file, function () use ($key, $file, $mutator): void {
+            // Re-read inside the lock: a value read before locking may already
+            // be stale by the time this process writes.
+            $state = $this->read($key);
+            $state = $mutator($state);
+            $state['updated_at'] = date('c');
+            $this->writeAtomically($file, $state);
+        });
+    }
+
+    /**
+     * Publish a state file without ever exposing a half-written file.
+     */
+    private function writeAtomically(string $file, array $state): void
+    {
+        $json = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (false === $json) {
+            $this->logFailure('encode', $file);
+
+            return;
+        }
+
+        $tmp = $file . '.tmp';
+        error_clear_last();
+        if (false === @file_put_contents($tmp, $json)) {
+            $this->logFailure('write', $file);
+            @unlink($tmp);
+
+            return;
+        }
+
+        error_clear_last();
+        if (!@rename($tmp, $file)) {
+            $this->logFailure('rename', $file);
+            @unlink($tmp);
+        }
+    }
+
+    /**
+     * Run $fn while holding an exclusive lock on $file's sidecar lock file.
+     */
+    private function withLock(string $file, callable $fn): void
+    {
+        $lockFile = $file . '.lock';
+        $handle = @fopen($lockFile, 'c');
+        if (false === $handle) {
+            $this->logFailure('lock-open', $lockFile);
+
+            return;
+        }
+
+        try {
+            if (!@flock($handle, LOCK_EX)) {
+                $this->logFailure('lock-acquire', $lockFile);
+
+                return;
+            }
+
+            try {
+                $fn();
+            } finally {
+                @flock($handle, LOCK_UN);
+            }
+        } finally {
+            @fclose($handle);
+        }
+    }
+
+    private function ensureDir(): bool
+    {
+        if (is_dir($this->dir)) {
+            return true;
+        }
+        if (@mkdir($this->dir, 0o777, true) || is_dir($this->dir)) {
+            return true;
+        }
+
+        $this->logFailure('mkdir', $this->dir);
+
+        return false;
+    }
+
+    /**
+     * Report a failed write instead of swallowing it. Telemetry must never
+     * throw into an ingest, so even the logger is best-effort.
+     */
+    private function logFailure(string $operation, string $path): void
+    {
+        $error = error_get_last();
+
+        try {
+            $this->logger()->error('telemetry ' . $operation . ' failed', [
+                'path' => $path,
+                'error' => null !== $error ? $error['message'] : 'unknown error',
+            ]);
+        } catch (\Throwable) {
+            // A broken logger must not take down the caller either.
+        }
+    }
+
+    /**
+     * Without a handler a Monolog logger silently discards every record, so a
+     * default logger writes beside the main log like RateLimiter does.
+     */
+    private function logger(): LoggerInterface
+    {
+        if (null !== $this->logger) {
+            return $this->logger;
+        }
+
+        $logger = new MonologLogger('telemetry');
+        $logDir = dirname(__DIR__, 2) . '/storage/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0o777, true);
+        }
+        if (is_dir($logDir)) {
+            $logger->pushHandler(new RotatingFileHandler($logDir . '/telemetry', 5));
+        }
+        $this->logger = $logger;
+
+        return $logger;
     }
 }

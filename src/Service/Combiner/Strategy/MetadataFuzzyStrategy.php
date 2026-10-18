@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -67,7 +68,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
-    ): void {
+    ): CombineStats {
         $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::DEFAULT_WEIGHTS);
         $threshold = self::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
@@ -111,15 +112,23 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $rejectedAnchor = 0;
         $rejectedTitle = 0;
         $bufferedRejections = 0;
+        // Coverage counters (see CombineStats): base rows iterated, and base
+        // rows that cannot be keyed because their own reference id is missing.
+        $examined = 0;
+        $unresolvedBaseId = 0;
         $telemetry = new \Hiyori\Service\Telemetry();
 
         foreach ($cursor as $id => $entry) {
+            $examined++;
             $entryArray = Helper::convertMongoResultToArray($entry);
             $baseShorthand = $source->get()->getShorthand();
             // Entries without their own identifier (e.g. reference-less manga
             // rows) cannot key an organized document; they are skipped rather
             // than collapsed onto an empty upsert key.
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
+            if ($baseId === '') {
+                $unresolvedBaseId++;
+            }
             $bestForEntry = 0.0;
 
             // Consider EVERY available source (do not break after the first hit)
@@ -298,6 +307,15 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             'rejected_title' => $rejectedTitle,
             'buffered' => $bufferedRejections,
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $source->get()->getTable(),
+            $examined,
+            $mergedDocs,
+            $totalPassthrough,
+            $unresolvedBaseId,
+        );
     }
 
     /**

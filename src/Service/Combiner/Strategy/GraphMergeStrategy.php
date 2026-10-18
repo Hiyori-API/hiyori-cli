@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -33,7 +34,7 @@ final class GraphMergeStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source,
-    ): void {
+    ): CombineStats {
         $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::DEFAULT_WEIGHTS);
         $linkThreshold = (float) ($strategy->getConfig('link_threshold') ?? 60.0);
         $mergeThreshold = (float) ($strategy->getConfig('threshold') ?? 70.0);
@@ -57,11 +58,16 @@ final class GraphMergeStrategy extends CombinerStrategy
         $baseShorthand = $source->get()->getShorthand();
         $totalMerged = 0;
         $clusterSizes = [];
+        // Coverage counters (see CombineStats).
+        $examined = 0;
+        $unresolvedBaseId = 0;
 
         foreach ($cursor as $entry) {
+            $examined++;
             $entryArray = Helper::convertMongoResultToArray($entry);
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
             if ($baseId === '') {
+                $unresolvedBaseId++;
                 $progressBar->advance();
 
                 continue;
@@ -113,6 +119,15 @@ final class GraphMergeStrategy extends CombinerStrategy
             'threshold' => $mergeThreshold,
             'link_threshold' => $linkThreshold,
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $tableName,
+            $examined,
+            $totalMerged,
+            0,
+            $unresolvedBaseId,
+        );
     }
 
     /**

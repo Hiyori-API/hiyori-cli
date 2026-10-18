@@ -3,6 +3,7 @@
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -18,7 +19,7 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
-    ): void {
+    ): CombineStats {
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $tableName = $source->get()->getTable();
         /** @var Collection $baseCollection */
@@ -33,7 +34,20 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
         $progressBar->start();
 
         $totalMerged = 0;
+        // Coverage counters (see CombineStats). `$totalMerged` counts writes,
+        // and one entry can write once per matching source, so coverage needs
+        // its own per-entry counter.
+        $examined = 0;
+        $coveredEntries = 0;
+        $unresolvedBaseId = 0;
         foreach ($cursor as $id => $entry) {
+            $examined++;
+            $covered = false;
+            // Counted on the raw entry, before the merge path stamps the base
+            // reference onto it (which is what would make it resolve).
+            if (Helper::resolveReferenceId(Helper::convertMongoResultToArray($entry), $source->get()->getShorthand()) === '') {
+                $unresolvedBaseId++;
+            }
             foreach ($availableSources as $currentSource) {
                 // skip if it's the same source as base source
                 if ($currentSource->getTable() === $tableName) {
@@ -94,10 +108,14 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                             );
 
                             $totalMerged++;
+                            $covered = true;
                             break;
                         }
                     }
                 }
+            }
+            if ($covered) {
+                $coveredEntries++;
             }
             $progressBar->advance();
         }
@@ -110,5 +128,14 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
             'merges' => $totalMerged,
             'completed_at' => date('c'),
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $tableName,
+            $examined,
+            $coveredEntries,
+            0,
+            $unresolvedBaseId,
+        );
     }
 }

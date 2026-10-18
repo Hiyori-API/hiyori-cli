@@ -109,6 +109,7 @@ $app->addCommands([
     new \Hiyori\Commands\ReferencesCommand($hiyori),
     new \Hiyori\Commands\WeightageCommand($hiyori),
     new \Hiyori\Commands\SweeperCommand($hiyori),
+    new \Hiyori\Commands\RepairReferencesCommand($hiyori),
     new \Hiyori\Commands\ExportCommand($hiyori),
     new \Hiyori\Commands\HealthCommand($hiyori),
     new \Hiyori\Commands\MetricsCommand($hiyori),

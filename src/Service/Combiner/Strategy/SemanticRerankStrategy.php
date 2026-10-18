@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -33,7 +34,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source,
-    ): void {
+    ): CombineStats {
         $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::DEFAULT_WEIGHTS);
         $threshold = MetadataFuzzyStrategy::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $prefilter = (float) ($strategy->getConfig('prefilter_threshold') ?? max(0.0, $threshold - 15.0));
@@ -71,10 +72,18 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $candidatesExamined = 0;
         $rejectedAnchor = 0;
         $rejectedTitle = 0;
+        // Coverage counters (see CombineStats). `persistMerge()` refuses an
+        // entry with no resolvable base id, so count those rows here.
+        $examined = 0;
+        $unresolvedBaseId = 0;
         $telemetry = new Telemetry();
 
         foreach ($cursor as $entry) {
+            $examined++;
             $entryArray = Helper::convertMongoResultToArray($entry);
+            if (Helper::resolveReferenceId($entryArray, $source->get()->getShorthand()) === '') {
+                $unresolvedBaseId++;
+            }
             $baseEmbedding = null;
 
             foreach ($availableSources as $currentSource) {
@@ -149,6 +158,15 @@ final class SemanticRerankStrategy extends CombinerStrategy
             'candidates_examined' => $candidatesExamined,
             'rejected_anchor' => $rejectedAnchor,
         ]);
+
+        return CombineStats::forRun(
+            self::NAME,
+            $tableName,
+            $examined,
+            $totalMerged,
+            0,
+            $unresolvedBaseId,
+        );
     }
 
     public static function blend(float $metadataScore, float $semanticScore, float $metadataWeight, float $semanticWeight): float

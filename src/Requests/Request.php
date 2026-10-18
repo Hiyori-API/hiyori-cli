@@ -18,8 +18,10 @@ class Request
     public static function fetch(string $url, string $method = self::GET, ?array $options = []): ResponseInterface
     {
         $telemetry = new \Hiyori\Service\Telemetry();
-        $telemetry->update('cache', [
-            'requests' => (int) ($telemetry->read('cache')['requests'] ?? 0) + 1,
+        // Read-merge-write inside one lock: every worker fetching pages bumps
+        // the same counter, so a read outside the lock loses increments when
+        // ingest-parallel.sh runs several processes at once.
+        $telemetry->increment('cache', 'requests', 1, [
             'enabled' => (bool) ($_ENV['HTTP_CACHE'] ?? false),
             'host' => (string) parse_url($url, PHP_URL_HOST),
         ]);
