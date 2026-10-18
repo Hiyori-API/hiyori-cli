@@ -28,6 +28,9 @@ const MAX = 300
 /** Collections written by the ingesters — the input side of the pipeline. */
 const SOURCE_COLLECTIONS = ['anilist', 'anilist_manga', 'myanimelist', 'myanimelist_manga', 'kitsu', 'kitsu_manga']
 
+/** Collections shown individually in the dataset donut before the tail is folded. */
+const DATASET_TOP_N = 7
+
 const WINDOWS = [
   { label: '1m', value: 20 },
   { label: '5m', value: 100 },
@@ -101,7 +104,26 @@ export function DashboardPage() {
   const dataset = useMemo(() => {
     const keys = Object.keys(counts).sort().filter(k => !hiddenCollections.includes(k))
     return keys.map((k, i) => ({ name: k, value: counts[k], color: COLORS[i % COLORS.length] }))
-  }, [counts, hiddenCollections])
+  }, [counts, hiddenCollections, COLORS])
+
+  /**
+   * The donut shows the largest collections plus an "other" slice.
+   *
+   * Every collection was listed individually, which made the card a 15-row
+   * scroll area of mostly zeros — `_migrations (4)`, `embeddings (3)`,
+   * `pair_rejections (0)` — competing with the three collections that actually
+   * hold the data. The tail is folded into one slice and the full breakdown is
+   * already available in the Explorer and Sources table.
+   */
+  const datasetTop = useMemo(() => {
+    const sorted = [...dataset].sort((a, b) => b.value - a.value)
+    const head = sorted.slice(0, DATASET_TOP_N)
+    const tail = sorted.slice(DATASET_TOP_N)
+    const tailTotal = tail.reduce((s, e) => s + e.value, 0)
+    return tailTotal > 0
+      ? [...head, { name: `other (${tail.length})`, value: tailTotal, color: COLORS[COLORS.length - 1], isOther: true }]
+      : head
+  }, [dataset, COLORS])
 
   const rateSeriesArr = useMemo(() => {
     const keys = focus ? jobKeys.filter(k => k.replace('ingest-', '') === focus || k === `ingest-${focus}`) : jobKeys
@@ -264,8 +286,8 @@ export function DashboardPage() {
                       <div className="h-40 w-full shrink-0 sm:w-40">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dataset} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
-                              {dataset.map(e => <Cell key={e.name} fill={e.color} />)}
+                            <Pie data={datasetTop} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
+                              {datasetTop.map(e => <Cell key={e.name} fill={e.color} />)}
                             </Pie>
                             <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                           </PieChart>
@@ -273,7 +295,7 @@ export function DashboardPage() {
                       </div>
                       <ScrollArea className="max-h-40 min-w-0 flex-1">
                         <div className="space-y-1 text-sm">
-                          {dataset.map(e => (
+                          {datasetTop.map(e => (
                             <div key={e.name} className="flex items-center justify-between gap-2">
                               <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
                                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: e.color }} />

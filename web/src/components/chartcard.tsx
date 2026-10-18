@@ -97,7 +97,10 @@ export function CompositionStream({ title, data, keys, colors, emptyMsg }: {
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} minTickGap={40} />
                 <YAxis tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {/* The legend grows with the series count; with 15 collections it
+                      wrapped to three rows and squeezed the stream into a sliver.
+                      Cap its height and let it scroll instead. */}
+                  <Legend wrapperStyle={{ fontSize: 11, maxHeight: 44, overflowY: 'auto' }} iconSize={8} iconType="plainline" />
                 {keys.map((k, i) => <Area key={k} type="monotone" dataKey={k} stackId="1" stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.75} dot={false} />)}
               </AreaChart>
             </ResponsiveContainer>
