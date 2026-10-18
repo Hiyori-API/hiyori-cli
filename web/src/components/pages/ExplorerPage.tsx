@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PageHead } from '@/components/widgets'
 import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc, type ExploreResp } from '@/lib/explorer/backend'
 import { SourceLogo } from '@/components/source-status'
@@ -76,6 +77,9 @@ export function ExplorerPage() {
   const urlInit = useMemo(() => parseHash(window.location.hash), [])
 
   const [meta, setMeta] = useState<Record<string, { count?: number; fields?: string[] }>>({})
+  // The collection list arrives on its own request. Until it does, the table
+  // below renders for a guessed collection and then swaps underneath you.
+  const [metaReady, setMetaReady] = useState(false)
   const [collection, setCollection] = useState(urlInit.collection || 'anilist')
   const [q, setQ] = useState(urlInit.q ?? '')
   const [qDebounced, setQDebounced] = useState(urlInit.q ?? '')
@@ -162,6 +166,7 @@ export function ExplorerPage() {
       if (!on) return
       const colsMap = m.collections ?? {}
       setMeta(colsMap)
+      setMetaReady(true)
       if (!urlInit.collection) {
         const preferred = Object.keys(colsMap).find(c => !['organized', 'manga_organized'].includes(c)) ?? 'anilist'
         setCollection(preferred)
@@ -247,6 +252,9 @@ export function ExplorerPage() {
   }, [collection, qDebounced, field, filtersKey, rangesKey])
 
   useEffect(() => {
+    // Waiting for the collection list means the table never renders against a
+    // placeholder collection and then re-renders when the real default lands.
+    if (!metaReady) return
     const id = ++seq.current
     setLoading(true)
     const prebuilt = filters.filter(f => PREBUILT_IDS.has(f))
@@ -713,7 +721,10 @@ export function ExplorerPage() {
 
         {/* collection switch (g e focuses this) */}
         <div ref={tabsRef} tabIndex={-1} className="collection-tabs flex flex-wrap items-center gap-2 outline-none" role="group" aria-label="Collections">
-          {collections.map(c => {
+          {!metaReady && Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-8 w-28 rounded-lg" />
+          ))}
+          {metaReady && collections.map(c => {
             const brand = brandOf(c)
             const active = collection === c
             return (
@@ -779,7 +790,7 @@ export function ExplorerPage() {
                   field={field}
                   onField={f => setField(f)}
                   resultCount={totalShown}
-                  loading={loading && !docs.length}
+                  loading={(loading || !metaReady) && !docs.length}
                   recents={recents}
                   onPickRecent={r => { setQ(r.q); setField(r.field as SearchField) }}
                   inputRef={searchRef}

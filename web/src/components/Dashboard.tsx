@@ -4,6 +4,7 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { cn } from 'cn'
 import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
@@ -106,34 +107,46 @@ function useAppliedPreferences(): void {
 /**
  * Pipeline state, in the shell so it survives navigation.
  *
- * The header previously carried only connection health, so a 40-minute ingest
- * stopped being visible the moment you went to Logs to investigate it. This
- * answers the two questions an operator actually has while elsewhere: is
- * anything running, and how fast is it going.
+ * The header previously carried only connection health, so a forty-minute ingest
+ * stopped being visible the moment you went to Logs to investigate it.
+ *
+ * Names the source when there is one, because "1 ingesting" tells you a count
+ * and nothing else — not which run, and not whether it is moving.
  */
 function PipelineChip() {
   const { data } = useStatus()
   const jobs = data?.jobs ?? {}
-  const live = Object.keys(jobs).filter(k => isIngestJob(k, jobs[k] as Job) && isJobLive(jobs[k] as Job))
-  const rate = live.reduce((a, k) => a + ((jobs[k] as Job).per_second ?? 0), 0)
-  const errors = live.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0)
+  const liveKeys = Object.keys(jobs).filter(k => isIngestJob(k, jobs[k] as Job) && isJobLive(jobs[k] as Job))
 
-  if (live.length === 0) {
+  const pill = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums text-muted-foreground'
+
+  if (liveKeys.length === 0) {
     return (
-      <span className="carbon-status tabular-nums text-muted-foreground">
+      <span className={pill} title="No ingestion running">
         <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
         idle
       </span>
     )
   }
 
+  const rate = liveKeys.reduce((a, k) => a + ((jobs[k] as Job).per_second ?? 0), 0)
+  const errors = liveKeys.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0)
+  const name = liveKeys.length === 1
+    ? String((jobs[liveKeys[0]] as Job).source ?? liveKeys[0])
+    : `${liveKeys.length} sources`
+  // A run that is live but moving at nothing is a real state worth naming —
+  // it usually means every page is being skipped, which a bare "0.0/s" hides.
+  const stalled = rate < 0.05
+
   return (
     <span
-      className="carbon-status tabular-nums"
-      title={`${live.length} ingesting · ${rate.toFixed(1)}/s combined${errors ? ` · ${errors} errors` : ''}`}
+      className={pill}
+      title={`${liveKeys.join(', ')} · ${rate.toFixed(1)}/s combined${errors ? ` · ${errors} errors` : ''}`}
     >
-      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-      {live.length} ingesting · {rate.toFixed(1)}/s
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', stalled ? 'bg-amber-500' : 'animate-pulse bg-emerald-500')} />
+      <span className="max-w-40 truncate">{name}</span>
+      <span className="text-muted-foreground/60">·</span>
+      {stalled ? 'no progress' : `${rate.toFixed(1)}/s`}
     </span>
   )
 }
@@ -204,7 +217,7 @@ export function Dashboard() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                     <Activity className="h-4 w-4" />
                   </div>
                   <div className="grid flex-1 text-left leading-tight">
@@ -247,7 +260,7 @@ export function Dashboard() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
-            <div className="px-3 pb-2 text-xs text-muted-foreground">hiyori-cli · v2 dashboard</div>
+            <div className="px-3 pb-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">hiyori-cli · v2 dashboard</div>
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>

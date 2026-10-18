@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Clock, DatabaseZap, History, ListChecks, RefreshCw } from 'lucide-react'
+import {Clock, DatabaseZap, History, ListChecks} from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { jobPhase, fetchHistory, type Job, type SlowEntry, type ValidationEvent } from '@/lib/api'
@@ -69,13 +68,22 @@ export function LogsPage() {
       <PageHead
         title="Logs"
         desc="Slow requests, validation issues, ingestion run history and cache."
-        actions={<Button size="sm" variant="outline" onClick={() => window.location.reload()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reload</Button>}
       />
 
       {/* L1: slow requests merged with latency buckets + max-slow */}
-      <Section title="Slow requests" icon={Clock} badge={<Badge variant="outline">{slow.length}</Badge>}>
+      <Section title="Slow requests" icon={Clock} badge={<Badge variant="outline" title={`${slow.length} request(s) over 2s`}>{slow.length}</Badge>}>
         {error && !data ? <EmptyState icon={Clock} title="Backend offline" description="Start the dashboard server." /> :
-          slow.length === 0 ? <EmptyState icon={Clock} title="No slow requests" description="Requests over 2 seconds appear here." /> : (
+          slow.length === 0 ? (
+            <EmptyState
+              icon={Clock}
+              title="No slow requests"
+              description={
+                cache?.requests
+                  ? `${fmtCompact(cache.requests)} upstream requests recorded — none took over 2s. Only requests over 2s are logged.`
+                  : 'Requests over 2s appear here. No upstream requests have been recorded yet.'
+              }
+            />
+          ) : (
             <div className="space-y-3">
               <SlowTable slow={slow} tz={tz} />
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
