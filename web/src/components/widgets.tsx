@@ -41,6 +41,17 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
   )
 }
 
+/**
+ * Three-up summary row: one labelled number per pipeline stage.
+ *
+ * This is the only summary-tile recipe in the app. Publish and Quality each
+ * carried their own `Stat` — a bordered `text-[10px]` label over a `text-sm`
+ * value, and a centred `text-lg` value over a `text-xs` caption — so the same
+ * "Files: 12" read three ways depending on which page you were on. Both pages
+ * are gone, so those variants died with their call sites rather than being
+ * merged — and the single-card `KpiCard` was a third spelling with no callers,
+ * so it was deleted rather than kept alongside this one.
+ */
 export function StatStrip({ items }: {
   items: { label: string; value: string; icon: LucideIcon; sub?: string; tone?: 'ok' | 'warn' | 'bad'; spark?: number[] }[]
 }) {
@@ -68,39 +79,6 @@ export function StatStrip({ items }: {
         </div>
       ))}
     </div>
-  )
-}
-
-export function KpiCard({
-  label, value, icon: Icon, sub, loading,
-}: {
-  label: string
-  value: string
-  icon: LucideIcon
-  sub?: string
-  loading?: boolean
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-            <p className="mt-1.5 text-2xl font-semibold leading-none">
-              {loading ? (
-                <span className="inline-block h-7 w-20 animate-pulse rounded bg-muted" />
-              ) : (
-                <ChangePulse value={value} />
-              )}
-            </p>
-            {sub && <p className="mt-1.5 truncate text-xs text-muted-foreground">{sub}</p>}
-          </div>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 

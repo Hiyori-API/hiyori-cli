@@ -15,8 +15,10 @@ import {
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { fmtCompact } from '@/lib/format'
+import { Code } from '../code'
 import { EmptyState } from '../empty'
 import { Notice } from '../notice'
+import { OptionTile } from '../option-tile'
 import { hiddenWidgets, toggleWidgetId, WIDGETS } from '@/lib/widgets'
 import { PageHead, Section } from '../widgets'
 import { EnvSettings } from './settings-env'
@@ -245,10 +247,12 @@ export function SettingsPage() {
           <p className="mb-2 text-xs text-muted-foreground">Choose which widgets appear on the Dashboard page.</p>
           <div className="grid grid-cols-2 gap-2">
             {WIDGETS.map(([id, label]) => (
-              <label key={id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch aria-label={`Toggle ${id} widget`} checked={!hiddenWidgetIds.includes(id)} onCheckedChange={() => toggleWidget(id)} />
-                <span>{label}</span>
-              </label>
+              <OptionTile
+                key={id}
+                control={<Switch aria-label={`Toggle ${id} widget`} checked={!hiddenWidgetIds.includes(id)} onCheckedChange={() => toggleWidget(id)} />}
+              >
+                {label}
+              </OptionTile>
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">Unchecking a widget hides it; check to restore.</p>
@@ -258,10 +262,12 @@ export function SettingsPage() {
           <p className="mb-2 text-xs text-muted-foreground">Hide collections from the Dataset view (they stay in Explorer).</p>
           <div className="grid grid-cols-2 gap-2">
             {Object.keys(meta).map(c => (
-              <label key={c} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch aria-label={`Show ${c} collection`} checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />
-                <span>{c} <span className="text-xs text-muted-foreground">({fmtCompact(meta[c]?.count)})</span></span>
-              </label>
+              <OptionTile
+                key={c}
+                control={<Switch aria-label={`Show ${c} collection`} checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />}
+              >
+                {c} <span className="text-xs text-muted-foreground">({fmtCompact(meta[c]?.count)})</span>
+              </OptionTile>
             ))}
           </div>
         </Section>
@@ -304,7 +310,7 @@ export function SettingsPage() {
                 <div className="text-sm">Dashboard token</div>
                 <div className="text-xs text-muted-foreground">{env.token_present ? 'a token is protecting the API' : 'no token set — API open'}</div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => void rotate()}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button>
+              <Button size="sm" variant="outline" onClick={() => void rotate()}><RotateCcw className="mr-1.5" />Rotate</Button>
             </div>
             {newToken && (
               <Notice
@@ -312,19 +318,19 @@ export function SettingsPage() {
                 title={
                   <span className="flex items-center gap-2">
                     New token (copy now — shown once)
-                    <Button size="icon-xs" variant="ghost" aria-label="Copy new token" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy className="h-3 w-3" /></Button>
+                    <Button size="icon-xs" variant="ghost" aria-label="Copy new token" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy /></Button>
                   </span>
                 }
               >
-                <code className="break-all">{newToken}</code>
+                <Code variant="plain" className="break-all">{newToken}</Code>
               </Notice>
             )}
             <div className="rounded-lg border p-3">
               <div className="mb-2 text-sm">Webhook URL</div>
               <div className="flex gap-2">
                 <Input value={webhook} onChange={e => setWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/…" className="h-8 text-xs" />
-                <Button size="sm" variant="outline" onClick={() => void saveWebhook()}><Check className="mr-1 h-3.5 w-3.5" />Save</Button>
-                <Button size="sm" variant="outline" onClick={() => void testWebhook()}><Send className="mr-1 h-3.5 w-3.5" />Test</Button>
+                <Button size="sm" variant="outline" onClick={() => void saveWebhook()}><Check className="mr-1" />Save</Button>
+                <Button size="sm" variant="outline" onClick={() => void testWebhook()}><Send className="mr-1" />Test</Button>
               </div>
               <p className="mt-1 text-[10px] text-muted-foreground">Delivers alert messages (throttled to 1/hour per alert type).</p>
             </div>
@@ -334,7 +340,7 @@ export function SettingsPage() {
         <Section title="Import / export" icon={Download}>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={exportJson}><Download className="mr-1.5 h-3.5 w-3.5" />Export settings JSON</Button>
+              <Button size="sm" variant="outline" onClick={exportJson}><Download className="mr-1.5" />Export settings JSON</Button>
               <Button size="sm" variant="destructive" onClick={() => { if (window.confirm('Reset all dashboard preferences and audit trail?')) void resetAll() }}>Reset telemetry & prefs</Button>
             </div>
             <div>
@@ -369,7 +375,7 @@ export function SettingsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm">Dump profile</div>
-              <div className="text-xs text-muted-foreground">Used by <code className="rounded bg-muted px-1">php hiyori export</code> (GET/POST /api/export-config).</div>
+              <div className="text-xs text-muted-foreground">Used by <Code>php hiyori export</Code> (GET/POST /api/export-config).</div>
             </div>
             <Select value={exportProfile} onValueChange={v => saveExportProfile(v ?? 'per-entry-json')}>
               <SelectTrigger className="h-8 w-44" aria-label="Dump profile"><SelectValue /></SelectTrigger>

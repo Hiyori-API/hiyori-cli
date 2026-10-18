@@ -22,7 +22,7 @@ export function EmptyState({ icon: Icon, title, description, action, actionLabel
       </div>
       {action && (
         <Button size="sm" onClick={action} disabled={busy}>
-          {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          {busy && <Loader2 className="mr-1.5 animate-spin" />}
           {actionLabel ?? 'Take action'}
         </Button>
       )}

@@ -20,6 +20,7 @@ import { useStatus } from '@/lib/status-context'
 import { Sparkline, useChartColors } from '../charts'
 import { fetchBackups, isIngestJob, isJobLive, jobPhase, postAction, restoreBackup, runBackup, type BackupItem, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
+import { Code } from '../code'
 import { hiddenWidgets } from '@/lib/widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
@@ -245,7 +246,7 @@ export function DashboardPage() {
               variant="destructive"
               onClick={() => { const src = confirmRetry; setConfirmRetry(null); if (src) void retry(src) }}
             >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Re-ingest
+              <RotateCcw className="mr-1.5" />Re-ingest
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -356,11 +357,11 @@ export function DashboardPage() {
                     <span className="text-muted-foreground">Next run</span>
                     <span className="font-medium">{sched?.next_in != null ? `in ${Math.round(sched.next_in / 60)}m` : '—'}</span>
                   </div>
-                  <p className="col-span-full text-[10px] text-muted-foreground">Managed via <code>hiyori schedule --install</code> or SCHEDULE_* env vars — edit there, not here.</p>
+                  <p className="col-span-full text-[10px] text-muted-foreground">Managed via <Code variant="plain">hiyori schedule --install</Code> or SCHEDULE_* env vars — edit there, not here.</p>
                   <Button size="sm" variant="outline" className="col-span-full" disabled={runnowBusy} onClick={() => void runNow()}>
                     {runnowBusy
-                      ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      : <Terminal className="mr-1.5 h-3.5 w-3.5" />}
+                      ? <Loader2 className="mr-1.5 animate-spin" />
+                      : <Terminal className="mr-1.5" />}
                     {runnowBusy ? 'Triggering…' : 'Run now'}
                   </Button>
                 </div>
@@ -372,7 +373,7 @@ export function DashboardPage() {
             <Section title="Backups" icon={Archive}>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" onClick={() => void doBackup()}><Archive className="mr-1.5 h-3.5 w-3.5" />Backup now</Button>
+                  <Button size="sm" onClick={() => void doBackup()}><Archive className="mr-1.5" />Backup now</Button>
                   <span className="text-xs text-muted-foreground">
                     {lastBackup?.file
                       ? <>Last backup: <span className="font-medium">{lastBackup.file}</span> <span className="tabular-nums">({ago(lastBackup.mtime)})</span></>
@@ -821,8 +822,8 @@ function SourcesTable({
                           onClick={() => { if (a.enabled && !isPending) a.run() }}
                         >
                           {isPending && pending[src] === a.key
-                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            : <a.icon className="h-3.5 w-3.5" />}
+                            ? <Loader2 className="animate-spin" />
+                            : <a.icon />}
                         </Button>
                       </span>
                     }
@@ -902,7 +903,7 @@ function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore
         return (
           <div className="flex items-center justify-end gap-1">
             <a href={`/storage/backups/${file}`} download={file} aria-label={`Download ${file}`} title={`Download ${file}`} className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
-            <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw className="h-3.5 w-3.5" /></Button>
+            <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw /></Button>
           </div>
         )
       },
