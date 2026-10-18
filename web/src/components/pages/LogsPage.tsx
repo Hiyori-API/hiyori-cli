@@ -30,7 +30,11 @@ export function LogsPage() {
   const [srcFilter, setSrcFilter] = useState('all')
 
   useEffect(() => {
-    void fetchHistory().then(r => setHistory(r.states ?? null))
+    void fetchHistory()
+      .then(r => setHistory(r.states ?? null))
+      // Run history is secondary; a failure should say so rather than leave the
+      // panel looking like there were no runs.
+      .catch(() => setHistory(null))
   }, [])
 
   const slow = useMemo(() => data?.slow ?? [], [data])

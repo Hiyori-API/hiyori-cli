@@ -208,7 +208,11 @@ export function QualityPage() {
   const [benchManga, setBenchManga] = useState<BenchmarkRow[]>([])
   const { failures, refresh: refreshFailures } = useFailures()
 
-  useEffect(() => { void fetchBenchmarkManga().then(r => setBenchManga(r.benchmark ?? [])) }, [benchKey])
+  useEffect(() => {
+    void fetchBenchmarkManga()
+      .then(r => setBenchManga(r.benchmark ?? []))
+      .catch((e: unknown) => toast.error(`manga benchmark: ${e instanceof Error ? e.message : String(e)}`))
+  }, [benchKey])
   const [sample, setSample] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [sampleRows, setSampleRows] = useState<SampleRef[]>([])
   // Reference shorthand:id -> the verdict written for that pair on this draw.
@@ -285,17 +289,25 @@ export function QualityPage() {
   const trendPeak = useMemo(() => validationTrend.reduce((m, b) => Math.max(m, b.n), 0), [validationTrend])
 
   const sampled = sample
-  const draw = (min = minConf) => void fetchSample('organized', min).then(r => {
-    setSample(r.sample ?? null)
-    setSampleRows(r.refs ?? [])
-    setVerdicts({})
-  })
+  const [drawing, setDrawing] = useState(false)
+  const draw = (min = minConf) => {
+    setDrawing(true)
+    void fetchSample('organized', min).then(r => {
+      setSample(r.sample ?? null)
+      setSampleRows(r.refs ?? [])
+      setVerdicts({})
+    }).catch((e: unknown) => {
+      // Without this a failed draw left the previous sample on screen, so the
+      // button looked like it had done nothing.
+      toast.error(`could not draw a sample: ${e instanceof Error ? e.message : String(e)}`)
+    }).finally(() => setDrawing(false))
+  }
   // Rejection buffer: newest-first review queue + stats, refreshed after a promote.
   const loadRejections = useCallback(() => {
     void fetchRejections(50).then(r => {
       setRejections(r.rejections ?? [])
       if (r.stats) setRejStats(r.stats)
-    })
+    }).catch((e: unknown) => toast.error(`rejection buffer: ${e instanceof Error ? e.message : String(e)}`))
   }, [])
   useEffect(() => { loadRejections() }, [loadRejections])
 
@@ -550,7 +562,7 @@ export function QualityPage() {
               <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
             </div>
             {sampled === undefined && !sample && (
-              <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" />
+              <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" busy={drawing} />
             )}
             {sampled === null && <p className="text-sm text-muted-foreground">No organized records{minConf > 0 ? ` above ${minConf}` : ''} found.</p>}
             {sampled && (

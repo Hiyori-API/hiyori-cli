@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Loader2, MoreHorizontal,
+  AlertTriangle, Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Loader2, MoreHorizontal,
   Pause, Play, RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
 } from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
@@ -68,18 +68,23 @@ export function ManagementPage() {
   const [loading, setLoading] = useState(true)
   const [auditTotal, setAuditTotal] = useState(0)
 
+  const [loadError, setLoadError] = useState<string | null>(null)
   const loadAll = useCallback(() => {
-    void fetchBackups().then(r => setBackups(r.backups ?? []))
+    setLoadError(null)
+    void fetchBackups()
+      .then(r => setBackups(r.backups ?? []))
+      .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)))
     void refreshFailures()
     void fetchAudit().then(r => {
       setAudit(r.audit ?? [])
       setAuditTotal(r.total ?? (r.audit?.length ?? 0))
-    })
+    }).catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)))
     void fetchLimits().then(r => {
       setLimits(r.limits ?? {})
       setMax(r.limits?.max ?? 100)
       setWin(r.limits?.window ?? 60)
-    }).finally(() => setLoading(false))
+    }).catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
   }, [refreshFailures])
 
   useEffect(() => { loadAll() }, [loadAll])
@@ -161,6 +166,14 @@ export function ManagementPage() {
   return (
     <div className="space-y-4">
       <PageHead title="Ingest" desc="Sources, scheduler and backups — plus the safety and change log." />
+
+      {loadError && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Some panels could not load — {loadError}
+          <Button size="sm" variant="outline" onClick={loadAll}>Retry</Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* M1 + M2: Sources & scheduler */}

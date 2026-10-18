@@ -151,6 +151,32 @@ function PipelineChip() {
   )
 }
 
+
+/**
+ * Backend-down notice, owned by the shell.
+ *
+ * Only the Dashboard used to say anything when /api/status failed; Management
+ * and Quality destructured `error` and then ignored it, so a dead backend left
+ * them rendering empty tables with no explanation. Putting this in the shell
+ * means every page reports the same failure the same way, once.
+ */
+function ConnectionBanner() {
+  const { error, data } = useStatus()
+  if (!error) return null
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-4 py-2 text-xs text-warn"
+    >
+      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+      <span>
+        Backend unreachable — {error}. {data ? 'Showing the last data received.' : 'Retrying…'}
+      </span>
+    </div>
+  )
+}
+
 /** Single header connection chip (G7) — realtime toggle lives in Settings now. */
 function StatusChip() {
   const { realtime, sseOpen, sseReconnects, refreshMs } = useStatus()
@@ -277,6 +303,7 @@ export function Dashboard() {
               <StatusChip />
             </div>
           </header>
+          <ConnectionBanner />
           {/* A <section>, not a <main>: SidebarInset already renders the
               page's single <main> landmark, and nesting a second one gives
               screen-reader users two "main" regions to choose between. */}

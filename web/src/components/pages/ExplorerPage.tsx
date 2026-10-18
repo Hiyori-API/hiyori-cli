@@ -9,7 +9,7 @@
 
 import { safeCopy } from '@/lib/explorer/clipboard'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Database, Link2 } from 'lucide-react'
+import { AlertTriangle, Database, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import type { PaginationState, SortingState, Updater } from '@tanstack/react-table'
@@ -80,6 +80,9 @@ export function ExplorerPage() {
   // The collection list arrives on its own request. Until it does, the table
   // below renders for a guessed collection and then swaps underneath you.
   const [metaReady, setMetaReady] = useState(false)
+  // The table is gated on meta, so a failed meta request would leave skeletons
+  // on screen forever with no way to tell it had broken.
+  const [metaError, setMetaError] = useState<string | null>(null)
   const [collection, setCollection] = useState(urlInit.collection || 'anilist')
   const [q, setQ] = useState(urlInit.q ?? '')
   const [qDebounced, setQDebounced] = useState(urlInit.q ?? '')
@@ -166,12 +169,16 @@ export function ExplorerPage() {
       if (!on) return
       const colsMap = m.collections ?? {}
       setMeta(colsMap)
+      setMetaError(null)
       setMetaReady(true)
       if (!urlInit.collection) {
         const preferred = Object.keys(colsMap).find(c => !['organized', 'manga_organized'].includes(c)) ?? 'anilist'
         setCollection(preferred)
         setFavs(loadFavs(preferred))
       }
+    }).catch((e: unknown) => {
+      if (!on) return
+      setMetaError(e instanceof Error ? e.message : String(e))
     })
     return () => { on = false }
   }, [urlInit.collection])
@@ -721,9 +728,16 @@ export function ExplorerPage() {
 
         {/* collection switch (g e focuses this) */}
         <div ref={tabsRef} tabIndex={-1} className="collection-tabs flex flex-wrap items-center gap-2 outline-none" role="group" aria-label="Collections">
-          {!metaReady && Array.from({ length: 4 }, (_, i) => (
+          {!metaReady && !metaError && Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-8 w-28 rounded-lg" />
           ))}
+          {metaError && (
+            <span className="flex items-center gap-2 text-xs text-warn">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Could not load collections — {metaError}
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+            </span>
+          )}
           {metaReady && collections.map(c => {
             const brand = brandOf(c)
             const active = collection === c
@@ -790,7 +804,7 @@ export function ExplorerPage() {
                   field={field}
                   onField={f => setField(f)}
                   resultCount={totalShown}
-                  loading={(loading || !metaReady) && !docs.length}
+                  loading={(loading || (!metaReady && !metaError)) && !docs.length}
                   recents={recents}
                   onPickRecent={r => { setQ(r.q); setField(r.field as SearchField) }}
                   inputRef={searchRef}

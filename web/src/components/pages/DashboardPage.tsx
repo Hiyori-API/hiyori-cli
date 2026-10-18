@@ -207,17 +207,6 @@ export function DashboardPage() {
         }
       />
 
-      {error && !data && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex items-center gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn"
-        >
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-          <span>Backend offline — reconnecting…</span>
-        </div>
-      )}
-
       {!dataReady && (
         <Skeleton className="h-[4.5rem] w-full rounded-lg" />
       )}
