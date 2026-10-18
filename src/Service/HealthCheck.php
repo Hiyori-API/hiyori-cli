@@ -170,8 +170,17 @@ final class HealthCheck
         $stats = [];
         $healthy = true;
 
-        $keys = ['anilist', 'kitsu', 'myanimelist'];
+        $keys = ['anilist', 'kitsu', 'myanimelist', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga'];
         foreach ($keys as $key) {
+            // getStats() answers "closed / full tokens" for a key it has never
+            // seen. Reporting that made the breaker panel render three healthy
+            // rows forever, and made the circuit_open alert unreachable. An
+            // unobserved limiter is now simply absent, and the dashboard shows
+            // its "no limiter state reported yet" message.
+            if (!$this->rateLimiter->hasObserved($key)) {
+                continue;
+            }
+
             $stat = $this->rateLimiter->getStats($key);
             $stats[$key] = $stat;
 

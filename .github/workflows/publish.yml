@@ -90,10 +90,12 @@ jobs:
           php hiyori combine anilist_manga --passthrough --into=organized_manga --export=per-entry-json
 
       - name: Release gate (no duplicate identity keys)
-        # Fails the release if any combined collection repeats a `mal`/`al`
-        # key. Franchise keys (k/cr/t/nf/...) are reported but allowed.
+        # Fails the release if a combined collection repeats an identity key --
+        # mal/al for organized, mal_manga/al_manga for organized_manga -- or if
+        # a collection is empty, which would make the check vacuous. Franchise
+        # keys (k/cr/t/nf/...) are reported but allowed.
         working-directory: hiyori-cli
-        run: php hiyori combine:dupes --primary mal,al
+        run: php hiyori combine:dupes
 
       # Optional F1 gate (needs a labelled hold-out pairs file; run manually):
       #   php hiyori ml:export-pairs --holdout 30

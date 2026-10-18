@@ -235,6 +235,31 @@ if (str_starts_with($path, '/vendor/')) {
 }
 
 if ($path === '/metrics') {
+    // The registry is InMemory and this file runs per request, so nothing
+    // accumulates between scrapes and the endpoint returned only php_info --
+    // a Prometheus target that was green and always empty. Populate it from
+    // state that already exists. estimatedDocumentCount() reads collection
+    // metadata, so this stays cheap enough for a 15s scrape.
+    try {
+        $namespace = $client->selectDatabase('hiyori');
+        foreach ([
+            'organized' => 'organized_documents',
+            'organized_manga' => 'organized_manga_documents',
+            '_hiyori_ids' => 'registry_documents',
+        ] as $collection => $gauge) {
+            $metrics->setGauge($gauge, (float) $namespace->selectCollection($collection)->estimatedDocumentCount());
+        }
+    } catch (\Throwable) {
+        // A scrape must not 500 because the database is down; emit what we can.
+    }
+
+    foreach ($telemetry->allState() as $key => $state) {
+        if (!str_starts_with($key, 'ingest-') || !is_array($state) || !isset($state['processed'])) {
+            continue;
+        }
+        $metrics->setGauge('ingest_processed', (float) $state['processed'], ['source' => substr($key, 7)]);
+    }
+
     header('Content-Type: ' . $metrics->getContentType());
     echo $metrics->render();
     exit;

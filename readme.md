@@ -665,6 +665,7 @@ CI (GitHub Actions) runs PHP lint, code style, PHPStan level 5, unit and integra
 ## Docs
 
 - [docs/dashboard-roadmap.md](docs/dashboard-roadmap.md) — living feature tracker for the dashboard, explorer, combiner and manga work
+- [docs/architecture-audit.md](docs/architecture-audit.md) — infrastructure and pipeline audit: what is fixed, what is open, and the order to fix it in
 - [docs/explorer-ux-plan.md](docs/explorer-ux-plan.md) — Explorer UX overhaul + TanStack DataTable plan
 - [docs/live-dashboard-plan.md](docs/live-dashboard-plan.md) — original live-dashboard plan (shipped; kept for history)
 

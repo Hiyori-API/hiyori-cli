@@ -147,6 +147,16 @@ final class Exporter
     public function emit(array $entities, array $config, ?string $dir = null, ?array $previousManifest = null): array
     {
         $config = ExportConfig::resolve($config);
+
+        $missingIds = self::documentsMissingId($entities, $config);
+        if ($missingIds !== []) {
+            throw new \RuntimeException(sprintf(
+                'refusing to export: %d document(s) have no hiyori_id (e.g. %s). Run `php hiyori hiyori-id --backfill` first. Without ids every entry is published as hiyori_id 0, filenames fall back to row position and the lookup table is keyed by that position.',
+                count($missingIds),
+                implode(', ', array_slice($missingIds, 0, 5)),
+            ));
+        }
+
         $dir ??= $this->outBase . '/hiyori-relational-' . (new \DateTime('now'))->format('Ymd-His');
         if (!is_dir($dir) && !mkdir($dir, 0o777, true) && !is_dir($dir)) {
             throw new \RuntimeException('Unable to create export directory: ' . $dir);
@@ -917,6 +927,39 @@ final class Exporter
      *
      * @return list<array{id: int, doc: array<string, mixed>}>
      */
+    /**
+     * Documents in the enabled kinds that carry no positive `hiyori_id`.
+     *
+     * `renderEntry()` fell back to 0 and `sortDocs()` to the row position, so a
+     * dump taken before `hiyori-id --backfill` published N entries all claiming
+     * hiyori_id 0 while the files and the lookup disagreed with them.
+     *
+     * @param array<string, mixed> $entities
+     * @param array<string, mixed> $config
+     *
+     * @return list<string>
+     */
+    public static function documentsMissingId(array $entities, array $config): array
+    {
+        $missing = [];
+        foreach (['anime', 'manga'] as $kind) {
+            if (!($config['entities'][$kind] ?? false)) {
+                continue;
+            }
+            foreach (($entities[$kind] ?? []) as $index => $doc) {
+                $id = $doc['hiyori_id'] ?? null;
+                $usable = (is_int($id) && $id > 0) || (is_numeric($id) && (int) $id > 0);
+                if ($usable) {
+                    continue;
+                }
+                $ref = $doc['_id'] ?? null;
+                $missing[] = $kind . '#' . (is_scalar($ref) ? (string) $ref : (string) $index);
+            }
+        }
+
+        return $missing;
+    }
+
     private static function sortDocs(array $docs): array
     {
         $items = [];

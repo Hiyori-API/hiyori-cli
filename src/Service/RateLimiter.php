@@ -17,18 +17,22 @@ final class RateLimiter
 
     private LoggerInterface $logger;
 
+    private string $stateDir;
+
     public function __construct(
         private int $maxRequests = 100,
         private int $timeWindow = 60,
         private float $circuitBreakerThreshold = 0.5,
         private int $circuitBreakerTimeout = 60,
         private int $circuitBreakerMinFailures = 10,
-        ?LoggerInterface $logger = null
+        ?LoggerInterface $logger = null,
+        ?string $stateDir = null
     ) {
-        $this->logger = $logger ?? new \Monolog\Logger('ratelimiter');
+        $this->logger = $logger ?? self::defaultLogger();
+        $this->stateDir = $stateDir ?? dirname(__DIR__, 2) . '/storage/state';
 
         // Honor overrides saved from the dashboard Management page (storage/state/ui.json).
-        $overridesFile = dirname(__DIR__, 2) . '/storage/state/ui.json';
+        $overridesFile = $this->stateDir . '/ui.json';
         if (is_file($overridesFile)) {
             $ui = json_decode((string) file_get_contents($overridesFile), true) ?: [];
             if (isset($ui['limits']['max'])) {
@@ -38,6 +42,53 @@ final class RateLimiter
                 $this->timeWindow = max(1, (int) $ui['limits']['window']);
             }
         }
+
+        // Breaker state outlives the process: an ingest opens a breaker, then
+        // exits, and the dashboard's HealthCheck runs in a different process.
+        // Without this the limiter it saw had never observed anything and
+        // getStats() answered "closed / full tokens" for every source.
+        $stateFile = $this->stateDir . '/rate-limit-state.json';
+        if (is_file($stateFile)) {
+            $persisted = json_decode((string) file_get_contents($stateFile), true);
+            if (is_array($persisted)) {
+                $this->circuitBreakers = $persisted;
+            }
+        }
+    }
+
+    /**
+     * Without a handler a Monolog Logger silently discards every record, so the
+     * breaker transitions and retry warnings went nowhere. Write them beside the
+     * main log instead.
+     */
+    private static function defaultLogger(): LoggerInterface
+    {
+        $logger = new \Monolog\Logger('ratelimiter');
+        $logDir = dirname(__DIR__, 2) . '/storage/logs';
+        if (is_dir($logDir)) {
+            $logger->pushHandler(new \Monolog\Handler\RotatingFileHandler($logDir . '/ratelimiter', 5));
+        }
+
+        return $logger;
+    }
+
+    /** Whether this limiter has observed traffic (or a persisted breaker) for a key. */
+    public function hasObserved(string $key): bool
+    {
+        return isset($this->buckets[$key]) || isset($this->circuitBreakers[$key]);
+    }
+
+    private function persistBreakers(): void
+    {
+        if (!is_dir($this->stateDir) && !@mkdir($this->stateDir, 0o755, true) && !is_dir($this->stateDir)) {
+            return;
+        }
+        $file = $this->stateDir . '/rate-limit-state.json';
+        $tmp = $file . '.tmp';
+        if (false === @file_put_contents($tmp, (string) json_encode($this->circuitBreakers))) {
+            return;
+        }
+        @rename($tmp, $file);
     }
 
     public function acquire(string $key, int $tokens = 1): bool
@@ -95,8 +146,12 @@ final class RateLimiter
     public function recordSuccess(string $key): void
     {
         if (isset($this->circuitBreakers[$key])) {
+            $was = $this->circuitBreakers[$key]['state'] ?? 'closed';
             $this->circuitBreakers[$key]['failures'] = 0;
             $this->circuitBreakers[$key]['state'] = 'closed';
+            if ($was !== 'closed') {
+                $this->persistBreakers();
+            }
         }
     }
 
@@ -127,6 +182,7 @@ final class RateLimiter
             $cb['state'] = 'open';
             $cb['openedAt'] = time();
             $this->logger->error("Circuit breaker OPENED for {$key} (failures: " . $cb['failures'] . ', rate: ' . round($failureRate * 100, 1) . '%)');
+            $this->persistBreakers();
         }
     }
 
@@ -145,6 +201,7 @@ final class RateLimiter
         if ($cb['state'] === 'open' && (time() - $cb['openedAt']) >= $this->circuitBreakerTimeout) {
             $this->circuitBreakers[$key]['state'] = 'half-open';
             $this->logger->info("Circuit breaker HALF-OPEN for {$key}");
+            $this->persistBreakers();
 
             return false;
         }
