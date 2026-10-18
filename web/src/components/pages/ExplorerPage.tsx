@@ -188,11 +188,12 @@ export function ExplorerPage() {
       setMeta(colsMap)
       setMetaError(null)
       setMetaReady(true)
-      if (!urlInit.collection) {
-        // Must be a collection the picker actually offers. Taking the first key
-        // in the response chose `_hiyori_ids` (bookkeeping, not a chip), and
-        // the URL hash then pinned every later visit to a collection the chip
-        // row could not show.
+      // The default must be a collection the picker actually offers. Taking the
+      // first key in the response chose `_hiyori_ids` (bookkeeping, not a chip),
+      // and the URL hash then pinned every later visit to it. The same check
+      // heals hashes written by that bug — a collection absent from the picker
+      // has no chip to select and no way back.
+      if (!urlInit.collection || !COLLECTION_ORDER.includes(urlInit.collection)) {
         const preferred = COLLECTION_ORDER.find(c => c in colsMap)
           ?? Object.keys(colsMap).find(c => !c.startsWith('_'))
           ?? 'anilist'
