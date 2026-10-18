@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, Clock, Copy, Download, KeyRound, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
+import { Check, Clock, Copy, Database, Download, KeyRound, LayoutDashboard, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
@@ -22,13 +22,8 @@ export const WIDGETS: Array<[string, string]> = [
   ['kpi', 'KPI row'],
   ['fleet', 'Sources fleet'],
   ['dataset', 'Dataset donut'],
-  ['health', 'Health gauges'],
-  ['pipeline', 'Pipeline funnel'],
-  ['alerts', 'Alert strip'],
+  ['health', 'Merge confidence'],
 ]
-const ACCENTS = ['#4fb3ff', '#3fd06a', '#e8b64c', '#9b7bff', '#ff5f57', '#ff8fd8']
-/** Names for the swatches, so they are not identified by hue alone. */
-const ACCENT_NAMES = ['Blue', 'Green', 'Amber', 'Purple', 'Red', 'Pink']
 
 /** Compact choice chip / swatch used across the Interface card (S1). */
 function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
@@ -72,7 +67,6 @@ export function SettingsPage() {
   const widgets = prefs.widgets
   const dark = prefs.theme !== 'light'
   const density = prefs.density ?? 'compact'
-  const accent = prefs.accent ?? '#4fb3ff'
   const tz = prefs.tz ?? 'local'
   const realtime = prefs.realtime !== false
   const hidden = prefs.hiddenCollections ?? []
@@ -80,9 +74,8 @@ export function SettingsPage() {
   const setPref = (patch: object) => void update({ prefs: { ...prefs, ...patch } })
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--accent-ui', accent)
     document.documentElement.classList.toggle('density-compact', density === 'compact')
-  }, [accent, density])
+  }, [density])
 
   const toggleTheme = () => {
     const next = dark ? 'light' : 'dark'
@@ -174,7 +167,7 @@ export function SettingsPage() {
           </div>
         </Section>
 
-        {/* S1: theme + accent + density + timezone as one compact Interface card */}
+        {/* S1: theme + density + timezone as one compact Interface card */}
         <Section title="Interface" icon={Palette}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -198,33 +191,12 @@ export function SettingsPage() {
                 <Chip active={tz !== 'local'} onClick={() => setPref({ tz: 'utc' })}><Clock className="h-3.5 w-3.5" />UTC</Chip>
               </div>
             </div>
-            <div>
-              <div className="mb-2 text-sm">Accent</div>
-              <div className="flex gap-2">
-                {ACCENTS.map((a, i) => (
-                  // Named, not colour-only: the swatch carries the hue but the
-                  // accessible name and the tooltip carry which one it is, and
-                  // the selected one announces its state.
-                  <button
-                    key={a}
-                    onClick={() => setPref({ accent: a })}
-                    aria-label={`Accent colour ${ACCENT_NAMES[i]}`}
-                    aria-pressed={accent === a}
-                    title={ACCENT_NAMES[i]}
-                    className={`flex h-8 w-8 items-center justify-center rounded-full transition ${accent === a ? 'ring-2 ring-foreground' : ''}`}
-                    style={{ background: a }}
-                  >
-                    {accent === a && <Check className="h-4 w-4 text-white" />}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </Section>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Dashboard widgets" icon={X}>
+        <Section title="Dashboard widgets" icon={LayoutDashboard}>
           <p className="mb-2 text-xs text-muted-foreground">Choose which widgets appear on the Dashboard page.</p>
           <div className="grid grid-cols-2 gap-2">
             {WIDGETS.map(([id, label]) => (
@@ -237,7 +209,7 @@ export function SettingsPage() {
           <p className="mt-2 text-xs text-muted-foreground">Unchecking a widget hides it; check to restore.</p>
         </Section>
 
-        <Section title="Collections" icon={Upload}>
+        <Section title="Collections" icon={Database}>
           <p className="mb-2 text-xs text-muted-foreground">Hide collections from the Dataset view (they stay in Explorer).</p>
           <div className="grid grid-cols-2 gap-2">
             {Object.keys(meta).map(c => (

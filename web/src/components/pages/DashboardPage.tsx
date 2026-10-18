@@ -309,7 +309,7 @@ export function DashboardPage() {
             )}
           </div>
 
-          {!visible('dataset') && !visible('fleet') && !visible('kpi') && (
+          {!visible('dataset') && !visible('fleet') && !visible('kpi') && !visible('health') && (
             <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Widgets." />
           )}
         </>
@@ -419,38 +419,43 @@ function SourcesTable({
       },
       {
         id: 'speed',
-        header: 'Speed·ETA',
+        header: 'Speed',
         accessorFn: r => r.job.per_second ?? 0,
         sortingFn: 'basic',
         meta: { align: 'right' } as const,
         cell: ({ row }) => {
           const { job, status } = row.original
           const history = (job.history ?? []).map(h => h.v).filter(v => Number.isFinite(v)) as number[]
-          // A stale or finished run's rate is frozen at its last value, so the
-          // numeric speed is suppressed — but the trend stays, dimmed, because
-          // "how this source behaved" is still useful after it stops.
           const live = isJobLive(job)
+          // A stopped run has no rate worth reading, so it gets neither a trend
+          // nor a number — a flat sparkline beside an em dash reads as broken
+          // rather than idle.
           const tint = status.level === 'crit' ? 'var(--chart-5)'
             : status.level === 'warn' ? 'var(--chart-3)'
-            : status.level === 'done' ? 'var(--chart-8)'
             : 'var(--chart-1)'
           return (
             <span className="flex items-center justify-end gap-2">
-              <Sparkline
-                points={history}
-                color={tint}
-                width={56}
-                height={18}
-                label={`${row.original.src} recent ingestion rate`}
-              />
+              {/* Fixed-width value column so the sparkline does not shift
+                  between rows that show a rate and rows that show a dash. */}
               <span className={cn(
-                'whitespace-nowrap text-xs tabular-nums',
+                'w-14 shrink-0 whitespace-nowrap text-right text-xs tabular-nums',
                 live ? 'text-foreground' : 'text-muted-foreground',
               )}>
-                {live
-                  ? <ChangePulse value={job.per_second != null ? `${job.per_second.toFixed(1)}/s` : '—'} />
+                {live && job.per_second != null
+                  ? <ChangePulse value={`${job.per_second.toFixed(1)}/s`} />
                   : <span className="text-muted-foreground">—</span>}
               </span>
+              {live && (
+                <span className="flex w-14 shrink-0 justify-end">
+                  <Sparkline
+                    points={history}
+                    color={tint}
+                    width={56}
+                    height={18}
+                    label={`${row.original.src} recent ingestion rate`}
+                  />
+                </span>
+              )}
             </span>
           )
         },

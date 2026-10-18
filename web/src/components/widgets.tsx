@@ -183,7 +183,7 @@ export function PageHead({ title, desc, actions }: { title: string; desc?: strin
   return (
     <div className="mb-5 flex flex-wrap items-center gap-3">
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
       </div>
       {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}

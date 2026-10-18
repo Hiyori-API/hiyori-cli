@@ -7,6 +7,7 @@ import {
 import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
+import { useSettings } from '@/lib/hooks'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
@@ -35,6 +36,30 @@ function PageFallback() {
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   )
+}
+
+
+/**
+ * Reconcile persisted interface preferences onto <html>.
+ *
+ * `index.html` ships `class="dark"` so the first paint is not a white flash,
+ * but that meant a saved "Light" preference was lost on every reload: the only
+ * code that touched the class was the Settings toggle, so light mode only
+ * survived until you navigated away and came back. Applying it here — once, at
+ * the shell — makes the saved preference win on boot without the flash.
+ */
+function useAppliedPreferences(): void {
+  const { settings } = useSettings()
+  const theme = settings.prefs?.theme
+  const density = settings.prefs?.density
+  useEffect(() => {
+    if (theme === 'light' || theme === 'dark') {
+      document.documentElement.classList.toggle('dark', theme === 'dark')
+    }
+  }, [theme])
+  useEffect(() => {
+    document.documentElement.classList.toggle('density-compact', density === 'compact')
+  }, [density])
 }
 
 /** Single header connection chip (G7) — realtime toggle lives in Settings now. */
@@ -80,6 +105,7 @@ function StatusChip() {
 }
 
 export function Dashboard() {
+  useAppliedPreferences()
   const [view, setView] = useState<View>('dashboard')
   const nav = NAV.find(n => n.id === view) ?? NAV[0]
 
