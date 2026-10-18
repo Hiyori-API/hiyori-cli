@@ -172,7 +172,7 @@ export function DashboardPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Timer className="h-3.5 w-3.5" />
-            {fmtSec((Date.now() - startedAt.current) / 1000)} uptime · {realtime ? 'live' : `poll ${Math.round(intervalMs / 1000)}s`}
+            {fmtSec((Date.now() - startedAt.current) / 1000)} session · {realtime ? 'live' : `poll ${Math.round(intervalMs / 1000)}s`}
             <StatusDot ok={!error} pulse /> {error ? 'offline' : (data?.health?.status ?? '…')}
           </div>
         }
