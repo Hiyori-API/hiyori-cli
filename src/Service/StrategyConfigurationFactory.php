@@ -35,6 +35,10 @@ final class StrategyConfigurationFactory
 
     public function get(): CombinerStrategy
     {
+        if ($this->strategy === null) {
+            throw new InvalidArgumentException('No combiner strategy selected');
+        }
+
         return $this->strategy;
     }
 
@@ -48,9 +52,13 @@ final class StrategyConfigurationFactory
      */
     public function setStrategy(?string $strategy): self
     {
+        // Reset first: otherwise a bogus name leaves the previous strategy in
+        // place and the null check below never fires.
+        $this->strategy = null;
         foreach (self::AVAILABLE_STRATEGIES as $availableStrategy) {
             if ($availableStrategy::NAME === $strategy) {
                 $this->strategy = new $availableStrategy();
+                break;
             }
         }
 

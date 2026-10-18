@@ -33,7 +33,8 @@ class AniListBase extends MangaBase
 
         $self->images[] = $node['coverImage']['extraLarge'] ?? $node['coverImage']['large'] ?? $node['coverImage']['medium'] ?? '';
 
-        $self->references[] = "https://anilist.co/manga/{$node['id']}";
+        $ownUrl = "https://anilist.co/manga/{$node['id']}";
+        $self->references[] = $ownUrl;
 
         $pairs = [];
         foreach ($node['externalLinks'] ?? [] as $link) {
@@ -44,14 +45,18 @@ class AniListBase extends MangaBase
             }
         }
 
+        // Related titles are links, not aliases: a sequel or an anime
+        // adaptation has a different id, and feeding it to getModel() either
+        // overwrote this entry's own id or claimed another work's.
         foreach ($node['relations']['edges'] ?? [] as $rel) {
             if (!empty($rel['node']['siteUrl'])) {
                 $self->references[] = $rel['node']['siteUrl'];
             }
         }
 
-        $self->references = array_merge($self->references, \Hiyori\Models\Common\Identifiers\Identifiers::pairsToLinks($pairs));
-        $self->referenceIds = (new Identifiers($self->references))->getModel();
+        $crossLinks = Identifiers::pairsToLinks($pairs, 'manga');
+        $self->references = array_merge($self->references, $crossLinks);
+        $self->referenceIds = (new Identifiers(array_merge([$ownUrl], $crossLinks)))->getModel();
 
         foreach ($node['genres'] ?? [] as $genre) {
             $self->tags[] = Helper::prepareAsIdentifer($genre);

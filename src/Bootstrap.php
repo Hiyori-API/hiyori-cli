@@ -75,7 +75,12 @@ $container->autowire(\Hiyori\Service\RateLimiter::class)
 $container->autowire(\Hiyori\Service\MetricsCollector::class);
 $container->autowire(\Hiyori\Service\HealthCheck::class)
     ->setArguments([
-        '$mongoClient' => new \MongoDB\Client($_ENV['MONGODB_URL']),
+        // Same budget as Database and the dashboard; without it the driver
+        // default is 30s and `hiyori health --watch` appears to hang.
+        '$mongoClient' => new \MongoDB\Client($_ENV['MONGODB_URL'], [
+            'serverSelectionTimeoutMS' => 3000,
+            'connectTimeoutMS' => 3000,
+        ]),
         '$rateLimiter' => new \Hiyori\Service\RateLimiter(
             $rateMax,
             $rateWindow,

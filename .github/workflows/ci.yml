@@ -43,16 +43,16 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: PHP Lint
-        run: find src -name "*.php" -exec php -l {} \;
+        run: find src public -name "*.php" -exec php -l {} \;
 
       - name: Code Style (PHP CS Fixer)
         run: composer cs
 
       - name: Static Analysis (PHPStan)
-        # Run PHPStan against phpstan.neon rather than `composer lint`, whose
-        # `analyse src` argument overrides the configured paths and would skip
-        # the front controller in public/.
-        run: ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+        # Exactly the command developers run: `composer lint` now uses
+        # phpstan.neon, which analyses src/ and public/ together. CI and the
+        # local gate must not drift apart again.
+        run: composer lint
 
       - name: Run Unit Tests
         run: ./vendor/bin/phpunit -c phpunit.xml.dist --testsuite=Unit --no-coverage

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/export-helpers.php';
+require_once __DIR__ . '/http-guard.php';
 
 use Hiyori\Service\AlertNotifier;
 use Hiyori\Service\Database;
@@ -95,6 +96,14 @@ function ttlCache(string $name, int $ttlSeconds, callable $produce): array
 $token = $_ENV['DASHBOARD_TOKEN'] ?? '';
 if ($token !== '' && ($_GET['token'] ?? '') !== $token && ($_SERVER['HTTP_X_DASHBOARD_TOKEN'] ?? '') !== $token) {
     sendJson(['error' => 'unauthorized'], 403);
+}
+
+// Any request that is not a read must originate from this dashboard. Doing it
+// once here means a newly added POST route cannot be born unguarded; the
+// mutating GETs (/api/backup?run=1, /api/action, /api/combine) keep their own
+// requireSameOrigin() calls, because no method check can identify them.
+if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD', 'OPTIONS'], true)) {
+    requireSameOrigin();
 }
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -1031,6 +1040,7 @@ if ($path === '/api/export/run') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendJson(['error' => 'POST required'], 405);
     }
+    requireSameOrigin();
     exportRequireService();
     if (exportCombineRunning()) {
         sendJson([
@@ -1483,6 +1493,7 @@ if ($path === '/api/rejections/promote') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendJson(['error' => 'promote requires POST'], 405);
     }
+    requireSameOrigin();
     $store = RejectionStore::create($database);
     $store->ensureIndexes();
     $body = readJsonBody();
@@ -1853,6 +1864,7 @@ if ($path === '/api/explore/update') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendJson(['error' => 'POST required'], 405);
     }
+    requireSameOrigin();
     $body = readJsonBody();
     $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
     $id = (string) ($body['id'] ?? '');
@@ -1886,6 +1898,10 @@ if ($path === '/api/explore/update') {
 }
 
 if ($path === '/api/explore/bulk') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    requireSameOrigin();
     $body = readJsonBody();
     $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
     $action = (string) ($body['action'] ?? '');
@@ -1989,6 +2005,11 @@ if ($path === '/api/explore/undo') {
         sendJson(['collection' => $collection, 'batches' => $batches, 'timestamp' => date('c')]);
     }
 
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    requireSameOrigin();
+
     // POST /api/explore/undo {collection, batch?} → restore the most recent
     // (or the given) batch from explore_undo_<collection> back into it.
     $body = readJsonBody();
@@ -2043,6 +2064,10 @@ if ($path === '/api/explore/undo') {
 }
 
 if ($path === '/api/explore/import') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendJson(['error' => 'POST required'], 405);
+    }
+    requireSameOrigin();
     $body = readJsonBody();
     $collection = Explorer::collectionName((string) ($body['collection'] ?? ''));
     $csv = (string) ($body['csv'] ?? '');
@@ -2273,41 +2298,6 @@ function updateDotEnv(string $key, ?string $value): bool
     return true;
 }
 
-
-/**
- * Reject requests that did not originate from this dashboard.
- *
- * No route had any Origin, Referer or Sec-Fetch check, so `/api/env?raw=1`
- * (which returns the whole .env) and `?reveal=<key>` were readable by any page
- * the operator happened to visit — DNS rebinding is enough, because the
- * attacker's page resolves to 127.0.0.1 and the browser then treats it as
- * same-origin at the network layer.
- *
- * A browser always sends Sec-Fetch-Site, and sends Origin on anything
- * cross-origin. Both are checked. Non-browser clients (curl, the CLI) send
- * neither and are allowed through, which keeps the local tool usable.
- *
- * This is the right defence for a loopback tool; setting DASHBOARD_TOKEN adds
- * real authentication on top. Neither replaces the other.
- */
-function sameOriginRequest(): bool
-{
-    $site = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
-    if ($site === 'cross-site') {
-        return false;
-    }
-
-    $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
-    if ($origin === '') {
-        return true;
-    }
-
-    $host = (string) (parse_url($origin, PHP_URL_HOST) ?? '');
-    $reqHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
-    $reqName = explode(':', $reqHost)[0];
-
-    return in_array($host, ['localhost', '127.0.0.1', '::1'], true) || $host === $reqName;
-}
 
 /** 403 unless the request came from this dashboard. */
 function requireSameOrigin(): void

@@ -31,25 +31,32 @@ class MyAnimeListBase extends MangaBase
 
         $self->images[] = $json['main_picture']['large'] ?? $json['main_picture']['medium'] ?? '';
 
-        $self->references[] = "https://myanimelist.net/manga/{$json['id']}";
+        $ownUrl = "https://myanimelist.net/manga/{$json['id']}";
+        $self->references[] = $ownUrl;
 
         $pairs = [];
         foreach ($json['external'] ?? [] as $link) {
-            $site = explode('/', $link['url'])[0] ?? '';
-            $id = basename($link['url']);
-            if ($site && $id) {
+            $url = (string) ($link['url'] ?? '');
+            // This used to be `explode('/', $url)[0]`, which is "https:" — a
+            // substring of every ENTRY_URL, so one external link produced an id
+            // for every known site.
+            $site = (string) (parse_url($url, PHP_URL_HOST) ?? '');
+            $id = basename($url);
+            if ($site !== '' && $id !== '') {
                 $pairs[] = [$site, $id];
             }
         }
 
+        // Related manga are links only; they are different works.
         foreach ($json['related_manga'] ?? [] as $rel) {
             if (!empty($rel['url'])) {
                 $self->references[] = $rel['url'];
             }
         }
 
-        $self->references = array_merge($self->references, \Hiyori\Models\Common\Identifiers\Identifiers::pairsToLinks($pairs));
-        $self->referenceIds = (new Identifiers($self->references))->getModel();
+        $crossLinks = Identifiers::pairsToLinks($pairs, 'manga');
+        $self->references = array_merge($self->references, $crossLinks);
+        $self->referenceIds = (new Identifiers(array_merge([$ownUrl], $crossLinks)))->getModel();
 
         foreach ($json['genres'] ?? [] as $genre) {
             $self->tags[] = Helper::prepareAsIdentifer($genre['name']);

@@ -2,6 +2,6 @@
 
 namespace Hiyori\Exception;
 
-class InvalidArgumentException extends \Exception
+class InvalidArgumentException extends \InvalidArgumentException
 {
 }

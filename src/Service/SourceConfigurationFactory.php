@@ -7,9 +7,9 @@ use Hiyori\Models\SourceConfiguration;
 
 final class SourceConfigurationFactory
 {
-    private array $sources;
+    private array $sources = [];
 
-    private string $current;
+    private ?string $current = null;
 
     public static function create(): self
     {
@@ -26,7 +26,7 @@ final class SourceConfigurationFactory
 
     public function get(?string $sourceName = null): SourceConfiguration
     {
-        if ($this->current !== '') {
+        if ($this->current !== null) {
             return $this->sources[$this->current];
         }
 

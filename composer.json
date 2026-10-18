@@ -14,6 +14,7 @@
         }
     ],
     "require": {
+        "php": "^8.3",
         "jms/serializer": "^3.28",
         "mongodb/mongodb": "^2.0",
         "symfony/http-client": "^6.4",
@@ -41,8 +42,8 @@
         "test:coverage": "php -d pcov.enabled=1 phpunit --coverage-text --coverage-clover coverage/coverage.xml",
         "coverage": "@test:coverage",
         "coverage:html": "php -d pcov.enabled=1 phpunit --coverage-html coverage/html",
-        "lint": "phpstan analyse src --level=5 --memory-limit=512M",
-        "lint:strict": "phpstan analyse src --level=8 --memory-limit=512M",
+        "lint": "phpstan analyse --no-progress --memory-limit=512M",
+        "lint:strict": "phpstan analyse --no-progress --level=8 --memory-limit=512M",
         "cs": "php-cs-fixer fix --dry-run --diff",
         "cs:fix": "php-cs-fixer fix",
         "check": [

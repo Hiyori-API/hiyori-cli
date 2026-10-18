@@ -87,7 +87,10 @@ final class ExporterTest extends TestCase
             'status' => 'finished',
             'year' => 1994,
             'images' => ['https://cdn.example/monster.jpg'],
-            'reference_ids' => ['al_manga' => '19', 'mal_manga' => '1'],
+            // Consistent identity: before manga URL patterns existed, the
+            // 'al_manga' id was never derived from the link, so this fixture
+            // paired 'al_manga' => '19' with a link for a different id.
+            'reference_ids' => ['al_manga' => '30001', 'mal_manga' => '1'],
             'references' => ['0' => 'https://anilist.co/manga/30001'],
         ];
     }
@@ -190,7 +193,9 @@ final class ExporterTest extends TestCase
         $this->assertArrayNotHasKey('season', $entry);
         $this->assertSame(162, $entry['chapters']);
         $this->assertSame(18, $entry['volumes']);
-        $this->assertSame('https://anilist.co/manga/19', $entry['references']['al_manga']['url']);
+        // al_manga resolves from the stored AniList link; mal_manga has no
+        // link, so it still exercises the LINK_TEMPLATES fallback.
+        $this->assertSame('https://anilist.co/manga/30001', $entry['references']['al_manga']['url']);
         $this->assertSame('https://myanimelist.net/manga/1', $entry['references']['mal_manga']['url']);
     }
 

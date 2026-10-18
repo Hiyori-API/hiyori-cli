@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:7.0
@@ -20,12 +18,17 @@ services:
     networks:
       - hiyori-network
 
+  # One-shot CLI runner. `docker compose up` does not start it; invoke it with
+  #   docker compose --profile cli run --rm hiyori ingest anilist
+  # It must not restart: the process is a command that exits, and
+  # `restart: unless-stopped` relaunches it on any exit, including success.
   hiyori:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: hiyori-cli
-    restart: unless-stopped
+    profiles: ["cli"]
+    restart: "no"
     environment:
       - APP_ENV=prod
       - APP_DEBUG=false
@@ -36,7 +39,7 @@ services:
       - RATE_LIMIT_MAX=100
       - RATE_LIMIT_WINDOW=60
       - HTTP_CACHE=true
-      - HTTP_CACHE_PATH=/storage/cache
+      - HTTP_CACHE_PATH=/app/storage/cache
       - HTTP_CACHE_TTL=3600
       - PROGRESSBAR_FORMAT="%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%"
       - PROGRESSBAR_REDRAW_FREQ=1
@@ -45,6 +48,36 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    networks:
+      - hiyori-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hiyori-dashboard
+    restart: unless-stopped
+    command: ["dashboard:serve", "--host=0.0.0.0", "--port=8080", "--no-open"]
+    environment:
+      - APP_DEBUG=false
+      - APP_VERSION=1.0.0
+      - MONGODB_URL=mongodb://mongodb:27017
+      - HTTP_CACHE=true
+      - HTTP_CACHE_PATH=/app/storage/cache
+      - HTTP_CACHE_TTL=3600
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - hiyori-network
 
@@ -65,7 +98,7 @@ services:
     ports:
       - "9090:9090"
     depends_on:
-      - hiyori
+      - dashboard
     networks:
       - hiyori-network
     profiles:

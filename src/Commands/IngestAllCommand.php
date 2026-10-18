@@ -58,6 +58,7 @@ final class IngestAllCommand extends Command
         $io->text('Sources: ' . implode(', ', $sources));
         $io->text('Delay: ' . $delay . 's | Update: ' . ($update ? 'yes' : 'no'));
 
+        $failed = 0;
         $results = [];
         foreach ($sources as $source) {
             if (!in_array($source, $allSources, true)) {
@@ -77,6 +78,7 @@ final class IngestAllCommand extends Command
                 ]);
                 $results[$source] = sprintf('ok (%.1fs)', microtime(true) - $start);
             } catch (\Throwable $e) {
+                $failed++;
                 $io->error("[$source] " . $e->getMessage());
                 $results[$source] = 'error: ' . $e->getMessage();
             }
@@ -91,6 +93,8 @@ final class IngestAllCommand extends Command
 
         $this->release();
 
-        return Command::SUCCESS;
+        // A total outage (Mongo down, every API failing) used to exit 0, so a
+        // scheduler or CI step could not tell this apart from a good run.
+        return $failed > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

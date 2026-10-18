@@ -43,7 +43,8 @@ class KitsuBase extends MangaBase
 
         $self->images[] = $attrs['posterImage']['original'] ?? $attrs['posterImage']['large'] ?? '';
 
-        $self->references[] = "https://kitsu.io/manga/{$json['id']}/{$attrs['slug']}";
+        $ownUrl = "https://kitsu.io/manga/{$json['id']}/{$attrs['slug']}";
+        $self->references[] = $ownUrl;
 
         $pairs = [];
         foreach ($attrs['external'] ?? [] as $link) {
@@ -58,8 +59,9 @@ class KitsuBase extends MangaBase
             $self->references[] = $link['attributes']['url'] ?? '';
         }
 
-        $self->references = array_merge($self->references, \Hiyori\Models\Common\Identifiers\Identifiers::pairsToLinks($pairs));
-        $self->referenceIds = (new Identifiers($self->references))->getModel();
+        $crossLinks = Identifiers::pairsToLinks($pairs, 'manga');
+        $self->references = array_merge($self->references, $crossLinks);
+        $self->referenceIds = (new Identifiers(array_merge([$ownUrl], $crossLinks)))->getModel();
 
         foreach ($attrs['genres'] ?? [] as $genre) {
             $self->tags[] = Helper::prepareAsIdentifer($genre['attributes']['name'] ?? '');

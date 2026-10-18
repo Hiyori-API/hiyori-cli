@@ -35,7 +35,8 @@ class Logging
      */
     private function assertLogLevel(): Level
     {
-        $appDebug = $_ENV['APP_DEBUG'] ?? false;
+        // Dotenv yields strings; "false" is truthy, so cast properly.
+        $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOL);
 
         return $appDebug ? Level::Debug : Level::Info;
     }

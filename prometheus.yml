@@ -6,9 +6,8 @@ scrape_configs:
   - job_name: 'hiyori'
     metrics_path: /metrics
     static_configs:
-      - targets: ['hiyori:9090']
-    # Note: hiyori CLI doesn't have an HTTP server for metrics
-    # This would need a small HTTP server wrapper or push gateway
+      # The dashboard is the only process that serves HTTP.
+      - targets: ['dashboard:8080']
 
   - job_name: 'mongodb'
     static_configs:

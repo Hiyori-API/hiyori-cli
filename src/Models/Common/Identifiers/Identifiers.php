@@ -14,12 +14,15 @@ class Identifiers
         AmazonPrime::class,
         AniDB::class,
         AniList::class,
+        AniListManga::class,
         AnimeNewsNetwork::class,
         Bangumi::class,
         Crunchyroll::class,
         Funimation::class,
         Kitsu::class,
+        KitsuManga::class,
         MyAnimeList::class,
+        MyAnimeListManga::class,
         Netflix::class,
         Syoboi::class,
         Trakt::class,
@@ -39,12 +42,29 @@ class Identifiers
         $this->links = $links;
     }
 
-    public static function pairsToLinks(array $pairs = []): array
+    /**
+     * Turn `[host, id]` pairs scraped from a source's external links into
+     * canonical URLs for this entry.
+     *
+     * `$kind` matters: every source has an anime and a manga URL shape, and a
+     * host like `myanimelist.net` is a substring of both. Without the filter a
+     * manga's MAL link produced an anime URL and vice versa, putting the other
+     * kind's id into `reference_ids`.
+     */
+    public static function pairsToLinks(array $pairs = [], string $kind = 'anime'): array
     {
+        $wantsManga = $kind === 'manga';
         $links = [];
         foreach ($pairs as $source) {
+            if (!isset($source[0], $source[1])) {
+                continue;
+            }
             foreach (self::availableIdentifiers as $identifier) {
-                if (str_contains($identifier::ENTRY_URL, $source[0])) {
+                $isMangaIdentifier = str_ends_with($identifier::SHORTHAND, '_manga');
+                if ($isMangaIdentifier !== $wantsManga) {
+                    continue;
+                }
+                if (str_contains($identifier::ENTRY_URL, (string) $source[0])) {
                     $links[] = sprintf($identifier::ENTRY_URL, $source[1]);
                 }
             }

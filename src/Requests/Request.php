@@ -54,7 +54,7 @@ class Request
         }
 
         $cachePath = $_ENV['HTTP_CACHE_PATH'] ?? '';
-        $debug = (bool) ($_ENV['APP_DEBUG'] ?? false);
+        $debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOL);
         $ttl = (int) ($_ENV['HTTP_CACHE_TTL'] ?? (60 * 60 * 24));
 
         return (new CachingHttpClient(
