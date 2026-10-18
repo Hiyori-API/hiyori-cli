@@ -23,7 +23,7 @@ export const WIDGETS: Array<[string, string]> = [
   ['kpi', 'KPI row'],
   ['fleet', 'Sources fleet'],
   ['dataset', 'Dataset donut'],
-  ['health', 'Merge confidence'],
+  ['health', 'Merge quality'],
 ]
 
 /** Compact choice chip / swatch used across the Interface card (S1). */

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
-  Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
+  Activity, Database, Gauge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from 'cn'
-import { ago, fmt, fmtSec } from '@/lib/format'
+import { fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip as Tip, TooltipContent as TipContent, TooltipProvider as TipProvider, TooltipTrigger as TipTrigger } from '@/components/ui/tooltip'
@@ -18,11 +18,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { Sparkline, useChartColors } from '../charts'
-import { isIngestJob, isJobLive, jobPhase, postAction, type BackupInfo, type CombineStats, type HealthCheck, type Job } from '@/lib/api'
+import { isIngestJob, isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
-import { ReferenceCoveragePanel } from '../coverage'
+import { MergeQualityPanel } from '../merge-quality'
 import { EmptyState } from '../empty'
 
 
@@ -268,8 +268,6 @@ export function DashboardPage() {
             </Section>
           )}
 
-          <ReferenceCoveragePanel coverage={data?.coverage ?? {}} />
-
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {visible('dataset') && (
               <Section title="Dataset" icon={Database} collapsible={false} className="flex flex-col">
@@ -326,7 +324,11 @@ export function DashboardPage() {
             )}
 
             {visible('health') && (
-              <MergeCard combine={data?.combine} backup={data?.backup} />
+              <MergeQualityPanel
+                coverage={data?.coverage ?? {}}
+                combine={data?.combine}
+                backup={data?.backup}
+              />
             )}
           </div>
 
@@ -745,94 +747,3 @@ function rowTooltip(r: SourceRow): string {
   return parts.join(' · ')
 }
 
-/**
- * Merge confidence.
- *
- * This card used to be "Health": three gauges for disk, host memory and a
- * derived MongoDB score. None of that described the application — disk and RSS
- * belong to whatever box the CLI runs on, and the MongoDB score was an
- * invented number that read as precise without being meaningful. An operator
- * of a merge tool does not care about host memory; they care whether the last
- * combine was good and whether the output is recoverable.
- *
- * So it now reports the thing the tool exists to produce: how many pairs the
- * last run merged, under which strategy, and how confident those matches were.
- * The score histogram is the useful part — an average hides the problem, since
- * a run can average 96 while a fifth of its merges sit near the floor.
- */
-function MergeCard({ combine, backup }: {
-  combine: CombineStats | undefined
-  backup: BackupInfo | undefined
-}) {
-  // Hooks must run before any early return. This useMemo used to sit below the
-  // `if (!combine)` guard, so the first poll that turned `combine` from
-  // undefined into a dict rendered one more hook than the previous render and
-  // React threw "Rendered more hooks than during the previous render" — which
-  // the Dashboard's ErrorBoundary turned into an error card over the landing
-  // page. It reads `combine?.…`, so it is safe to evaluate unconditionally.
-  const bins = useMemo(() => {
-    const segments = [
-      { key: 'p70_80', label: '70–80', color: 'var(--chart-3)', count: Number(combine?.score_histogram?.p70_80 ?? 0) },
-      { key: 'p80_90', label: '80–90', color: 'var(--chart-1)', count: Number(combine?.score_histogram?.p80_90 ?? 0) },
-      { key: 'p90_100', label: '90–100', color: 'var(--chart-6)', count: Number(combine?.score_histogram?.p90_100 ?? 0) },
-    ]
-    const total = segments.reduce((a, b) => a + b.count, 0)
-    return {
-      segments,
-      total,
-      label: `Match confidence: ${segments.map(s => `${s.label} ${s.count} pairs`).join('; ')}`,
-    }
-  }, [combine])
-
-  if (!combine) {
-    return (
-      <Section title="Merge" icon={GitMerge} collapsible={false}>
-        <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
-      </Section>
-    )
-  }
-
-  return (
-    <Section title="Merge" icon={GitMerge} collapsible={false} className="flex flex-col">
-      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-        {/* One line answers the only question that matters: how many pairs, by
-            what method. Everything below is detail on that number. */}
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-medium tabular-nums">{cx(combine.merges)}</span>
-          <span className="truncate text-xs text-muted-foreground">
-            pairs · {combine.strategy} · base {combine.base}
-          </span>
-        </div>
-
-        {/* How sure the matcher was about the pairs it merged. Completeness of
-            the output lives in the Reference coverage panel above. */}
-        {bins.total > 0 && (
-          <div className="mt-3">
-            <div
-              className="flex h-2 w-full overflow-hidden rounded-sm"
-              role="img"
-              aria-label={bins.label}
-            >
-              {bins.segments.map(seg => seg.count > 0 && (
-                <span key={seg.key} style={{ width: `${(seg.count / bins.total) * 100}%`, background: seg.color }} />
-              ))}
-            </div>
-            <p className="mt-1.5 truncate text-[10px] tabular-nums text-muted-foreground">
-              {bins.segments.map(seg => `${seg.label} ${cx(seg.count)}`).join('  ·  ')}
-            </p>
-          </div>
-        )}
-
-        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>avg <span className="tabular-nums text-foreground">{combine.scores?.avg ?? '—'}</span></span>
-          <span>floor <span className="tabular-nums text-foreground">{combine.threshold ?? '—'}</span></span>
-          <span>ran {ago(combine.completed_at)}</span>
-          {/* Backup age is the one thing worth surfacing here that nothing
-              else on this page answers. */}
-          {backup?.last?.mtime != null && <span>backed up {ago(new Date(backup.last.mtime * 1000).toISOString())}</span>}
-        </p>
-
-      </CardContent>
-    </Section>
-  )
-}
