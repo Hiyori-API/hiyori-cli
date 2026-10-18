@@ -35,9 +35,9 @@ interface NavItem {
  * sit beside is gone: its remaining controls are preferences, not a landing page.
  */
 const NAV: NavItem[] = [
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
   { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
 ]
 
 function PipelineChipDivider() {
