@@ -1,133 +1,15 @@
-import { useState, type ReactNode } from 'react'
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Funnel, FunnelChart,
-  LabelList, Legend, Line, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar,
+  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Funnel, FunnelChart,
+  LabelList, Legend, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar,
   RadarChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { ChartLine, ChartNoAxesCombined, Logs } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChartNoAxesCombined } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TOOLTIP_STYLE } from './widgets'
 import { EmptyState } from './empty'
 
 export interface SeriesDef { key: string; color: string }
 export type SeriesData = Array<Record<string, number | string>>
-
-/** Align multiple equally-pushed series by trailing index and produce chart rows. */
-export function alignSeries(series: { key: string; data: number[] }[], stepSeconds = 3): SeriesData {
-  const max = Math.max(0, ...series.map(s => s.data.length))
-  if (!max) return []
-  const rows: SeriesData = []
-  for (let i = 0; i < max; i++) {
-    const row: Record<string, number | string> = { label: `-${Math.round((max - i) * stepSeconds)}s` }
-    series.forEach(s => {
-      const idx = s.data.length - max + i
-      row[s.key] = idx >= 0 ? (s.data[idx] ?? 0) : 0
-    })
-    rows.push(row)
-  }
-  return rows
-}
-
-/** Reusable line/area series card with log + area + window controls. */
-export function SeriesChartCard({ title, series, data, emptyMsg, helper, icon }: {
-  title: string
-  series: SeriesDef[] & { key: string }[]
-  data: SeriesData
-  emptyMsg: string
-  helper?: ReactNode
-  icon?: ReactNode
-}) {
-  const [log, setLog] = useState(false)
-  const [area, setArea] = useState(true)
-  void icon
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
-        <div className="flex items-center gap-1.5">
-          {helper}
-          {/* Toggles carry their state too: a screen reader should hear both
-              what the control is and whether it is currently on. */}
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            title="Log scale"
-            aria-label={`Use logarithmic scale${log ? ' (on)' : ''}`}
-            aria-pressed={log}
-            onClick={() => setLog(v => !v)}
-            className={log ? 'text-primary' : ''}
-          >
-            <Logs className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            title="Area / line"
-            aria-label={`Show as filled area${area ? ' (on)' : ''}`}
-            aria-pressed={area}
-            onClick={() => setArea(v => !v)}
-            className={area ? 'text-primary' : ''}
-          >
-            <ChartLine className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-52">
-          {data.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} minTickGap={40} />
-                <YAxis scale={log ? 'log' : 'auto'} domain={log ? ['auto', 'auto'] : [0, 'auto']} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {series.map((s) =>
-                  area
-                    ? <Area key={s.key} type="monotone" dataKey={s.key} stroke={s.color} fill={s.color} fillOpacity={0.14} dot={false} strokeWidth={2} />
-                    : <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} dot={false} strokeWidth={2} />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : <EmptyState icon={ChartNoAxesCombined} title="Waiting for data" description={emptyMsg} />}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** 100% stacked composition stream (source share over time). */
-export function CompositionStream({ title, data, keys, colors, emptyMsg }: {
-  title: string
-  data: SeriesData
-  keys: string[]
-  colors: string[]
-  emptyMsg: string
-}) {
-  return (
-    <Card>
-      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
-      <CardContent>
-        <div className="h-52">
-          {data.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -6 }} stackOffset="expand">
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} minTickGap={40} />
-                <YAxis tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  {/* The legend grows with the series count; with 15 collections it
-                      wrapped to three rows and squeezed the stream into a sliver.
-                      Cap its height and let it scroll instead. */}
-                  <Legend wrapperStyle={{ fontSize: 11, maxHeight: 44, overflowY: 'auto' }} iconSize={8} iconType="plainline" />
-                {keys.map((k, i) => <Area key={k} type="monotone" dataKey={k} stackId="1" stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.75} dot={false} />)}
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : <EmptyState icon={ChartNoAxesCombined} title="Waiting for data" description={emptyMsg} />}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 /** Pipeline funnel. */
 export function PipelineFunnel({ stages }: { stages: { name: string; value: number; color: string; hint?: string }[] }) {

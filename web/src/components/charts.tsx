@@ -85,3 +85,62 @@ export function useSeriesColors() {
 
   return s
 }
+
+/**
+ * Inline rate sparkline.
+ *
+ * Hand-rolled SVG rather than a Recharts `<LineChart>`: this renders one per
+ * source row, and a full chart instance (axes, tooltip, legend, responsive
+ * container, animation frame) per row is a lot of machinery for a 64x20 shape.
+ * It also keeps the Sources table cheap, and lets the line inherit the source's
+ * own status colour so the row reads as one object.
+ *
+ * The server already ships ~120 rate samples per job, so no extra request is
+ * made for this.
+ */
+export function Sparkline({
+  points, color, width = 64, height = 20, label,
+}: {
+  points: number[]
+  color: string
+  width?: number
+  height?: number
+  label?: string
+}) {
+  // Fewer than two samples cannot describe a trend; drawing a line through one
+  // point would imply movement that is not in the data.
+  if (points.length < 2) {
+    return <span className="text-xs text-muted-foreground" aria-hidden="true">—</span>
+  }
+
+  const tail = points.slice(-60)
+  const max = Math.max(...tail)
+  const min = Math.min(...tail)
+  const span = max - min || 1
+  const stepX = width / (tail.length - 1)
+  // 1px inset top and bottom so a flat line is visible rather than clipped on
+  // the edge of the box.
+  const y = (v: number) => height - 1 - ((v - min) / span) * (height - 2)
+
+  const d = tail.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * stepX).toFixed(2)},${y(v).toFixed(2)}`).join(' ')
+  const lastY = y(tail[tail.length - 1])
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className="shrink-0 overflow-visible"
+      role="img"
+      aria-label={label ?? 'Recent ingestion rate'}
+      preserveAspectRatio="none"
+    >
+      {/* Area under the line gives the shape a readable mass at 20px tall. */}
+      <path d={`${d} L${width},${height} L0,${height} Z`} fill={color} fillOpacity={0.12} />
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {/* Head dot marks "now", so a flat line still reads as current rather than
+          as a rendering failure. */}
+      <circle cx={width - 1} cy={lastY} r={1.75} fill={color} />
+    </svg>
+  )
+}

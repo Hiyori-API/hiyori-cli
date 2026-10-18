@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
-  Activity, ChevronDown, CircleDot, Database, Gauge, Hash, Layers, Loader2,
+  Activity, ChevronDown, Database, Gauge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
@@ -15,27 +15,19 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
-import { useChartColors, useSeriesColors } from '../charts'
+import { Sparkline, useChartColors, useSeriesColors } from '../charts'
 import { isIngestJob, isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
-import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
-import { alignSeries, CompositionStream, SeriesChartCard } from '../chartcard'
+import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 
-const MAX = 300
 
 /** Collections written by the ingesters — the input side of the pipeline. */
 const SOURCE_COLLECTIONS = ['anilist', 'anilist_manga', 'myanimelist', 'myanimelist_manga', 'kitsu', 'kitsu_manga']
 
 /** Collections shown individually in the dataset donut before the tail is folded. */
 const DATASET_TOP_N = 7
-
-const WINDOWS = [
-  { label: '1m', value: 20 },
-  { label: '5m', value: 100 },
-  { label: '15m', value: 300 },
-]
 
 /** Compact big counts (≥10k → "12K"); smaller values fall back to fmt. */
 function cx(n?: number | null): string {
@@ -51,29 +43,7 @@ export function DashboardPage() {
   const hiddenCollections = settings.prefs?.hiddenCollections ?? []
   const { data, error, intervalMs, realtime } = useStatus()
   const [focus, setFocus] = useState<string | null>(null)
-  const [win, setWin] = useState(100)
   const startedAt = useRef(Date.now())
-
-  const [rateSeries, setRateSeries] = useState<Record<string, number[]>>({})
-  const [countSeries, setCountSeries] = useState<Record<string, number[]>>({})
-  useEffect(() => {
-    if (!data) return
-    setRateSeries(s => {
-      const next: Record<string, number[]> = {}
-      Object.keys(data.jobs).forEach(k => {
-        if (!isIngestJob(k, data.jobs[k] as Job)) return
-        next[k] = [...(s[k] ?? []), (data.jobs[k] as Job).per_second ?? 0].slice(-MAX)
-      })
-      return next
-    })
-    setCountSeries(s => {
-      const next: Record<string, number[]> = {}
-      Object.keys(data.counts).forEach(k => {
-        next[k] = [...(s[k] ?? []), data.counts[k] ?? 0].slice(-MAX)
-      })
-      return next
-    })
-  }, [data])
 
   const counts = data?.counts ?? {}
   const jobs = data?.jobs ?? {}
@@ -125,23 +95,6 @@ export function DashboardPage() {
       : head
   }, [dataset, COLORS])
 
-  const rateSeriesArr = useMemo(() => {
-    const keys = focus ? jobKeys.filter(k => k.replace('ingest-', '') === focus || k === `ingest-${focus}`) : jobKeys
-    return keys.map(k => ({ key: k.replace('ingest-', ''), color: COLORS[jobKeys.indexOf(k) % COLORS.length], data: (rateSeries[k] ?? []).slice(-win) }))
-  }, [rateSeries, jobKeys, focus, win])
-
-  const countSeriesArr = useMemo(() => {
-    const keys = Object.keys(countSeries).sort().filter(k => !hiddenCollections.includes(k))
-    return keys.map((k, i) => ({ key: k, color: COLORS[i % COLORS.length], data: (countSeries[k] ?? []).slice(-win) }))
-  }, [countSeries, hiddenCollections, win])
-
-  // Sample cadence: the SSE stream pushes every 3s, otherwise it follows the
-  // smart-poll interval. Drives the x-axis labels and keeps MAX >= the largest
-  // selectable window (15m) so that option can actually fill.
-  const stepSec = realtime ? 3 : Math.max(1, Math.round(intervalMs / 1000))
-  const ratesRows = useMemo(() => alignSeries(rateSeriesArr, stepSec), [rateSeriesArr, stepSec])
-  const countsRows = useMemo(() => alignSeries(countSeriesArr, stepSec), [countSeriesArr, stepSec])
-
   const h = data?.health
   const health = h?.checks
   // Gauges mean something, so they take semantic colours rather than the next
@@ -188,7 +141,6 @@ export function DashboardPage() {
             <Timer className="h-3.5 w-3.5" />
             {fmtSec((Date.now() - startedAt.current) / 1000)} uptime · {realtime ? 'live' : `poll ${Math.round(intervalMs / 1000)}s`}
             <StatusDot ok={!error} pulse /> {error ? 'offline' : (data?.health?.status ?? '…')}
-            <SelectWindow win={win} setWin={setWin} />
           </div>
         }
       />
@@ -269,11 +221,6 @@ export function DashboardPage() {
             </Section>
           )}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {visible('rates') && <SeriesChartCard title="Ingestion rate" series={rateSeriesArr} data={ratesRows} emptyMsg="start an ingestion to see rates" />}
-            {visible('counts') && <CompositionStream title="Collection share" data={countsRows} keys={countSeriesArr.map(s => s.key)} colors={countSeriesArr.map(s => s.color)} emptyMsg="no collection history yet" />}
-          </div>
-
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {visible('dataset') && (
               <Card>
@@ -317,7 +264,7 @@ export function DashboardPage() {
             )}
           </div>
 
-          {!visible('rates') && !visible('counts') && !visible('dataset') && !visible('health') && !visible('pipeline') && !visible('fleet') && !visible('kpi') && (
+          {!visible('dataset') && !visible('health') && !visible('pipeline') && !visible('fleet') && !visible('kpi') && (
             <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Widgets." />
           )}
         </>
@@ -326,16 +273,6 @@ export function DashboardPage() {
   )
 }
 
-function SelectWindow({ win, setWin }: { win: number; setWin: (n: number) => void }) {
-  return (
-    <label className="flex items-center gap-1.5">
-      <span className="hidden sm:inline">window</span>
-      <select value={win} onChange={e => setWin(Number(e.target.value))} aria-label="Chart window" className="h-7 rounded-md border bg-transparent px-1 text-xs">
-        {WINDOWS.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
-      </select>
-    </label>
-  )
-}
 
 interface SourceRow {
   key: string
@@ -370,7 +307,7 @@ function SourcesTable({
           const processed = job.processed ?? 0
           const pct = total ? Math.min(100, (processed / total) * 100) : 0
           const pending = Math.max(0, total - processed)
-          return { key: k, job, src, status: sourceStatus(health, src), pct, pending }
+          return { key: k, job, src, status: rowStatus(job, health, src), pct, pending }
         }),
     [jobs, health],
   )
@@ -395,7 +332,7 @@ function SourcesTable({
           return (
             <span className={cn('flex min-w-0 items-center gap-2 rounded-md', isFocused && 'bg-primary/10')} title={tip}>
               {status.level !== 'none' && <SourceStatusBlip status={status} />}
-              <CircleDot className={cn('h-3.5 w-3.5 shrink-0', isFocused ? 'text-primary' : 'text-muted-foreground')} />
+              <SourceLogo source={src} />
               <span className={cn('truncate font-medium', isFocused && 'text-primary')}>{src}</span>
               <SourceStatusLabel status={status} />
               <span className="truncate text-xs text-muted-foreground">{row.original.job.mode ?? ''}</span>
@@ -445,17 +382,33 @@ function SourcesTable({
         sortingFn: 'basic',
         meta: { align: 'right' } as const,
         cell: ({ row }) => {
-          const job = row.original.job
-          // A stale or finished run's rate/ETA are frozen at their last value;
-          // show nothing rather than a speed the job is no longer achieving.
-          if (!isJobLive(job)) {
-            return <span className="text-xs text-muted-foreground">—</span>
-          }
-          const speed = job.per_second != null ? `${job.per_second.toFixed(1)}/s` : '—'
-          const eta = job.eta_seconds != null && Number.isFinite(job.eta_seconds) ? `${fmtSec(job.eta_seconds)} left` : null
+          const { job, status } = row.original
+          const history = (job.history ?? []).map(h => h.v).filter(v => Number.isFinite(v)) as number[]
+          // A stale or finished run's rate is frozen at its last value, so the
+          // numeric speed is suppressed — but the trend stays, dimmed, because
+          // "how this source behaved" is still useful after it stops.
+          const live = isJobLive(job)
+          const tint = status.level === 'crit' ? 'var(--chart-5)'
+            : status.level === 'warn' ? 'var(--chart-3)'
+            : status.level === 'done' ? 'var(--chart-8)'
+            : 'var(--chart-1)'
           return (
-            <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-              <ChangePulse value={speed} />{eta ? ` · ${eta}` : ''}
+            <span className="flex items-center justify-end gap-2">
+              <Sparkline
+                points={history}
+                color={tint}
+                width={56}
+                height={18}
+                label={`${row.original.src} recent ingestion rate`}
+              />
+              <span className={cn(
+                'whitespace-nowrap text-xs tabular-nums',
+                live ? 'text-foreground' : 'text-muted-foreground',
+              )}>
+                {live
+                  ? <ChangePulse value={job.per_second != null ? `${job.per_second.toFixed(1)}/s` : '—'} />
+                  : <span className="text-muted-foreground">—</span>}
+              </span>
             </span>
           )
         },

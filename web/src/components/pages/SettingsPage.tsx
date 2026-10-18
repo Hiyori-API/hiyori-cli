@@ -21,8 +21,6 @@ import { EnvSettings } from './settings-env'
 export const WIDGETS: Array<[string, string]> = [
   ['kpi', 'KPI row'],
   ['fleet', 'Sources fleet'],
-  ['rates', 'Ingestion rate'],
-  ['counts', 'Collection share'],
   ['dataset', 'Dataset donut'],
   ['health', 'Health gauges'],
   ['pipeline', 'Pipeline funnel'],

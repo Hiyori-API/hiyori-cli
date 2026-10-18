@@ -104,17 +104,31 @@ if ($path === '/' || $path === '/index.html' || $path === '/spa') {
     exit;
 }
 
-// PWA static files
-if (in_array($path, ['/sw.js', '/favicon.svg', '/manifest.webmanifest'], true)) {
-    $file = dirname(__DIR__) . '/web/public' . $path;
-    if (!is_file($file)) {
-        $file = dirname(__DIR__) . '/public' . $path;
-    }
-    if (is_file($file)) {
-        header('Content-Type: ' . (str_ends_with($path, '.js') ? 'application/javascript' : (str_ends_with($path, '.svg') ? 'image/svg+xml' : 'application/manifest+json')));
-        header('Cache-Control: no-cache');
-        echo file_get_contents($file);
-        exit;
+// Static files shipped in web/public (PWA assets, vendored brand marks).
+//
+// This was an allowlist of three paths, which meant anything else added there
+// 404'd; the source logos are served from /brand/*.ico. The realpath check below
+// is what keeps this safe now that the set is open rather than hardcoded.
+$publicDir = realpath(dirname(__DIR__) . '/web/public');
+if ($publicDir !== false && str_starts_with($path, '/')) {
+    $candidate = realpath($publicDir . $path);
+    // Reject anything that escapes the public dir via `..` or a symlink.
+    if ($candidate !== false && is_file($candidate) && str_starts_with($candidate, $publicDir . DIRECTORY_SEPARATOR)) {
+        $ext = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+        $types = [
+            'js' => 'application/javascript',
+            'svg' => 'image/svg+xml',
+            'ico' => 'image/x-icon',
+            'png' => 'image/png',
+            'json' => 'application/manifest+json',
+            'webmanifest' => 'application/manifest+json',
+        ];
+        if (isset($types[$ext])) {
+            header('Content-Type: ' . $types[$ext]);
+            header('Cache-Control: no-cache');
+            readfile($candidate);
+            exit;
+        }
     }
 }
 
