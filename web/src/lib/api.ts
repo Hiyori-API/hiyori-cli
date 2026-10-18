@@ -162,6 +162,8 @@ export interface StatusPayload {
   health: HealthCheck
   validation: ValidationEvent[]
   combine: CombineStats
+  /** True while a combine started from the dashboard is still running. */
+  combine_running?: boolean
   db?: DbStats
   backup?: BackupInfo
   controls?: Record<string, { paused?: boolean }>

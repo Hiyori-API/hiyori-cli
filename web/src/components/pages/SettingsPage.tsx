@@ -160,7 +160,15 @@ export function SettingsPage() {
                 <div className="text-xs text-muted-foreground">base polling rate; adaptively slows when idle</div>
               </div>
               <div className="flex w-56 items-center gap-3">
-                <Slider value={[refreshLocal]} min={1000} max={60000} step={500} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; const n = Number(v ?? 3000); setRefreshLocal(n); persistRefresh(n) }} className="flex-1" />
+                <Slider
+                  value={[refreshLocal]}
+                  min={1000}
+                  max={60000}
+                  step={500}
+                  aria-label="Refresh interval in seconds"
+                  onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; const n = Number(v ?? 3000); setRefreshLocal(n); persistRefresh(n) }}
+                  className="flex-1"
+                />
                 <span className="w-14 text-right text-sm tabular-nums">{(refreshLocal / 1000).toFixed(1)}s</span>
               </div>
             </div>
@@ -293,7 +301,7 @@ export function SettingsPage() {
               <div className="text-xs text-muted-foreground">Shared with the Publish page's export config (GET/POST /api/export-config).</div>
             </div>
             <Select value={exportProfile} onValueChange={v => saveExportProfile(v ?? 'per-entry-json')}>
-              <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-44" aria-label="Dump profile"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {EXPORT_PROFILES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
               </SelectContent>

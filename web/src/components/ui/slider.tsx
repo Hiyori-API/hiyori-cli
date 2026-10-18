@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 import { cn } from "cn"
 
@@ -9,6 +10,19 @@ function Slider({
   max = 100,
   ...props
 }: SliderPrimitive.Root.Props) {
+  // Base UI v1 renders a native input[type=range] as the control and puts an
+  // `aria-label` passed here on the outer role="group" wrapper — where a screen
+  // reader never reaches it. The slider then announces as "slider 1.0" with no
+  // idea what it controls. Mirror the name onto the input that is actually
+  // focusable so every Slider in the app is labelled by construction.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const label = props['aria-label']
+  useEffect(() => {
+    if (!label || !rootRef.current) return
+    rootRef.current.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach(el => {
+      el.setAttribute('aria-label', String(label))
+    })
+  })
   const _values = Array.isArray(value)
     ? value
     : Array.isArray(defaultValue)
@@ -17,6 +31,7 @@ function Slider({
 
   return (
     <SliderPrimitive.Root
+      ref={rootRef}
       className={cn("data-horizontal:w-full data-vertical:h-full", className)}
       data-slot="slider"
       defaultValue={defaultValue}

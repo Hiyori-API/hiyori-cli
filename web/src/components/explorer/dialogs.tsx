@@ -143,7 +143,7 @@ export function ExplorerDialogs(props: ExplorerDialogsProps) {
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Select value={sheetEditField} onValueChange={v => onSheetEditFieldChange(v ?? '')}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Field to edit"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {sheetDoc && Object.keys(sheetDoc).filter(k => isScalar(sheetDoc[k])).map(k => (
                   <SelectItem key={k} value={k}>{k}</SelectItem>
@@ -191,7 +191,7 @@ function BulkSetDialog({ open, busy, fields, onOpenChange, onApply }: {
         </DialogHeader>
         <div className="flex flex-col gap-2">
           <Select value={key} onValueChange={v => setKey(v ?? '')}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-label="Field to set"><SelectValue /></SelectTrigger>
             <SelectContent>
               {fields.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
             </SelectContent>

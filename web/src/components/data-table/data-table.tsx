@@ -494,6 +494,7 @@ export function DataTable<TData extends RowData>({
                       return (
                         <th
                           key={header.id}
+                          scope="col"
                           ref={
                             isStickyLeft
                               ? (element) => {
@@ -531,7 +532,7 @@ export function DataTable<TData extends RowData>({
                                 // clickable target; compact density squeezes
                                 // the cell padding to 2px, which left the sort
                                 // control at 16px tall.
-                                'inline-flex min-h-6 items-center gap-1 px-1 hover:text-foreground',
+                                'inline-flex min-h-6 min-w-6 items-center justify-center gap-1 px-1 hover:text-foreground',
                                 meta?.align === 'right' && 'flex-row-reverse',
                               )}
                               onClick={header.column.getToggleSortingHandler()}

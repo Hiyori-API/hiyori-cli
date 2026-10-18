@@ -150,7 +150,7 @@ export function ManagementPage() {
 
   return (
     <div className="space-y-4">
-      <PageHead title="Management" desc="Control plane — sources, scheduler, backups, safety and change log." />
+      <PageHead title="Ingest" desc="Sources, scheduler and backups — plus the safety and change log." />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* M1 + M2: Sources & scheduler */}
@@ -326,7 +326,7 @@ export function ManagementPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-end">
               <Select value={auditFilter} onValueChange={v => setAuditFilter(v ?? 'all')}>
-                <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-40" aria-label="Filter audit log by action"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {AUDIT_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
                 </SelectContent>
@@ -397,13 +397,14 @@ function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore
     }),
     backupHelper.display({
       id: 'actions',
+      header: 'Actions',
       enableSorting: false,
       meta: { align: 'right' },
       cell: ({ row }) => {
         const file = row.original.file
         return (
           <div className="flex items-center justify-end gap-1">
-            <a href={`/storage/backups/${file}`} download={file} aria-label={`Download ${file}`} title={`Download ${file}`} className="text-muted-foreground hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
+            <a href={`/storage/backups/${file}`} download={file} aria-label={`Download ${file}`} title={`Download ${file}`} className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
             <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw className="h-3.5 w-3.5" /></Button>
           </div>
         )

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Download, GitMerge, ListChecks, RefreshCw, Scale, ShieldX, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
+import { Download, GitMerge, ListChecks, Loader2, Play, RefreshCw, Scale, ShieldX, SlidersHorizontal, Sparkles, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { useChartColors } from '../charts'
 import { EmptyState } from '../empty'
 import { fmt, fmtCompact, fmtSec } from '@/lib/format'
 import { tzDateTime, type Tz } from '@/lib/time'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHead, Section } from '../widgets'
 
 const FULL_COLS = ['al', 'mal', 'k', 'ann', 'wpen', 'wpja', 'cr', 'nf', 'sb', 'ttv', 't', 'adb', 'tx', 'b', 'fm', 'yt', 'ap', 'tvt']
@@ -181,6 +182,25 @@ export function QualityPage() {
   const [rejStats, setRejStats] = useState<RejectionStats | null>(null)
   const [rejPromoting, setRejPromoting] = useState(false)
   const weights: Record<string, number> = { ...DEFAULT_WEIGHTS, ...(settings.prefs?.weights ?? {}) }
+  // Apply surface for the tuned weights, so the sliders are not a form with no
+  // submit. A combine rewrites `organized`, so it confirms first.
+  const [confirmCombine, setConfirmCombine] = useState(false)
+  const [combineStarting, setCombineStarting] = useState(false)
+  const combineRunning = data?.combine_running === true
+  const startCombine = async () => {
+    setCombineStarting(true)
+    try {
+      const r = await fetch('/api/combine?base=anilist&strategy=metadata_fuzzy')
+      const j = await r.json() as { error?: string }
+      if (j.error) toast.error(j.error)
+      else toast('combine started — progress appears under Ingest')
+    } catch {
+      toast.error('could not start combine')
+    } finally {
+      setCombineStarting(false)
+    }
+  }
+
   const [weightsLocal, setWeightsLocal] = useState<Record<string, number>>(weights)
   useEffect(() => setWeightsLocal(weights), [JSON.stringify(weights)])
   const persistWeights = useDebouncedCallback((w: Record<string, number>) => {
@@ -292,8 +312,8 @@ export function QualityPage() {
   return (
     <div className="space-y-4">
       <PageHead
-        title="Quality & Analysis"
-        desc="Merge confidence, coverage and benchmark comparisons."
+        title="Merge quality"
+        desc="Is the merge good? Coverage, confidence, benchmark and the review queue."
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => downloadExport('organized', 'jsonl')}><Download className="mr-1.5 h-3.5 w-3.5" />JSONL</Button>
@@ -303,6 +323,33 @@ export function QualityPage() {
       />
 
       {/* Q2: coverage as Matrix / Radar tabs (missing-refs bars kept in Radar) */}
+      <Dialog open={confirmCombine} onOpenChange={setConfirmCombine}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rebuild the merged output?</DialogTitle>
+            <DialogDescription>
+              Runs <code className="rounded bg-muted px-1">combine anilist --strategy metadata_fuzzy</code> with the
+              weights currently set here. It rewrites <code className="rounded bg-muted px-1">organized</code> and
+              <code className="mx-1 rounded bg-muted px-1">organized_manga</code> — the collections every other page
+              reads — and typically takes tens of minutes.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+            Existing identifiers are preserved, so this is a re-merge rather than a rebuild from scratch.
+            Take a backup first from Ingest → Backups if you want a rollback point.
+          </p>
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setConfirmCombine(false)}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={() => { setConfirmCombine(false); void startCombine() }}
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" />Start combine
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Tabs defaultValue="quality">
         <TabsList>
           <TabsTrigger value="quality">Metrics</TabsTrigger>
@@ -577,10 +624,26 @@ export function QualityPage() {
           </div>
           <div className="rounded-lg border p-4 text-xs leading-relaxed text-muted-foreground">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground"><SlidersHorizontal className="h-4 w-4" />Live tuning</div>
-            <p>Weights drive <code className="rounded bg-muted px-1">metadata_fuzzy</code> string similarity for anime merges (0–50 per field). Changes persist to Settings → <code className="rounded bg-muted px-1">prefs.weights</code> and feed <code className="rounded bg-muted px-1">combine --weights</code>.</p>
-            <p className="mt-2">Adjust weights, then rebuild:
-              <code className="mt-1 block overflow-x-auto rounded bg-muted px-2 py-1.5">php hiyori combine anilist --strategy metadata_fuzzy --weights '{weightsJson}'</code>
+            <p>
+              Weights drive <code className="rounded bg-muted px-1">metadata_fuzzy</code> string similarity for anime
+              merges (0–50 per field). Sliders save as you move them.
             </p>
+            {/* The sliders used to persist a value and then hand over a command
+                to copy, which made this a form with no apply button. */}
+            <Button
+              size="sm"
+              className="mt-3 w-full"
+              disabled={combineRunning || combineStarting}
+              onClick={() => setConfirmCombine(true)}
+            >
+              {combineRunning
+                ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Combine running…</>
+                : <><Play className="mr-1.5 h-3.5 w-3.5" />Rebuild merged output</>}
+            </Button>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-muted-foreground">Or run it yourself</summary>
+              <code className="mt-1 block overflow-x-auto rounded bg-muted px-2 py-1.5">php hiyori combine anilist --strategy metadata_fuzzy --weights '{weightsJson}' --passthrough</code>
+            </details>
           </div>
         </div>
       </Section>

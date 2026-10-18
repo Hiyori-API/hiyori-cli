@@ -249,7 +249,7 @@ export function PublishPage() {
     <TooltipProvider delay={300}>
       <div className="space-y-4">
         <PageHead
-          title="Export & Publish"
+          title="Publish"
           desc="Shape the relational dump, preview an entry, dry-run, then write it to storage/publish."
           actions={backend === 'ready'
             ? <Badge variant="secondary"><Check className="mr-1 h-3 w-3" />backend ready</Badge>
@@ -294,7 +294,7 @@ export function PublishPage() {
                   <div>
                     <label className="mb-1 block text-sm">Profile</label>
                     <Select value={profile} onValueChange={v => setCfg(c => ({ ...c, profile: (v as ExportProfile) ?? 'per-entry-json' }))}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-full" aria-label="Export profile"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {EXPORT_PROFILES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                       </SelectContent>

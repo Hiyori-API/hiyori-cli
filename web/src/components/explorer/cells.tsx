@@ -254,6 +254,9 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
 
   const actions: ColumnDef<DataTableFeatures, ExploreRow, unknown> = columnHelper.display({
     id: 'actions',
+    // Unlabelled, this column left every one of its data cells with no header,
+    // which is what Lighthouse's td-has-header audit reports.
+    header: 'Actions',
     enableSorting: false,
     meta: { align: 'right', stickyRight: true, className: 'w-28 pr-1' },
     cell: ({ row }) => {

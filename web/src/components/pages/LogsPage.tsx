@@ -99,7 +99,7 @@ export function LogsPage() {
         <Section title="Validation log" icon={ListChecks} badge={<Badge variant="outline" title={`${failureTotal} logged; showing the newest ${failures.length}`}>{failureTotal > failures.length ? `${validation.length}/${failureTotal}` : validation.length}</Badge>}>
           <div className="mb-2 flex items-center justify-end">
             <Select value={srcFilter} onValueChange={v => setSrcFilter(v ?? 'all')}>
-              <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-40" aria-label="Filter validation log by source"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
                 {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}

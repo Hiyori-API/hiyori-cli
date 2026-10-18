@@ -1134,6 +1134,47 @@ if ($path === '/api/action') {
     sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($job)]);
 }
 
+/**
+ * Rebuild the merged collections using the weights currently saved in
+ * Settings.
+ *
+ * The weight sliders persisted `prefs.weights` and then handed the operator a
+ * CLI command to copy, which made the dashboard a settings form with no apply
+ * button. This closes that loop: the same weights it stores are the ones the
+ * next combine runs with.
+ *
+ * Runs detached like the ingest actions — a combine over these collections
+ * takes tens of minutes, so the request returns as soon as the process starts
+ * and progress shows up in the normal job telemetry.
+ */
+if ($path === '/api/combine') {
+    $base = (string) ($_GET['base'] ?? 'anilist');
+    $strategy = (string) ($_GET['strategy'] ?? 'metadata_fuzzy');
+    if (!preg_match('/^[a-z_]+$/', $base) || !preg_match('/^[a-z_]+$/', $strategy)) {
+        sendJson(['error' => 'base and strategy must be lowercase identifiers'], 400);
+    }
+
+    $weights = uiSettings()['prefs']['weights'] ?? null;
+    $args = sprintf('combine %s --strategy %s', escapeshellarg($base), escapeshellarg($strategy));
+    if (is_array($weights) && $weights !== []) {
+        $args .= ' --weights ' . escapeshellarg((string) json_encode($weights));
+    }
+    // Passthrough is required on every release path; mirrors the CLI contract.
+    $args .= ' --passthrough';
+
+    // `echo $!` gives us the child pid so combineRunning() can tell a live run
+    // from a marker left behind by one that died.
+    $exe = sprintf('cd %s && php hiyori %s >/dev/null 2>&1 & echo $!', escapeshellarg(dirname(__DIR__)), $args);
+    $pid = (int) trim((string) @shell_exec($exe));
+    @file_put_contents(
+        dirname(__DIR__) . '/storage/state/combine-run.json',
+        json_encode(['pid' => $pid, 'started_at' => date('c'), 'base' => $base, 'strategy' => $strategy]),
+    );
+    auditAppend('combine.start', ['base' => $base, 'strategy' => $strategy, 'pid' => $pid, 'weights' => $weights]);
+
+    sendJson(['started' => true, 'base' => $base, 'strategy' => $strategy, 'pid' => $pid, 'weights' => $weights]);
+}
+
 if ($path === '/api/coverage') {
     sendJson(['coverage' => coverage($client), 'timestamp' => date('c')]);
 }
@@ -1277,6 +1318,7 @@ if ($path === '/api/status') {
         'health' => $healthResult,
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),
+        'combine_running' => combineRunning(),
     ]);
 }
 
@@ -1300,6 +1342,31 @@ if ($path === '/api/events') {
 }
 
 // ===== Dashboard v2 endpoints =====
+/**
+ * Whether a combine started from the dashboard is still running.
+ *
+ * There is no per-run telemetry for combine (unlike ingest, which writes a
+ * state file), so the start endpoint stamps a marker with the process id and
+ * this checks the process is still alive. A stale marker — the process died,
+ * the box rebooted — clears itself rather than leaving the Rebuild button
+ * disabled forever.
+ */
+function combineRunning(): bool
+{
+    $file = dirname(__DIR__) . '/storage/state/combine-run.json';
+    if (!is_file($file)) {
+        return false;
+    }
+    $state = json_decode((string) @file_get_contents($file), true);
+    $pid = (int) ($state['pid'] ?? 0);
+    if ($pid > 0 && function_exists('posix_kill') && @posix_kill($pid, 0)) {
+        return true;
+    }
+    @unlink($file);
+
+    return false;
+}
+
 function uiSettings(): array
 {
     $dir = dirname(__DIR__) . '/storage/state';
