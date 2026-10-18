@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
-  Activity, ChevronDown, Database, Gauge, GitMerge, Hash, Layers, Loader2,
+  Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
@@ -24,7 +24,6 @@ import { EmptyState } from '../empty'
 
 
 /** Collections written by the ingesters — the input side of the pipeline. */
-const SOURCE_COLLECTIONS = ['anilist', 'anilist_manga', 'myanimelist', 'myanimelist_manga', 'kitsu', 'kitsu_manga']
 
 /**
  * Which pipeline source owns a collection, and whether it is the anime or the
@@ -90,16 +89,7 @@ export function DashboardPage() {
   // alarm during a healthy ingest. Split the two numbers: failures on the live
   // run, and skips separately, since a skip is usually "already had it", not a
   // fault.
-  const { liveErrors, liveSkipped } = useMemo(() => {
-    let e = 0
-    let s = 0
-    for (const k of activeJobs) {
-      const j = jobs[k] as Job
-      e += j.errors ?? 0
-      s += j.skipped ?? 0
-    }
-    return { liveErrors: e, liveSkipped: s }
-  }, [jobs, activeJobs])
+  const liveErrors = useMemo(() => activeJobs.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0), [jobs, activeJobs])
   // Only live jobs contribute to the combined rate; a stale run's last
   // per_second would otherwise keep the KPI non-zero forever.
   const activeRate = useMemo(() => jobKeys.reduce((a, k) => a + (isJobLive(jobs[k] as Job) ? ((jobs[k] as Job).per_second ?? 0) : 0), 0), [jobs, jobKeys])
@@ -157,21 +147,11 @@ export function DashboardPage() {
     return { outer: outerWithColor, inner }
   }, [counts, hiddenCollections, COLORS])
 
-  const h = data?.health
-  const health = h?.checks
-  const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})
-  const extApis = Object.entries(health?.external_apis?.endpoints ?? {})
-
   // Funnel over the pipeline itself: raw source collections in, combiner outputs
   // out. Internal `_`-prefixed collections (registry/counters/migrations) are
   // storage bookkeeping, so they are excluded rather than inflating "sources".
-  const ingested = SOURCE_COLLECTIONS.reduce((a, k) => a + (counts[k] ?? 0), 0)
   const animeDocs = counts.organized ?? 0
   const mangaDocs = counts.organized_manga ?? 0
-  const merged = animeDocs + mangaDocs
-  const lastCombine = data?.combine?.strategy
-    ? { strategy: data.combine.strategy, ago: ago(data.combine.completed_at) }
-    : null
 
   const retry = async (src: string) => {
     await postAction(`ingest-${src}`, 'retry')
@@ -251,28 +231,6 @@ export function DashboardPage() {
             />
           )}
 
-          {visible('pipeline') && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
-              <span>sources</span>
-              <span className="font-semibold tabular-nums text-foreground">{cx(ingested)}</span>
-              <span className="text-muted-foreground/60">→</span>
-              <span>merged</span>
-              <span className="font-semibold tabular-nums text-foreground">{cx(merged)}</span>
-              <span className="text-muted-foreground">
-                ({cx(animeDocs)} anime · {cx(mangaDocs)} manga)
-              </span>
-              {liveSkipped > 0 && (
-                <span className="text-muted-foreground">
-                  · {cx(liveSkipped)} skipped (already stored)
-                </span>
-              )}
-              {lastCombine && (
-                <span className="ml-auto min-w-0 truncate">
-                  · last combine <span className="font-medium text-foreground">{lastCombine.strategy}</span> {lastCombine.ago}
-                </span>
-              )}
-            </div>
-          )}
 
           {visible('fleet') && (
             <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>} collapsible={false}>
@@ -298,8 +256,8 @@ export function DashboardPage() {
                   {dataset.outer.length === 0 ? (
                     <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />
                   ) : (
-                    <div className="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-                      <div className="h-40 w-full shrink-0 sm:h-auto sm:min-h-40 sm:w-40 sm:max-w-44">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row sm:items-stretch">
+                      <div className="h-40 w-full shrink-0 sm:h-auto sm:min-h-40 sm:w-40 sm:flex-1 sm:max-w-44">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             {/* Outer ring: one slice per pipeline source. */}
@@ -318,7 +276,7 @@ export function DashboardPage() {
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <ScrollArea className="min-w-0 flex-1 sm:max-h-56">
+                      <ScrollArea className="min-w-0 flex-1 self-center sm:max-h-56">
                         <div className="space-y-1.5 text-sm">
                           {dataset.outer.map(e => (
                             <div key={e.name} className="flex items-center justify-between gap-2">
@@ -347,11 +305,11 @@ export function DashboardPage() {
             )}
 
             {visible('health') && (
-              <MergeCard combine={data?.combine} backup={data?.backup} extApis={extApis} circuits={circuits} />
+              <MergeCard combine={data?.combine} backup={data?.backup} />
             )}
           </div>
 
-          {!visible('dataset') && !visible('health') && !visible('pipeline') && !visible('fleet') && !visible('kpi') && (
+          {!visible('dataset') && !visible('fleet') && !visible('kpi') && (
             <EmptyState icon={Layers} title="Everything hidden" description="Re-enable widgets in Settings → Widgets." />
           )}
         </>
@@ -605,13 +563,10 @@ function rowTooltip(r: SourceRow): string {
  * The score histogram is the useful part — an average hides the problem, since
  * a run can average 96 while a fifth of its merges sit near the floor.
  */
-function MergeCard({ combine, backup, extApis, circuits }: {
+function MergeCard({ combine, backup }: {
   combine: CombineStats | undefined
   backup: BackupInfo | undefined
-  extApis: Array<[string, { healthy?: boolean; latency_ms?: number }]>
-  circuits: Array<[string, { circuit_state?: string }]>
 }) {
-  const [open, setOpen] = useState(false)
   if (!combine) {
     return (
       <Card>
@@ -668,66 +623,11 @@ function MergeCard({ combine, backup, extApis, circuits }: {
           <span>avg <span className="tabular-nums text-foreground">{combine.scores?.avg ?? '—'}</span></span>
           <span>floor <span className="tabular-nums text-foreground">{combine.threshold ?? '—'}</span></span>
           <span>ran {ago(combine.completed_at)}</span>
+          {/* Backup age is the one thing worth surfacing here that nothing
+              else on this page answers. */}
+          {backup?.last?.mtime != null && <span>backed up {ago(new Date(backup.last.mtime * 1000).toISOString())}</span>}
         </p>
 
-        {/* Run metadata and endpoint health are reference, not glance. Folded
-            away so the card's resting height is the three facts above. */}
-        <div className="mt-auto border-t pt-2">
-          <button
-            type="button"
-            onClick={() => setOpen(o => !o)}
-            aria-expanded={open}
-            className="flex w-full items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
-            Run detail
-            <span className="ml-auto normal-case tabular-nums tracking-normal text-muted-foreground">
-              {extApis.length + circuits.length} endpoints
-            </span>
-          </button>
-          {open && (
-            <dl className="mt-2 space-y-1 text-xs">
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">strategy</dt>
-                <dd className="truncate tabular-nums">{combine.strategy}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">base collection</dt>
-                <dd className="tabular-nums">{combine.base}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">score range</dt>
-                <dd className="tabular-nums">{combine.scores?.min ?? '—'}–{combine.scores?.max ?? '—'}</dd>
-              </div>
-              {backup?.last?.mtime != null && (
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">last backup</dt>
-                  <dd>{ago(new Date(backup.last.mtime * 1000).toISOString())}</dd>
-                </div>
-              )}
-              <div className="border-t pt-1.5">
-                {extApis.length === 0 && circuits.length === 0 ? (
-                  <p className="text-muted-foreground">no external endpoints or circuits</p>
-                ) : (
-                  <>
-                    {extApis.map(([name, e]) => (
-                      <div key={name} className="flex items-center gap-2">
-                        <StatusDot ok={e.healthy !== false} />
-                        <span className="flex-1 truncate text-muted-foreground">{name}</span>
-                        <span className="tabular-nums">{e.latency_ms != null ? `${e.latency_ms}ms` : '—'}</span>
-                      </div>
-                    ))}
-                    {circuits.length > 0 && (
-                      <div className="pt-1 text-[10px] text-muted-foreground">
-                        circuits: {circuits.map(([src, st]) => `${src}:${st.circuit_state === 'open' ? 'OPEN' : 'closed'}`).join(' · ')}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </dl>
-          )}
-        </div>
       </CardContent>
     </Card>
   )

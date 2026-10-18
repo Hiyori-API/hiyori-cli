@@ -1,7 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal, Upload } from 'lucide-react'
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { Separator } from '@/components/ui/separator'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
@@ -141,17 +139,12 @@ export function Dashboard() {
         </Sidebar>
 
         <SidebarInset>
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-5">
+          <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem><BreadcrumbPage>HiyoriDB</BreadcrumbPage></BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem><BreadcrumbPage className="text-muted-foreground">{nav.label}</BreadcrumbPage></BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <div className="ml-auto flex items-center gap-2">
+            {/* The brand already lives in the sidebar, so the breadcrumb only
+                carries the page name — repeating "HiyoriDB >" here was noise. */}
+            <span className="text-sm font-medium">{nav.label}</span>
+            <div className="ml-auto flex items-center gap-3">
               <StatusChip />
             </div>
           </header>
