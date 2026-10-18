@@ -44,10 +44,30 @@ interface CoverageMatrixRow {
  * (`_counters`, `_migrations`, `_hiyori_ids`) which carry no reference ids.
  * Used for both the section badge and the matrix so the two cannot drift.
  */
+/**
+ * Collections worth showing reference coverage for.
+ *
+ * This excluded the merged output and included `embeddings`, so the matrix
+ * carried an infrastructure collection with 3 documents while omitting the
+ * collections the tool actually produces — and whose enrichment is the thing
+ * being judged here. Sources come first, then the merged output.
+ */
+const COVERAGE_ORDER = [
+  'organized', 'organized_manga',
+  'anilist', 'anilist_manga',
+  'myanimelist', 'myanimelist_manga',
+  'kitsu', 'kitsu_manga',
+]
+
 function coverageCollections(coverage: Record<string, Record<string, number | undefined>>): string[] {
-  return Object.keys(coverage)
-    .filter(c => (coverage[c]?.total ?? 0) > 0 && !c.includes('organized') && !c.startsWith('_'))
+  const present = new Set(Object.keys(coverage).filter(c => (coverage[c]?.total ?? 0) > 0))
+  const known = COVERAGE_ORDER.filter(c => present.has(c))
+  // Anything else that is a real catalogue (not `_`-prefixed bookkeeping) still
+  // appears, so a new source is never silently hidden.
+  const rest = [...present]
+    .filter(c => !COVERAGE_ORDER.includes(c) && !c.startsWith('_') && c !== 'embeddings' && c !== 'llm_judgements')
     .sort()
+  return [...known, ...rest]
 }
 
 /** Enriched, sortable coverage matrix built on the shared DataTable (Q1: empty shorthand columns are hidden). */
@@ -107,17 +127,35 @@ function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<str
   }, [rows])
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      getRowId={r => r.name}
-      initialSorting={[{ id: 'name', desc: false }]}
-      initialPageSize={8}
-      sortDescFirst
-      maxHeight="22rem"
-      ariaLabel="Reference coverage matrix"
-      footerLeft={`${rows.length} collections · % of docs carrying each shorthand`}
-    />
+    <div className="space-y-2">
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={r => r.name}
+        initialSorting={[{ id: 'name', desc: false }]}
+        sortDescFirst
+        maxHeight="22rem"
+        ariaLabel="Reference coverage matrix"
+        // Seven collections fit on one screen; paginating them added a page
+        // control and a row counter that only ever said "1/1".
+        showPagination={false}
+      />
+      {/* The dots carried the most meaning in the table and were explained
+          nowhere. */}
+      <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+        <span>% of documents carrying each reference shorthand</span>
+        <span className="text-muted-foreground/60">·</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded bg-emerald-500/20 px-1 text-emerald-500">60</span> over half
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded bg-amber-500/20 px-1 text-amber-500">12</span> some
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-muted-foreground">·</span> none
+        </span>
+      </p>
+    </div>
   )
 }
 
@@ -243,6 +281,8 @@ export function QualityPage() {
     })
     return Object.entries(buckets).slice(-24).map(([k, v]) => ({ t: k.slice(11), n: v }))
   }, [failures])
+
+  const trendPeak = useMemo(() => validationTrend.reduce((m, b) => Math.max(m, b.n), 0), [validationTrend])
 
   const sampled = sample
   const draw = (min = minConf) => void fetchSample('organized', min).then(r => {
@@ -452,12 +492,16 @@ export function QualityPage() {
                           ? `metadata_ml F1 ${Number(gate.ml_f1).toFixed(3)} vs best baseline ${Number(gate.baseline_f1).toFixed(3)}; requires +${Number(gate.required_margin ?? 0).toFixed(3)}`
                           : undefined}
                       >
-                        {gate.passed ? 'gate passed' : 'gate not met'} · {Number(gate.margin ?? 0) >= 0 ? '+' : ''}{Number(gate.margin ?? 0).toFixed(3)} vs baseline
+                        {gate.passed
+                          ? `gate passed · ${Number(gate.margin ?? 0) >= 0 ? '+' : ''}${Number(gate.margin ?? 0).toFixed(3)} over baseline`
+                          : `needs +${Number(gate.required_margin ?? 0).toFixed(3)}, got ${Number(gate.margin ?? 0) >= 0 ? '+' : ''}${Number(gate.margin ?? 0).toFixed(3)}`}
                       </Badge>
                     )}
                   </div>
                   <p className="mt-1 text-muted-foreground">
-                    From the last <code>combine:benchmark</code> run ({ml.rows} pairs{ml.ml_model_version ? `, model ${ml.ml_model_version}` : ''}). Suggested — not auto-applied.
+                    From the last <code>combine:benchmark</code> run ({ml.rows} pairs{ml.ml_model_version ? `, model ${ml.ml_model_version}` : ''}).
+                    The gate asks whether this model beats the best non-ML strategy by the required margin — until it
+                    does, <code>metadata_fuzzy</code> stays the default. Suggested, never auto-applied.
                   </p>
                 </div>
               )
@@ -474,10 +518,15 @@ export function QualityPage() {
               {validationTrend.map((b, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <span className="w-14 text-muted-foreground tabular-nums">{b.t}</span>
-                  <div className="h-3 flex-1 rounded bg-muted"><div className="h-full rounded bg-amber-500/70" style={{ width: `${Math.min(100, b.n * 10)}%` }} /></div>
+                  <div className="h-3 flex-1 rounded bg-muted">
+                    {/* Scale by the tallest bucket. The old `n * 10` capped at
+                        100% made 10 violations and 400 look identical. */}
+                    <div className="h-full rounded bg-amber-500/70" style={{ width: trendPeak > 0 ? `${(b.n / trendPeak) * 100}%` : '0%' }} />
+                  </div>
                   <span className="tabular-nums text-muted-foreground">{b.n}</span>
                 </div>
               ))}
+              <p className="pt-1 text-[10px] text-muted-foreground">Peak {trendPeak} in the window · bars are relative</p>
             </div>
           )}
         </Section>
