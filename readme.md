@@ -17,7 +17,7 @@ Hiyori CLI builds and maintains [HiyoriDB](https://github.com/Hiyori-API/HiyoriD
 - **Schema normalization** — source-specific values (statuses, types, seasons) are mapped onto the shared [Hiyori Schema](#hiyori-schema) via enums.
 - **Relational mapping** — known source cross-references are parsed into `reference_ids` (`mal`, `al`, `k`, …); supported references are resolved to per-source IDs.
 - **Combiner with 7 strategies** — `relational_mapping`, `relational_fuzzy`, **`metadata_fuzzy`** (default, weightage-tuned), `graph_merge`, `fellegi_sunter`, `semantic_rerank` (local embeddings) and `metadata_ml` (trained logistic second-stage scorer).
-- **Live dashboard** — a React + shadcn/ui SPA (PHP `php -S` backend) with dedicated **Explorer, Management, Quality & Analysis, Logs and Settings** pages, realtime SSE, PWA caching and an **Environment manager**.
+- **Live dashboard** — a React + shadcn/ui SPA (PHP `php -S` backend) with **Dashboard, Explorer and Settings** pages, realtime SSE, PWA caching and an **Environment manager**. The Dashboard carries the source fleet, backups, the merge-quality chart and the scheduler; Settings carries the rate limiter.
 - **Backups & restore** — `mongodump`/`mongorestore` based, scriptable and dashboard-triggered.
 - **Scheduler** — run ingestion on a schedule via systemd timers/cron (`schedule --install`).
 - **Utilities** — validation against the schema, sweeping (orphans/duplicates/incomplete), weightage analysis, export (JSON/JSONL/CSV), Prometheus metrics and health checks.

@@ -836,7 +836,70 @@ First full rebuild with `--passthrough`: `php hiyori combine anilist --passthrou
 
 - [x] **Rejection buffer shipped (2026-10-17).** `RejectionStore` over `pair_rejections` (unique on the full pair, multiclass `approve`/`reject`/`unsure`), `php hiyori rejections add|list|stats|promote`, `GET/POST /api/rejections` + `POST /api/rejections/promote`, and a Quality-page buffer card with pending/promoted counts and a Promote button. The combiner populates it opt-in via `combine --rejection-buffer` (`rejection_buffer` config): a title-floor rejection whose metadata score still clears `rejection_buffer_floor` (default: the combine threshold) is written to the buffer as a `combiner`-sourced `reject`, so the queue fills with the borderline false-negatives a reviewer most needs to see. `promote()` copies approve→1 / reject→0 into `_labels` and skips `unsure`, so an ambiguous verdict never reaches the trainer. `schema/hiyori.schema.json` now also declares the opt-in rich fields (`tags`/`genres`/`synopsis`/`score`/`studios`) and the merge/ML fields (`confidence`, `ml_score`, `ml_model`, `ml_model_version`, `ml_decision`, `ml_decided_at`) that the exporter toggles and `metadata_ml` already emit. Three stale checkboxes (Explorer ML columns, Quality histograms, `/api/histogram?field=`) and the manami-vs-LFS "(done)" box are ticked — all were already shipped.
 
+## Dashboard consolidation + hardening (2026-10-18)
+
+The seven-page dashboard was cut back to three, and the security/static-analysis
+debt found by a production-readiness audit was closed.
+
+**Pages removed.** `Quality & Analysis`, `Logs`, `Publish` and `Ingest` are gone;
+the nav is now **Dashboard · Explorer · Settings**. Each removal was a judgement
+that the surface was not earning its place:
+
+- **Merge quality / Reference coverage** were two panels rendering four views of
+  one dataset — a 16-column matrix, an 18-axis radar of the same numbers, a
+  missing-refs bar list (which is `100 −` three of those columns), and a separate
+  Merge card whose `organized` rows *were* per-source completeness. They are now
+  one `MergeQualityPanel`: one stacked 100%-budget bar per row, coloured = present
+  and grey = missing, with the merge-confidence bands as a row of the same shape
+  in a separate hue.
+- **Logs** and **Publish** are deferred rather than deleted in spirit — the
+  publish *configuration* still lives in Settings and the CLI still owns pushing.
+- **Ingest** was redistributed: the source list duplicated the Dashboard's, so it
+  went; the scheduler moved into the Dashboard's Sources panel, Backups became its
+  own Dashboard panel, and the Rate limiter moved to Settings. Alerts, Validation
+  failures and the Audit log were dropped.
+
+**Widget visibility is now opt-out.** The preference was an opt-*in* list of
+visible ids, so a widget added after the preference was saved rendered nothing
+while its toggle claimed otherwise — which is exactly what happened to the new
+Backups panel. The registry also lived in Settings while the Dashboard hardcoded
+the same ids, so the two could drift. Both are fixed by a shared
+`web/src/lib/widgets.ts`: one registry, `hiddenWidgets` as the stored shape, and a
+one-time migration that keeps deliberate hides while defaulting new widgets to
+shown.
+
+**Security (all verified against the running server before and after):**
+- Two **unauthenticated secret disclosures** closed. `/output/../.env` served the
+  application's own `.env` (200, 437 B) and `/output/../../../../../etc/passwd`
+  served the system file; both now resolve through a `containedFile()` realpath
+  containment check. `/api/env` had no origin check, so any page the operator
+  visited could read the whole `.env` via `?raw=1` or one secret via `?reveal=`;
+  `requireSameOrigin()` now guards it and every other state-changing route.
+- The service worker cached `/api/env*` (writing secrets into Cache Storage) and
+  answered mutating GETs from cache when offline, reporting false success. Both
+  bypassed, cache version bumped.
+- `shadcn` moved to `devDependencies` (it is a build-time CSS import), which takes
+  `npm audit --omit=dev` from 7 high to 0 — superseding the accepted-risk note
+  below, which no longer applies.
+
+**Correctness:** `/api/restore` ran `mongorestore --drop` detached and discarded
+the exit code, so a failure left the database dropped and empty while the audit
+log recorded success; it now runs to completion and reports the real code.
+`/api/backup` likewise captures `mongodump`'s status and unlinks a partial
+archive. `score_histogram` dropped every merge below 70, so a `threshold` under 70
+made the bins under-report; a `p0_70` bin now completes the partition.
+
+**Performance:** `/api/status` was 0.89 s, 0.79 s of it an uncached full-collection
+coverage aggregation on a 3 s poll; it is now TTL-cached at 30 s like `health`
+(0.99 s cold / 0.23 s warm). Mongo had no timeout, so the driver default of 30 s
+applied and a blip blocked every poll across all 8 workers; now 3 s.
+
+**Static analysis:** `public/` (the ~2100-line front controller, where every
+unauthenticated route lives) is now analysed. It had been outside phpstan's paths
+entirely. CI gained a frontend job (`npm ci`, `tsc`, `lint`, `build`) after a React
+crash reached the served bundle having passed everything that ran.
+
 ## Security notes (2026-10-15)
 
-- **Dependabot high × 7 (`web/`) — accepted, no upstream fix.** `npm audit` reports 7 high advisories, all one chain: `shadcn@4.21.4` → `fast-glob` → `micromatch` → `braces@3.0.3` (GHSA-vfj7-8cjw-p6xm, stack-exhaustion DoS via deeply nested patterns). `braces@3.0.3` is the latest published release and is *still* in the vulnerable range, so there is nothing to bump to; npm's only suggested "fix" is a semver-major downgrade to `shadcn@1.0.0`. The package is build-time only (the `shadcn/tailwind.css` import is compiled into `web/dist` by Vite, so nothing ships to the browser) and the affected glob code only ever sees local file paths. Revisit when upstream publishes `braces > 3.0.3` or `shadcn` drops `fast-glob`.
+- **Dependabot high × 7 (`web/`) — SUPERSEDED 2026-10-18, resolved by moving `shadcn` to `devDependencies` (`npm audit --omit=dev` is now clean).** Retained for the record. The chain was: `shadcn@4.21.4` → `fast-glob` → `micromatch` → `braces@3.0.3` (GHSA-vfj7-8cjw-p6xm, stack-exhaustion DoS via deeply nested patterns). `braces@3.0.3` is the latest published release and is *still* in the vulnerable range, so there is nothing to bump to; npm's only suggested "fix" is a semver-major downgrade to `shadcn@1.0.0`. The package is build-time only (the `shadcn/tailwind.css` import is compiled into `web/dist` by Vite, so nothing ships to the browser) and the affected glob code only ever sees local file paths. Revisit when upstream publishes `braces > 3.0.3` or `shadcn` drops `fast-glob`.
 - `composer audit`: no advisories.
