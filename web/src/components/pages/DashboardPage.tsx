@@ -764,15 +764,12 @@ function MergeCard({ combine, backup }: {
   combine: CombineStats | undefined
   backup: BackupInfo | undefined
 }) {
-  if (!combine) {
-    return (
-      <Section title="Merge" icon={GitMerge} collapsible={false}>
-        <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
-      </Section>
-    )
-  }
-
-
+  // Hooks must run before any early return. This useMemo used to sit below the
+  // `if (!combine)` guard, so the first poll that turned `combine` from
+  // undefined into a dict rendered one more hook than the previous render and
+  // React threw "Rendered more hooks than during the previous render" — which
+  // the Dashboard's ErrorBoundary turned into an error card over the landing
+  // page. It reads `combine?.…`, so it is safe to evaluate unconditionally.
   const bins = useMemo(() => {
     const segments = [
       { key: 'p70_80', label: '70–80', color: 'var(--chart-3)', count: Number(combine?.score_histogram?.p70_80 ?? 0) },
@@ -786,6 +783,14 @@ function MergeCard({ combine, backup }: {
       label: `Match confidence: ${segments.map(s => `${s.label} ${s.count} pairs`).join('; ')}`,
     }
   }, [combine])
+
+  if (!combine) {
+    return (
+      <Section title="Merge" icon={GitMerge} collapsible={false}>
+        <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
+      </Section>
+    )
+  }
 
   return (
     <Section title="Merge" icon={GitMerge} collapsible={false} className="flex flex-col">
