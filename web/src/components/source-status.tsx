@@ -66,7 +66,7 @@ const DOT: Record<SourceLevel, string> = {
 
 export function SourceStatusBlip({ status, size = 'md' }: { status: SourceStatus; size?: 'sm' | 'md' }) {
   return (
-    <span title={status.label} className={cn('inline-block shrink-0 rounded-full', DOT[status.level], size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2')} />
+    <span title={status.label} aria-label={status.label || 'status'} role="img" className={cn('inline-block shrink-0 rounded-full', DOT[status.level], size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2')} />
   )
 }
 

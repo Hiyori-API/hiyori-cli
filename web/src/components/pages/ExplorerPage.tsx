@@ -129,10 +129,19 @@ export function ExplorerPage() {
   // embeddings, _labels, _counters, pair_rejections, llm_judgements) are
   // bookkeeping and searching them only confused the picker with rows that
   // are not anime/manga.
+  // Catalogue order: the merged outputs first (that is what we are really
+  // browsing), then each source with its manga side beside it. Alphabetical
+  // order put _hiyori_ids-style noise first and scattered the manga side away
+  // from its anime parent.
+  const COLLECTION_ORDER = [
+    'organized', 'organized_manga',
+    'anilist', 'anilist_manga',
+    'myanimelist', 'myanimelist_manga',
+    'kitsu', 'kitsu_manga',
+  ]
   const collections = useMemo(() => {
-    const isSource = (c: string) => /^(anilist|kitsu|myanimelist)(?:_manga)?$/.test(c)
-    const isMerged = (c: string) => c === 'organized' || c === 'organized_manga'
-    return Object.keys(meta).filter(c => isSource(c) || isMerged(c))
+    const present = new Set(Object.keys(meta))
+    return COLLECTION_ORDER.filter(c => present.has(c))
   }, [meta])
   const docs = data?.docs ?? []
   const fields = data?.fields ?? []

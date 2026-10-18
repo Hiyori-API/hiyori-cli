@@ -159,7 +159,7 @@ export function SettingsPage() {
                 <div className="text-sm">Real-time updates</div>
                 <div className="text-xs text-muted-foreground">SSE push over the base poll; off = polling only</div>
               </div>
-              <Switch checked={realtime} onCheckedChange={(v: boolean) => setPre('realtime', v)} />
+              <Switch aria-label="Realtime updates" checked={realtime} onCheckedChange={(v: boolean) => setPre('realtime', v)} />
             </div>
             <div className="flex items-center justify-between">
               <div>
@@ -229,7 +229,7 @@ export function SettingsPage() {
           <div className="grid grid-cols-2 gap-2">
             {WIDGETS.map(([id, label]) => (
               <label key={id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch checked={!widgets || widgets.includes(id)} onCheckedChange={() => toggleWidget(id)} />
+                <Switch aria-label={`Toggle ${id} widget`} checked={!widgets || widgets.includes(id)} onCheckedChange={() => toggleWidget(id)} />
                 <span>{label}</span>
               </label>
             ))}
@@ -242,7 +242,7 @@ export function SettingsPage() {
           <div className="grid grid-cols-2 gap-2">
             {Object.keys(meta).map(c => (
               <label key={c} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <Switch checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />
+                <Switch aria-label={`Show ${c} collection`} checked={!hidden.includes(c)} onCheckedChange={() => toggleCol(c)} />
                 <span>{c} <span className="text-xs text-muted-foreground">({fmtCompact(meta[c]?.count)})</span></span>
               </label>
             ))}
@@ -291,6 +291,7 @@ export function SettingsPage() {
               <Input
                 type="file"
                 accept="application/json,.json"
+                aria-label="Import settings JSON"
                 className="h-9 w-full max-w-md text-xs"
                 onChange={e => {
                   const f = e.target.files?.[0]

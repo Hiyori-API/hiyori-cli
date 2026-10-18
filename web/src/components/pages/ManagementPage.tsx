@@ -403,7 +403,7 @@ function BackupsTable({ backups, onRestore }: { backups: BackupItem[]; onRestore
         const file = row.original.file
         return (
           <div className="flex items-center justify-end gap-1">
-            <a href={`/storage/backups/${file}`} download={file} className="text-muted-foreground hover:text-foreground" title="Download"><Download className="h-3.5 w-3.5" /></a>
+            <a href={`/storage/backups/${file}`} download={file} aria-label={`Download ${file}`} title={`Download ${file}`} className="text-muted-foreground hover:text-foreground"><Download className="h-3.5 w-3.5" /></a>
             <Button size="icon-xs" variant="ghost" title="Restore" aria-label={`Restore ${file}`} onClick={() => onRestore(file ?? null)}><RotateCcw className="h-3.5 w-3.5" /></Button>
           </div>
         )

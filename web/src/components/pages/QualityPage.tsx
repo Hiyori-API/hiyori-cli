@@ -413,7 +413,15 @@ export function QualityPage() {
             <div>
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-xs text-muted-foreground">min score</span>
-                <Slider value={[minConf]} min={0} max={97} step={1} onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }} className="flex-1" />
+                <Slider
+                  value={[minConf]}
+                  min={0}
+                  max={97}
+                  step={1}
+                  aria-label="Minimum confidence score for sampled merges"
+                  onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }}
+                  className="flex-1"
+                />
                 <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
               </div>
               {sampled === undefined && !sample && (

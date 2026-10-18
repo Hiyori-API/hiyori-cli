@@ -309,11 +309,11 @@ export function PublishPage() {
                     <div className="mb-1 text-sm">Entities</div>
                     <div className="grid grid-cols-2 gap-2">
                       <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                        <Switch checked={entityOn('anime')} onCheckedChange={v => setEntity('anime', v)} />
+                        <Switch aria-label="Include anime entities" checked={entityOn('anime')} onCheckedChange={v => setEntity('anime', v)} />
                         <span>Anime</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                        <Switch checked={entityOn('manga')} onCheckedChange={v => setEntity('manga', v)} />
+                        <Switch aria-label="Include manga entities" checked={entityOn('manga')} onCheckedChange={v => setEntity('manga', v)} />
                         <span>Manga</span>
                       </label>
                     </div>
@@ -359,13 +359,13 @@ export function PublishPage() {
                     <div className="mb-1 text-sm">Include</div>
                     <div className="grid grid-cols-3 gap-2">
                       <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-                        <Switch checked={cfg.index ?? true} onCheckedChange={v => setCfg(c => ({ ...c, index: v }))} /><span>Index</span>
+                        <Switch aria-label="Write index file" checked={cfg.index ?? true} onCheckedChange={v => setCfg(c => ({ ...c, index: v }))} /><span>Index</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-                        <Switch checked={cfg.pretty ?? true} onCheckedChange={v => setCfg(c => ({ ...c, pretty: v }))} /><span>Pretty</span>
+                        <Switch aria-label="Pretty print" checked={cfg.pretty ?? true} onCheckedChange={v => setCfg(c => ({ ...c, pretty: v }))} /><span>Pretty</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-                        <Switch checked={cfg.bundle ?? false} onCheckedChange={v => setCfg(c => ({ ...c, bundle: v }))} /><span>Bundle</span>
+                        <Switch aria-label="Bundle output" checked={cfg.bundle ?? false} onCheckedChange={v => setCfg(c => ({ ...c, bundle: v }))} /><span>Bundle</span>
                       </label>
                     </div>
                   </div>
