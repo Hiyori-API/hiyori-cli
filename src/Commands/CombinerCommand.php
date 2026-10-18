@@ -65,9 +65,21 @@ final class CombinerCommand extends Command
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
 
+    /**
+     * Lock resource name.
+     *
+     * Overridable so a test can run while a real combine holds the production
+     * lock — the suite used to fail with "already running in another process"
+     * for the whole duration of a rebuild. The default is unchanged.
+     */
+    private static function lockName(): string
+    {
+        return (string) ($_ENV['COMBINE_LOCK_NAME'] ?? 'combine');
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if (!$this->lock()) {
+        if (!$this->lock(self::lockName())) {
             $output->writeln('The command is already running in another process.');
 
             return Command::SUCCESS;

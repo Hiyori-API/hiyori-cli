@@ -90,12 +90,63 @@ db.getCollection("_repair_reference_ids_backup").find({}).forEach(b => {
 Restoring `organized_manga` is `_repair_backup_organized_manga` → `organized_manga`
 and `_repair_backup_manga_registry` → `_hiyori_ids`.
 
+## Two problems found while rebuilding
+
+### The cursor died at 45 %
+
+The first rebuild attempt ran for ~2h45m and then exited with:
+
+```
+In MetadataFuzzyStrategy.php line 121:
+  cursor id 2231066960713165085 not found
+```
+
+A plain server cursor is killed after roughly ten minutes idle, and a base of
+this size takes hours. This is the same failure that had previously left
+`organized_manga` at 2,161 (`finalize-merges.log`). All seven strategies
+iterated their base with a bare `find()`; they now pass
+`['noCursorTimeout' => true, 'batchSize' => 500]`.
+
+The partial run left 24,730 documents and their registry rows, which are
+correct — allocation is idempotent, so the restart re-upserts them and reuses
+the same ids.
+
+### The source collections were up to 56 % duplicate
+
+Because `exists()` never matched, every re-run re-inserted the whole catalogue.
+This was invisible until the document count stopped tracking the progress
+counter:
+
+| Collection | Rows | Distinct ids | Duplicates |
+|---|---|---|---|
+| `anilist_manga` | 65,453 | 28,819 | 36,634 (56 %) |
+| `kitsu_manga` | 70,787 | 63,227 | 7,560 (10.7 %) |
+| `myanimelist_manga` | 59,826 | 34,455 | 25,371 (42.4 %) |
+
+The duplicates are genuine — of 40,047 duplicate groups, only 3 contain any
+variation at all (2 differ in title, 1 in type). Each collection was backed up
+verbatim and then reduced to one document per identity, keeping the lowest
+`_id`:
+
+| Collection | Before | After |
+|---|---|---|
+| `anilist_manga` | 65,453 | 28,819 |
+| `kitsu_manga` | 70,787 | 63,227 |
+| `myanimelist_manga` | 59,826 | 34,455 |
+
+This halves the rebuild (ETA went from 6h27m to ~3h36m) and matters for quality,
+not just speed: the duplicates are on the *candidate* side too, where they crowd
+the 100-candidate matching window and can push a better match out of it.
+
+Backups: `_repair_backup_dup_<collection>` (verbatim, pre-dedupe).
+
 ## Still outstanding
 
-- **Rebuild `organized_manga`.** `organized_manga` is empty. It must be rebuilt
-  with `--passthrough` so base entries that match nothing are still published —
-  without it, `combine` drops them silently, which is how the collection ended up
-  at 2,161 in the first place.
+- **Rebuild `organized_manga`.** In progress against the deduped base
+  (`storage/logs/rebuild-organized-manga-2.log`). It must use `--passthrough` so
+  base entries that match nothing are still published — without it, `combine`
+  drops them silently, which is how the collection ended up at 2,161.
+  Expect ~28,819 documents, one per distinct manga.
 - **Confirm coverage.** `combine` now takes `--min-coverage`; the rebuild should
   be run with it so a low-coverage run fails loudly rather than reporting success.
 - **Registry verification.** `hiyori-id --verify` should be run afterwards to

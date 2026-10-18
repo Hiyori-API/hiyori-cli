@@ -25,6 +25,18 @@ use Symfony\Component\Console\Tester\CommandTester;
  */
 final class CombinerCommandCoverageTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        // Never contend with a real combine: the production lock is held for the
+        // whole duration of a rebuild.
+        $_ENV['COMBINE_LOCK_NAME'] = 'combine-test-' . getmypid();
+    }
+
+    protected function tearDown(): void
+    {
+        unset($_ENV['COMBINE_LOCK_NAME']);
+    }
+
     /**
      * A Migrator with every known migration stubbed as applied, so `pending()`
      * returns [] without touching MongoDB. (`Migrator` is final, so it cannot

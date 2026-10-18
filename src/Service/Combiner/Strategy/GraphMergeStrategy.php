@@ -48,7 +48,10 @@ final class GraphMergeStrategy extends CombinerStrategy
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
         $total = $baseCollection->countDocuments();
-        $cursor = $baseCollection->find();
+        // A plain server cursor is killed after ~10 min idle, which is how the
+        // manga rebuild died at 45 % with "cursor id ... not found". Keep it
+        // alive explicitly: a full base takes hours.
+        $cursor = $baseCollection->find([], ['noCursorTimeout' => true, 'batchSize' => 500]);
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
