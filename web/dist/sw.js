@@ -1,5 +1,10 @@
 /* Hiyori dashboard PWA service worker.
  *
+ *  - SECRETS AND WRITES ARE NEVER CACHED. /api/env* (raw/reveal) returns client
+ *    secrets, and /api/action, /api/combine, /api/backup, /api/restore,
+ *    /api/settings, /api/limits and /api/explore are mutating GETs. Both groups
+ *    are bypassed entirely (see BYPASS), so they always hit the network and an
+ *    offline request fails loudly instead of replaying a cached body.
  *  - /api/* GET: NETWORK-FIRST, cached only as an offline fallback. This used to
  *    be stale-while-revalidate, which meant every page load rendered the payload
  *    from the *previous* request. Polling surfaces hid that (the next 3s tick
@@ -9,8 +14,35 @@
  *  - /api/events: SSE, network only.
  *  - Navigation + hashed assets: cache-first (offline-capable, fast reloads).
  */
-const CACHE = 'hiyori-v4'
-const API_CACHE = 'hiyori-api-v4'
+const CACHE = 'hiyori-v5'
+const API_CACHE = 'hiyori-api-v5'
+
+/* Paths that must never touch Cache Storage.
+ *
+ * /api/env answers with the raw environment and, with ?reveal=<key>, with the
+ * decrypted value of a single secret — caching either would persist secrets in
+ * Cache Storage and serve them back from disk later.
+ *
+ * The rest are GETs that mutate server state. Caching them let an offline or
+ * flaky request be answered from cache with a success-shaped body, so the UI
+ * reported a backup/restore/combine that never happened. They are bypassed
+ * (not merely "not cached") so the offline failure surfaces.
+ */
+const BYPASS = [
+  '/api/env',
+  '/api/action',
+  '/api/combine',
+  '/api/backup',
+  '/api/restore',
+  '/api/settings',
+  '/api/limits',
+  '/api/explore',
+  '/api/events', // SSE, network only
+]
+
+function isBypassed(pathname) {
+  return BYPASS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
@@ -41,7 +73,9 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return
   if (url.origin !== self.location.origin) return
 
-  if (url.pathname === '/api/events') return
+  // Secrets and mutating GETs: do not intercept at all, so there is no cached
+  // body to fall back to. Keep SSE network-only for the same reason.
+  if (isBypassed(url.pathname)) return
 
   if (url.pathname.startsWith('/api/') || url.pathname === '/metrics') {
     e.respondWith(networkFirst(e.request))
