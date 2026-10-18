@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Sparkline } from './charts'
 import { cn } from 'cn'
 
 const TOOLTIP_STYLE = {
@@ -41,7 +42,7 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
 }
 
 export function StatStrip({ items }: {
-  items: { label: string; value: string; icon: LucideIcon; sub?: string; tone?: 'ok' | 'warn' | 'bad' }[]
+  items: { label: string; value: string; icon: LucideIcon; sub?: string; tone?: 'ok' | 'warn' | 'bad'; spark?: number[] }[]
 }) {
   return (
     <div className="grid grid-cols-1 divide-y divide-border rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -60,7 +61,10 @@ export function StatStrip({ items }: {
               it.tone === 'bad' && 'text-destructive',
             )}>{it.value}</p>
           </div>
-          {it.sub && <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground">{it.sub}</span>}
+          {it.spark && it.spark.length >= 2 && (
+            <span className="ml-auto shrink-0"><Sparkline points={it.spark} color="var(--chart-1)" width={72} height={22} label={`${it.label} trend`} /></span>
+          )}
+          {it.sub && <span className={cn('shrink-0 truncate text-xs text-muted-foreground', !it.spark && 'ml-auto')}>{it.sub}</span>}
         </div>
       ))}
     </div>
@@ -112,18 +116,22 @@ export function Section({ title, icon: Icon, children, defaultOpen = true, badge
   const [open, setOpen] = useState(defaultOpen)
   return (
     <Card className={cn('overflow-hidden', className)}>
-      <div className="flex w-full items-center gap-2 rounded-t-xl px-4 py-3">
+      {/* The header is one clickable row. The hover tint lives on the button and
+          the button carries the padding (with a negative margin pulling it back
+          over the card edge), because putting the padding on the wrapper left
+          the tint hugging the icon and title instead of the whole header. */}
+      <div className="flex w-full items-stretch">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="flex flex-1 items-center gap-2 text-left hover:bg-muted/40"
+          className="-mx-4 flex flex-1 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40"
         >
           {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
           <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
         </button>
-        {badge && <span className="ml-2 shrink-0">{badge}</span>}
+        {badge && <span className="flex shrink-0 items-center pr-4">{badge}</span>}
       </div>
       {open && <CardContent className="border-t p-4">{children}</CardContent>}
     </Card>

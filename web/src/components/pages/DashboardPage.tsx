@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
-  Activity, ChevronDown, Database, Gauge, Hash, Layers, Loader2,
+  Activity, ChevronDown, Database, Gauge, GitMerge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
@@ -15,8 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
-import { Sparkline, useChartColors, useSeriesColors } from '../charts'
-import { isIngestJob, isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
+import { Sparkline, useChartColors } from '../charts'
+import { isIngestJob, isJobLive, jobPhase, postAction, type BackupInfo, type CombineStats, type HealthCheck, type Job } from '@/lib/api'
 import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
@@ -26,8 +26,24 @@ import { EmptyState } from '../empty'
 /** Collections written by the ingesters — the input side of the pipeline. */
 const SOURCE_COLLECTIONS = ['anilist', 'anilist_manga', 'myanimelist', 'myanimelist_manga', 'kitsu', 'kitsu_manga']
 
-/** Collections shown individually in the dataset donut before the tail is folded. */
-const DATASET_TOP_N = 7
+/**
+ * Which pipeline source owns a collection, and whether it is the anime or the
+ * manga side. Anything not listed here is infrastructure and folds into the
+ * "system" group.
+ */
+type DatasetSeg = { name: string; value: number; kind: 'anime' | 'manga' | 'other'; color: string }
+type DatasetGroup = { name: string; value: number; anime: number; manga: number; other: number; color: string }
+
+const SOURCE_GROUPS: Record<string, { group: string; kind: 'anime' | 'manga' }> = {
+  anilist: { group: 'AniList', kind: 'anime' },
+  anilist_manga: { group: 'AniList', kind: 'manga' },
+  kitsu: { group: 'Kitsu', kind: 'anime' },
+  kitsu_manga: { group: 'Kitsu', kind: 'manga' },
+  myanimelist: { group: 'MyAnimeList', kind: 'anime' },
+  myanimelist_manga: { group: 'MyAnimeList', kind: 'manga' },
+  organized: { group: 'Merged', kind: 'anime' },
+  organized_manga: { group: 'Merged', kind: 'manga' },
+}
 
 /** Compact big counts (≥10k → "12K"); smaller values fall back to fmt. */
 function cx(n?: number | null): string {
@@ -42,13 +58,31 @@ export function DashboardPage() {
   const visible = (id: string) => !widgets || widgets.includes(id)
   const hiddenCollections = settings.prefs?.hiddenCollections ?? []
   const { data, error, intervalMs, realtime } = useStatus()
-  const [focus, setFocus] = useState<string | null>(null)
   const startedAt = useRef(Date.now())
+
 
   const counts = data?.counts ?? {}
   const jobs = data?.jobs ?? {}
   const jobKeys = Object.keys(jobs).filter(k => isIngestJob(k, jobs[k] as Job)).sort()
   const activeJobs = jobKeys.filter(k => isJobLive(jobs[k] as Job))
+
+  // Combined throughput across live sources, summed sample-for-sample. Each job
+  // ships its own `history`; adding them pointwise gives one pipeline-wide
+  // trend for the summary row.
+  const combinedRate = useMemo(() => {
+    let len = 0
+    const series: number[][] = []
+    for (const k of activeJobs) {
+      const h = (jobs[k] as Job).history ?? []
+      if (h.length) { series.push(h.map(p => p.v).filter(v => Number.isFinite(v))); len = Math.max(len, series[series.length-1].length) }
+    }
+    if (!len) return []
+    const out: number[] = []
+    for (let i = 0; i < len; i++) {
+      out.push(series.reduce((sum, arr) => sum + (arr[arr.length - len + i] ?? 0), 0))
+    }
+    return out
+  }, [jobs, activeJobs])
   const totalDocs = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts])
   // Errors are only meaningful for the run you are watching. Summing every job
   // ever recorded — including finished and stale ones — produced a
@@ -71,41 +105,60 @@ export function DashboardPage() {
   const activeRate = useMemo(() => jobKeys.reduce((a, k) => a + (isJobLive(jobs[k] as Job) ? ((jobs[k] as Job).per_second ?? 0) : 0), 0), [jobs, jobKeys])
 
   const COLORS = useChartColors()
-  const dataset = useMemo(() => {
-    const keys = Object.keys(counts).sort().filter(k => !hiddenCollections.includes(k))
-    return keys.map((k, i) => ({ name: k, value: counts[k], color: COLORS[i % COLORS.length] }))
-  }, [counts, hiddenCollections, COLORS])
-
   /**
-   * The donut shows the largest collections plus an "other" slice.
+   * Dataset grouped the way the pipeline actually builds it.
    *
-   * Every collection was listed individually, which made the card a 15-row
-   * scroll area of mostly zeros — `_migrations (4)`, `embeddings (3)`,
-   * `pair_rejections (0)` — competing with the three collections that actually
-   * hold the data. The tail is folded into one slice and the full breakdown is
-   * already available in the Explorer and Sources table.
+   * Every catalogue source ingests anime and manga into a pair of collections,
+   * and the combiner writes a matching pair. Listing all 15 collections
+   * individually was noise — it made the card a 15-row scroll area of mostly
+   * zeros (`_migrations` 4, `embeddings` 3, `pair_rejections` 0) sitting beside
+   * the entries that matter, and it hid the one shape worth seeing: how big
+   * each source is, and how much of it is manga.
+   *
+   * So the donut is two rings. Outer = the source group, inner = that group's
+   * anime/manga split, which lines up because Recharts lays slices out by value
+   * in array order and the inner array is flattened in the outer array's order.
+   * Anything that is not a catalogue pair — ids, labels, caches, counters —
+   * folds into a single "system" group so it stops competing for attention.
    */
-  const datasetTop = useMemo(() => {
-    const sorted = [...dataset].sort((a, b) => b.value - a.value)
-    const head = sorted.slice(0, DATASET_TOP_N)
-    const tail = sorted.slice(DATASET_TOP_N)
-    const tailTotal = tail.reduce((s, e) => s + e.value, 0)
-    return tailTotal > 0
-      ? [...head, { name: `other (${tail.length})`, value: tailTotal, color: COLORS[COLORS.length - 1], isOther: true }]
-      : head
-  }, [dataset, COLORS])
+  const dataset = useMemo(() => {
+    const keys = Object.keys(counts).filter(k => !hiddenCollections.includes(k) && counts[k] > 0)
+    const byGroup = new Map<string, { total: number; anime: number; manga: number; other: number }>()
+    for (const k of keys) {
+      const spec = SOURCE_GROUPS[k]
+      const group = spec?.group ?? 'System'
+      const cur = byGroup.get(group) ?? { total: 0, anime: 0, manga: 0, other: 0 }
+      cur.total += counts[k]
+      if (spec?.kind === 'anime') cur.anime += counts[k]
+      else if (spec?.kind === 'manga') cur.manga += counts[k]
+      else cur.other += counts[k]
+      byGroup.set(group, cur)
+    }
+
+    const outer = [...byGroup.entries()]
+      .map(([name, v]) => ({ name, value: v.total, anime: v.anime, manga: v.manga, other: v.other }))
+      .filter(g => g.value > 0)
+      .sort((a, b) => b.value - a.value)
+
+    const colorOf = new Map(outer.map((g, i) => [g.name, COLORS[i % COLORS.length]]))
+
+    // Flattened in the outer array's order so the inner ring's angles land
+    // exactly under their parent slice.
+    const inner = outer.flatMap(g => {
+      const color = colorOf.get(g.name) ?? COLORS[0]
+      const segs: DatasetSeg[] = []
+      if (g.anime > 0) segs.push({ name: g.name, value: g.anime, kind: 'anime', color })
+      if (g.manga > 0) segs.push({ name: g.name, value: g.manga, kind: 'manga', color })
+      if (g.other > 0) segs.push({ name: g.name, value: g.other, kind: 'other', color: COLORS[COLORS.length - 1] })
+      return segs
+    })
+
+    const outerWithColor: DatasetGroup[] = outer.map(g => ({ ...g, color: colorOf.get(g.name) ?? COLORS[0] }))
+    return { outer: outerWithColor, inner }
+  }, [counts, hiddenCollections, COLORS])
 
   const h = data?.health
   const health = h?.checks
-  // Gauges mean something, so they take semantic colours rather than the next
-  // categorical one: warn while there is headroom, bad only once it is gone.
-  const SERIES = useSeriesColors()
-  const gaugeColor = (pct: number) => (pct >= 90 ? SERIES.bad : pct >= 75 ? SERIES.warn : SERIES.good)
-  const gauges = [
-    { key: 'disk', label: 'Disk', value: health?.disk_space?.used_percent ?? 0 },
-    { key: 'mem', label: 'Memory', value: health?.memory?.used_percent ?? 0 },
-    { key: 'mongo', label: 'MongoDB', value: health?.mongodb?.healthy === false ? 0 : health?.mongodb?.latency_ms != null ? Math.min(100, Math.max(10, 100 - health.mongodb.latency_ms / 10)) : 0 },
-  ].map(g => ({ ...g, color: g.key === 'mongo' ? SERIES.good : gaugeColor(g.value) }))
   const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})
   const extApis = Object.entries(health?.external_apis?.endpoints ?? {})
 
@@ -165,8 +218,26 @@ export function DashboardPage() {
           {visible('kpi') && (
             <StatStrip
               items={[
-                { label: 'Total docs', value: cx(totalDocs), icon: Database, sub: `${cx(activeJobs.length)} active` },
-                { label: 'Ingest rate', value: `${activeRate.toFixed(1)}/s`, icon: Gauge, sub: 'entries/sec' },
+                {
+                  label: 'Total docs',
+                  value: cx(totalDocs),
+                  icon: Database,
+                  // The anime/manga split is the shape of this dataset; the
+                  // active-source count belonged to the rate tile.
+                  sub: `${cx(animeDocs)} anime · ${cx(mangaDocs)} manga`,
+                },
+                {
+                  label: 'Ingest rate',
+                  value: `${activeRate.toFixed(1)}/s`,
+                  icon: Gauge,
+                  // A trend answers "is it moving", which a bare number cannot.
+                  // Combined across live sources, which is the question the
+                  // per-row sparklines cannot answer on their own.
+                  spark: combinedRate,
+                  sub: activeJobs.length
+                    ? `across ${activeJobs.length} live source${activeJobs.length === 1 ? '' : 's'}`
+                    : 'no live source',
+                },
                 {
                   label: 'Errors',
                   value: cx(liveErrors),
@@ -204,15 +275,13 @@ export function DashboardPage() {
           )}
 
           {visible('fleet') && (
-            <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length} tracked</Badge>}>
+            <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>}>
               {jobKeys.length === 0 ? (
                 <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source (Management → Sources) to see live progress, speed and ETA." />
               ) : (
                 <SourcesTable
                   jobs={jobs}
                   health={data?.health}
-                  focus={focus}
-                  onToggleFocus={src => setFocus(focus === src ? null : src)}
                   onPause={src => void setPause(src, true)}
                   onResume={src => void setPause(src, false)}
                   onRetry={src => void retry(src)}
@@ -221,32 +290,50 @@ export function DashboardPage() {
             </Section>
           )}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {visible('dataset') && (
               <Card>
                 <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Dataset</CardTitle></CardHeader>
                 <CardContent>
-                  {dataset.length === 0 ? (
+                  {dataset.outer.length === 0 ? (
                     <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />
                   ) : (
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                       <div className="h-40 w-full shrink-0 sm:w-40">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={datasetTop} dataKey="value" nameKey="name" innerRadius={50} outerRadius={70} paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
-                              {datasetTop.map(e => <Cell key={e.name} fill={e.color} />)}
+                            {/* Outer ring: one slice per pipeline source. */}
+                            <Pie data={dataset.outer} dataKey="value" nameKey="name" innerRadius="46%" outerRadius="98%" paddingAngle={1} strokeWidth={0} isAnimationActive={false}>
+                              {dataset.outer.map(e => <Cell key={e.name} fill={e.color} />)}
+                            </Pie>
+                            {/* Inner ring: that source's anime/manga split. Manga
+                                is drawn at reduced opacity so the pair reads as
+                                one source first and two collections second. */}
+                            <Pie data={dataset.inner} dataKey="value" nameKey="kind" innerRadius="20%" outerRadius="44%" paddingAngle={1} strokeWidth={0} isAnimationActive={false}>
+                              {dataset.inner.map((e, i) => (
+                                <Cell key={`${e.name}-${e.kind}-${i}`} fill={e.color} fillOpacity={e.kind === 'manga' ? 0.45 : 1} />
+                              ))}
                             </Pie>
                             <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
                       <ScrollArea className="max-h-40 min-w-0 flex-1">
-                        <div className="space-y-1 text-sm">
-                          {datasetTop.map(e => (
+                        <div className="space-y-2 text-sm">
+                          {dataset.outer.map(e => (
                             <div key={e.name} className="flex items-center justify-between gap-2">
-                              <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                              <span className="flex min-w-0 items-center gap-2">
                                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: e.color }} />
-                                <span className="truncate">{e.name}</span>
+                                <span className="truncate font-medium">{e.name}</span>
+                                {/* The split, inline, so the inner ring's two
+                                    segments are readable as numbers too. */}
+                                {(e.anime > 0 || e.manga > 0) && (
+                                  <span className="truncate text-xs text-muted-foreground">
+                                    {e.anime > 0 && `${cx(e.anime)} anime`}
+                                    {e.anime > 0 && e.manga > 0 && ' · '}
+                                    {e.manga > 0 && `${cx(e.manga)} manga`}
+                                  </span>
+                                )}
                               </span>
                               <span className="tabular-nums">{cx(e.value)}</span>
                             </div>
@@ -260,7 +347,7 @@ export function DashboardPage() {
             )}
 
             {visible('health') && (
-              <HealthCard gauges={gauges} extApis={extApis} circuits={circuits} />
+              <MergeCard combine={data?.combine} backup={data?.backup} extApis={extApis} circuits={circuits} />
             )}
           </div>
 
@@ -285,12 +372,10 @@ interface SourceRow {
 
 /** Source / Phase / Progress / Speed·ETA / Actions — pending + done~ live in the row tooltip. */
 function SourcesTable({
-  jobs, health, focus, onToggleFocus, onPause, onResume, onRetry,
+  jobs, health, onPause, onResume, onRetry,
 }: {
   jobs: Record<string, Job>
   health: HealthCheck | undefined
-  focus: string | null
-  onToggleFocus: (src: string) => void
   onPause: (src: string) => void
   onResume: (src: string) => void
   onRetry: (src: string) => void
@@ -327,13 +412,12 @@ function SourcesTable({
         meta: { align: 'left' } as const,
         cell: ({ row }) => {
           const { src, status } = row.original
-          const isFocused = focus === src
           const tip = rowTooltip(row.original)
           return (
-            <span className={cn('flex min-w-0 items-center gap-2 rounded-md', isFocused && 'bg-primary/10')} title={tip}>
+            <span className="flex min-w-0 items-center gap-2 rounded-md" title={tip}>
               {status.level !== 'none' && <SourceStatusBlip status={status} />}
               <SourceLogo source={src} />
-              <span className={cn('truncate font-medium', isFocused && 'text-primary')}>{src}</span>
+              <span className="truncate font-medium">{src}</span>
               <SourceStatusLabel status={status} />
               <span className="truncate text-xs text-muted-foreground">{row.original.job.mode ?? ''}</span>
             </span>
@@ -478,7 +562,7 @@ function SourcesTable({
         },
       },
     ],
-    [focus, onPause, onResume, onRetry],
+    [onPause, onResume, onRetry],
   )
 
   return (
@@ -486,14 +570,11 @@ function SourcesTable({
       columns={columns}
       data={rows}
       getRowId={r => r.key}
-      onRowClick={row => onToggleFocus(row.src)}
       initialSorting={[{ id: 'source', desc: false }]}
-      initialPageSize={8}
-      pageSizeOptions={[8, 10, 25, 50]}
       sortDescFirst
       maxHeight="22rem"
       ariaLabel="Ingestion sources"
-      footerLeft={`${rows.length} sources`}
+      showPagination={false}
     />
   )
 }
@@ -509,33 +590,98 @@ function rowTooltip(r: SourceRow): string {
   return parts.join(' · ')
 }
 
-function HealthCard({ gauges, extApis, circuits }: {
-  gauges: { key: string; label: string; value: number; color: string }[]
+/**
+ * Merge confidence.
+ *
+ * This card used to be "Health": three gauges for disk, host memory and a
+ * derived MongoDB score. None of that described the application — disk and RSS
+ * belong to whatever box the CLI runs on, and the MongoDB score was an
+ * invented number that read as precise without being meaningful. An operator
+ * of a merge tool does not care about host memory; they care whether the last
+ * combine was good and whether the output is recoverable.
+ *
+ * So it now reports the thing the tool exists to produce: how many pairs the
+ * last run merged, under which strategy, and how confident those matches were.
+ * The score histogram is the useful part — an average hides the problem, since
+ * a run can average 96 while a fifth of its merges sit near the floor.
+ */
+function MergeCard({ combine, backup, extApis, circuits }: {
+  combine: CombineStats | undefined
+  backup: BackupInfo | undefined
   extApis: Array<[string, { healthy?: boolean; latency_ms?: number }]>
   circuits: Array<[string, { circuit_state?: string }]>
 }) {
   const [open, setOpen] = useState(false)
+  if (!combine) {
+    return (
+      <Card>
+        <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Merge</CardTitle></CardHeader>
+        <CardContent className="p-4">
+          <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const bins = [
+    { key: 'p70_80', label: '70–80', color: 'var(--chart-3)' },
+    { key: 'p80_90', label: '80–90', color: 'var(--chart-1)' },
+    { key: 'p90_100', label: '90–100', color: 'var(--chart-6)' },
+  ] as const
+  const counts = bins.map(b => Number(combine.score_histogram?.[b.key] ?? 0))
+  const total = counts.reduce((a, b) => a + b, 0)
+
   return (
     <Card>
-      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Health</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Merge</CardTitle></CardHeader>
       <CardContent className="p-4">
-        <div className="flex items-center justify-around">
-          {gauges.map(g => (
-            <div key={g.key} className="flex flex-col items-center">
-              <div className="relative h-20 w-20">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={[{ value: g.value }]} dataKey="value" startAngle={225} endAngle={-45} innerRadius="70%" outerRadius="100%" cornerRadius={20} strokeWidth={0} isAnimationActive={false}>
-                      <Cell fill={g.color} />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums">{Math.round(g.value)}%</div>
-              </div>
-              <span className="mt-1 text-xs text-muted-foreground">{g.label}</span>
-            </div>
-          ))}
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-medium tabular-nums">{cx(combine.merges)}</span>
+          <span className="text-xs text-muted-foreground">
+            pairs · {combine.strategy} · base {combine.base}
+          </span>
         </div>
+
+        {total > 0 && (
+          <div className="mt-3">
+            <div className="flex h-2 w-full overflow-hidden rounded-sm" role="img"
+                 aria-label={`Match confidence: ${bins.map((b, i) => `${b.label} ${counts[i]}`).join(', ')}`}>
+              {bins.map((b, i) => counts[i] > 0 && (
+                <span key={b.key} style={{ width: `${(counts[i] / total) * 100}%`, background: b.color }} />
+              ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+              {bins.map((b, i) => (
+                <span key={b.key} className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-sm" style={{ background: b.color }} />
+                  {b.label} {cx(counts[i])}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <dl className="mt-3 space-y-1 text-xs">
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">mean score</dt>
+            <dd className="tabular-nums">{combine.scores?.avg ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">accept floor</dt>
+            <dd className="tabular-nums">{combine.threshold ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">last run</dt>
+            <dd>{ago(combine.completed_at)}</dd>
+          </div>
+          {backup?.last?.mtime != null && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">last backup</dt>
+              <dd>{ago(new Date(backup.last.mtime * 1000).toISOString())}</dd>
+            </div>
+          )}
+        </dl>
+
         <div className="mt-3 border-t pt-2">
           <button
             type="button"
@@ -548,7 +694,7 @@ function HealthCard({ gauges, extApis, circuits }: {
             <span className="ml-auto tabular-nums">{extApis.length + circuits.length}</span>
           </button>
           {open && (
-            <ScrollArea className="mt-2 max-h-40">
+            <ScrollArea className="mt-2 max-h-32">
               <div className="space-y-1 text-xs">
                 {extApis.length === 0 && circuits.length === 0 ? (
                   <p className="text-muted-foreground">no external endpoints or circuits</p>
