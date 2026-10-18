@@ -938,6 +938,7 @@ function exportFileCount(mixed $files, array $written): int
 
 if ($path === '/api/export-config') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireSameOrigin();
         $body = readJsonBody();
 
         if (($body['reset'] ?? false) === true) {
@@ -1154,6 +1155,7 @@ if ($path === '/api/history') {
 
 if ($path === '/api/limits') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireSameOrigin();
         $body = readJsonBody();
         $max = (int) ($body['max'] ?? 0);
         $window = (int) ($body['window'] ?? 0);
@@ -1424,6 +1426,7 @@ if ($path === '/api/sample') {
 if ($path === '/api/labels') {
     $store = LabelStore::create($database);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireSameOrigin();
         $body = readJsonBody();
         $ok = $store->upsert([
             'base_source' => (string) ($body['base_source'] ?? ''),
@@ -1447,6 +1450,7 @@ if ($path === '/api/rejections') {
     $store = RejectionStore::create($database);
     $store->ensureIndexes();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireSameOrigin();
         $body = readJsonBody();
         $ok = $store->upsert([
             'base_source' => (string) ($body['base_source'] ?? ''),
@@ -2104,6 +2108,7 @@ if ($path === '/api/meta') {
 
 if ($path === '/api/settings') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireSameOrigin();
         $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
         if (isset($body['token_rotate'])) {
             $token = bin2hex(random_bytes(24));
