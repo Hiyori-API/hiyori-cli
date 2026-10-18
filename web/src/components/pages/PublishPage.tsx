@@ -48,7 +48,6 @@ const FIELD_ROWS: Array<{ key: keyof ExportFieldFlags; label: string; desc: stri
 ]
 const FIELD_DEFAULTS: Record<string, boolean> = { titles: true, synonyms: true, references: true, links: true }
 
-const PUBLISH_PHRASE = 'publish to hiyoriDB'
 const PUBLISH_CMD = 'php hiyori publish'
 
 function apiStatus(e: unknown): number {
@@ -116,7 +115,6 @@ export function PublishPage() {
   const [run, setRun] = useState<{ data?: ExportRunResponse; error?: string }>({})
 
   const [publishOpen, setPublishOpen] = useState(false)
-  const [phrase, setPhrase] = useState('')
 
   const loadConfig = useCallback(() => {
     void fetchExportConfig()
@@ -240,7 +238,6 @@ export function PublishPage() {
   }
 
   const copyPublishCmd = () => copyText(PUBLISH_CMD, 'command copied — run it in the CLI')
-  const phraseOk = phrase.trim() === PUBLISH_PHRASE
 
   const byKind = dry.data?.by_kind ?? dry.data?.counts ?? {}
   const samples = dry.data?.samples ?? dry.data?.sample_files ?? []
@@ -543,24 +540,25 @@ export function PublishPage() {
         </Section>
       </div>
 
-      <Dialog open={publishOpen} onOpenChange={o => { setPublishOpen(o); if (!o) setPhrase('') }}>
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Publish to HiyoriDB?</DialogTitle>
+            <DialogTitle>Run the publish command</DialogTitle>
             <DialogDescription>
-              The dashboard will not push anything. Type the confirmation phrase and copy the CLI command, then run it in your terminal.
+              The dashboard never pushes anything — it cannot. Publishing runs
+              from your terminal, so this only copies the command.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label htmlFor="publish-phrase" className="text-xs text-muted-foreground">
-              Type <code className="rounded bg-muted px-1">{PUBLISH_PHRASE}</code> to confirm
-            </label>
-            <Input id="publish-phrase" value={phrase} onChange={e => setPhrase(e.target.value)} placeholder={PUBLISH_PHRASE} className="h-8 text-xs" />
-            <p className="text-[10px] text-muted-foreground">Pushing is CLI-only: <code className="rounded bg-muted px-1">{PUBLISH_CMD}</code></p>
+            <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">{PUBLISH_CMD}</code>
+            <p className="text-xs text-muted-foreground">
+              It pushes <code className="rounded bg-muted px-1">storage/publish</code> to HiyoriDB and needs
+              <code className="mx-1 rounded bg-muted px-1">HIYORI_DB_TOKEN</code> set in your environment.
+            </p>
           </div>
           <DialogFooter>
-            <Button size="sm" variant="outline" onClick={() => { setPublishOpen(false); setPhrase('') }}>Cancel</Button>
-            <Button size="sm" disabled={!phraseOk} onClick={() => { copyPublishCmd(); setPublishOpen(false); setPhrase('') }}>
+            <Button size="sm" variant="outline" onClick={() => setPublishOpen(false)}>Close</Button>
+            <Button size="sm" onClick={() => { copyPublishCmd(); setPublishOpen(false) }}>
               <Terminal className="mr-1.5 h-3.5 w-3.5" />Copy command
             </Button>
           </DialogFooter>

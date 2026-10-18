@@ -8,6 +8,7 @@ import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
 import { useSettings } from '@/lib/hooks'
+import { isIngestJob, isJobLive, type Job } from '@/lib/api'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
@@ -19,15 +20,54 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 
 type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'publish' | 'settings'
 
-const NAV: Array<{ id: View; label: string; icon: typeof LayoutDashboard; desc: string }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
-  { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
-  { id: 'management', label: 'Management', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups' },
-  { id: 'quality', label: 'Quality & Analysis', icon: GitMerge, desc: 'Coverage, benchmarks, sampler' },
-  { id: 'logs', label: 'Logs', icon: ScrollText, desc: 'Slow requests, validation, runs' },
-  { id: 'publish', label: 'Publish', icon: Upload, desc: 'Export & publish dump' },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' },
+interface NavItem {
+  id: View
+  label: string
+  icon: typeof LayoutDashboard
+  desc: string
+  /** One-line statement of what this stage does, shown as the nav tooltip. */
+  stage?: string
+}
+
+/**
+ * Navigation follows the pipeline, not a filing cabinet.
+ *
+ * The previous list was flat and alphabetical-ish — Publish sat between Logs
+ * and Settings — so nothing told an operator where they were in the run. These
+ * groups map to the four things the tool actually does, in the order it does
+ * them: watch, ingest, merge, ship. Inspection is separate because browsing and
+ * debugging are not stages of the pipeline, they are things you do *about* it.
+ */
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: 'Overview',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
+    ],
+  },
+  {
+    label: 'Pipeline',
+    items: [
+      { id: 'management', label: 'Ingest', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups', stage: 'Pull records from the upstream APIs' },
+      { id: 'quality', label: 'Merge quality', icon: GitMerge, desc: 'Coverage, benchmarks, sampler', stage: 'Decide whether the merge is good' },
+      { id: 'publish', label: 'Publish', icon: Upload, desc: 'Export & publish dump', stage: 'Ship the merged output' },
+    ],
+  },
+  {
+    label: 'Inspect',
+    items: [
+      { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
+      { id: 'logs', label: 'Logs', icon: ScrollText, desc: 'Slow requests, validation, runs' },
+    ],
+  },
 ]
+
+const NAV: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
+const SETTINGS_ITEM: NavItem = { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' }
+
+function PipelineChipDivider() {
+  return <span aria-hidden="true" className="h-4 w-px bg-border" />
+}
 
 /** Lazy page-load fallback: centered spinner while a chunk streams in. */
 function PageFallback() {
@@ -60,6 +100,42 @@ function useAppliedPreferences(): void {
   useEffect(() => {
     document.documentElement.classList.toggle('density-compact', density === 'compact')
   }, [density])
+}
+
+
+/**
+ * Pipeline state, in the shell so it survives navigation.
+ *
+ * The header previously carried only connection health, so a 40-minute ingest
+ * stopped being visible the moment you went to Logs to investigate it. This
+ * answers the two questions an operator actually has while elsewhere: is
+ * anything running, and how fast is it going.
+ */
+function PipelineChip() {
+  const { data } = useStatus()
+  const jobs = data?.jobs ?? {}
+  const live = Object.keys(jobs).filter(k => isIngestJob(k, jobs[k] as Job) && isJobLive(jobs[k] as Job))
+  const rate = live.reduce((a, k) => a + ((jobs[k] as Job).per_second ?? 0), 0)
+  const errors = live.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0)
+
+  if (live.length === 0) {
+    return (
+      <span className="carbon-status tabular-nums text-muted-foreground">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
+        idle
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="carbon-status tabular-nums"
+      title={`${live.length} ingesting · ${rate.toFixed(1)}/s combined${errors ? ` · ${errors} errors` : ''}`}
+    >
+      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+      {live.length} ingesting · {rate.toFixed(1)}/s
+    </span>
+  )
 }
 
 /** Single header connection chip (G7) — realtime toggle lives in Settings now. */
@@ -107,13 +183,13 @@ function StatusChip() {
 export function Dashboard() {
   useAppliedPreferences()
   const [view, setView] = useState<View>('dashboard')
-  const nav = NAV.find(n => n.id === view) ?? NAV[0]
+  const nav = [...NAV, SETTINGS_ITEM].find(n => n.id === view) ?? NAV[0]
 
   // Cross-page navigation (e.g. Settings → "Open Publish page") without a router.
   useEffect(() => {
     const onNavigate = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail
-      if (NAV.some(n => n.id === detail)) setView(detail as View)
+      if ([...NAV, SETTINGS_ITEM].some(n => n.id === detail)) setView(detail as View)
     }
     window.addEventListener('hiyori:navigate', onNavigate)
     return () => window.removeEventListener('hiyori:navigate', onNavigate)
@@ -140,26 +216,38 @@ export function Dashboard() {
             </SidebarMenu>
           </SidebarHeader>
           <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {NAV.map(item => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton isActive={view === item.id} onClick={() => setView(item.id)} tooltip={item.label}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {NAV_GROUPS.map(group => (
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map(item => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={view === item.id}
+                          onClick={() => setView(item.id)}
+                          tooltip={item.stage ? `${item.label} — ${item.stage}` : item.label}
+                        >
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
           </SidebarContent>
           <SidebarFooter>
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              hiyori-cli · v2 dashboard
-            </div>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={view === 'settings'} onClick={() => setView('settings')} tooltip="Settings">
+                  <SettingsIcon />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <div className="px-3 pb-2 text-xs text-muted-foreground">hiyori-cli · v2 dashboard</div>
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>
@@ -171,6 +259,8 @@ export function Dashboard() {
                 carries the page name — repeating "HiyoriDB >" here was noise. */}
             <span className="text-sm font-medium">{nav.label}</span>
             <div className="ml-auto flex items-center gap-3">
+              <PipelineChip />
+              <PipelineChipDivider />
               <StatusChip />
             </div>
           </header>

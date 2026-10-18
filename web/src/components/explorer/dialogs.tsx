@@ -62,11 +62,16 @@ export function ExplorerDialogs(props: ExplorerDialogsProps) {
           <DialogHeader>
             <DialogTitle>Delete {confirmDel?.length} doc{confirmDel?.length === 1 ? '' : 's'}?</DialogTitle>
             <DialogDescription>
-              This permanently removes the selected documents from <code className="rounded bg-muted px-1">{collection}</code>.
+              Removes the selected documents from <code className="rounded bg-muted px-1">{collection}</code>.
             </DialogDescription>
           </DialogHeader>
-          <p className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-2 text-xs text-amber-600 dark:text-amber-400">
-            💾 Deletions are audited but cannot be undone. Consider running a backup first (Management → Backups).
+          {/* Say what actually happens. The deleted documents are snapshotted
+              server-side and restorable via Undo on the toast that follows —
+              the old "cannot be undone" copy contradicted that button and made
+              the one reassurance that matters at this moment untrustworthy. */}
+          <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+            Audited, and restorable straight after via <strong>Undo</strong> on the confirmation.
+            Once you delete another batch, this one is gone. Back up first from Management → Backups.
           </p>
           <DialogFooter>
             <Button size="sm" variant="outline" onClick={() => onConfirmDelChange(null)}>Cancel</Button>

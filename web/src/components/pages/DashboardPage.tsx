@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
@@ -9,6 +9,7 @@ import { cn } from 'cn'
 import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -153,6 +154,10 @@ export function DashboardPage() {
   const animeDocs = counts.organized ?? 0
   const mangaDocs = counts.organized_manga ?? 0
 
+  // Retry restarts a source from the beginning. It was unconfirmed here while
+  // Management confirmed the same command, so the one place it was easiest to
+  // hit was the one place it asked nothing.
+  const [confirmRetry, setConfirmRetry] = useState<string | null>(null)
   const retry = async (src: string) => {
     await postAction(`ingest-${src}`, 'retry')
     toast(`${src} retry scheduled`)
@@ -166,6 +171,28 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      <Dialog open={confirmRetry !== null} onOpenChange={o => { if (!o) setConfirmRetry(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Full re-ingest of {confirmRetry}?</DialogTitle>
+            <DialogDescription>
+              Restarts {confirmRetry} from the beginning. Documents already stored are skipped, so this
+              re-walks the source rather than duplicating it — expect it to take as long as the first run.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setConfirmRetry(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => { const src = confirmRetry; setConfirmRetry(null); if (src) void retry(src) }}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Re-ingest
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <PageHead
         title="Dashboard"
         desc="Live telemetry — one view for the whole pipeline."
@@ -242,7 +269,7 @@ export function DashboardPage() {
                   health={data?.health}
                   onPause={src => void setPause(src, true)}
                   onResume={src => void setPause(src, false)}
-                  onRetry={src => void retry(src)}
+                  onRetry={src => setConfirmRetry(src)}
                 />
               )}
             </Section>
