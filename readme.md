@@ -461,7 +461,7 @@ The following URL types are parsed when detected in an entry's `references`, and
 | `APP_VERSION` | Application version | Yes |
 | `MONGODB_URL` | MongoDB connection string | Yes |
 | `MAL_CLIENT_ID` / `MAL_CLIENT_SECRET` | MyAnimeList API v2 credentials | For MAL ingestion |
-| `DASHBOARD_TOKEN` | Optional token protecting `/api/*` (client passes `?token=` or `X-Dashboard-Token`) | No |
+| `DASHBOARD_TOKEN` | Optional token protecting `/api/*`; requests must pass `?token=` or `X-Dashboard-Token`. **The bundled SPA does not send it**, so enabling this on its own will block the UI | No |
 | `WEBHOOK_URL` | Optional webhook URL for anomaly alerts | No |
 | `SCHEDULE_SOURCES` | Sources for `schedule` / dashboard scheduler (default: `anilist,kitsu,myanimelist`) | No |
 | `SCHEDULE_INTERVAL` | Scheduler interval in seconds (default: `86400`) | No |
@@ -500,14 +500,27 @@ Open <http://127.0.0.1:8080>. Bind to another host with `--host` (default `127.0
 
 | Page | Purpose |
 |------|---------|
-| **Dashboard** | Live telemetry hub: KPIs, per-source fleet strip, rate & composition charts, dataset doughnut, health gauges, pipeline funnel, alert strip |
-| **Explorer** | MongoDB browser: collection tabs, paginated/sortable table (TanStack), search, prebuilt filters (`no_MAL` / dupes / orphans), facets & numeric ranges, column picker, row JSON drawer, single/bulk edit + delete with undo, CSV import/export, ref resolver, two-doc diff, saved queries |
-| **Management** | Source start/pause/resume/retry, scheduler config + run-now, backup list + download + restore, circuit breaker & tokens, rate-limiter overrides, validation-failure retry queue, alert acknowledgements, audit log |
-| **Quality & Analysis** | Coverage matrix + missing-critical-refs, strategy benchmark, threshold-sensitivity curve, confidence distribution, merge sampler, validation trend, weightage explorer (live sliders → `combine --weights`), merged-dataset export |
-| **Logs** | Slow-request table, latency buckets, validation log (source-filtered), ingestion run history, cache panel |
-| **Settings** | Refresh interval, theme/accent/density, timezone, token rotate, webhook URL + test delivery, collection/widget visibility, settings import/export/reset, and the **Environment manager** (browse/edit `.env` values, secrets masked) |
+| **Dashboard** (`/`) | KPI strip, the source fleet with per-row actions and the scheduler, backups, the dataset doughnut, and the merge-quality chart (per-source reference coverage plus merge confidence in one chart) |
+| **Explorer** (`#/explorer`) | MongoDB browser: collection tabs, paginated/sortable table (TanStack), search, prebuilt filters (`no_MAL` / dupes / orphans), facets & numeric ranges, column picker, row JSON drawer, single/bulk edit + delete with undo, CSV import/export, ref resolver, two-doc diff, saved queries |
+| **Settings** (`#/settings`) | Refresh interval and the realtime toggle, theme/density, timezone, dashboard-widget and collection visibility, rate-limiter overrides, token rotate, webhook URL + test delivery, settings import/export/reset, and the **Environment manager** (browse/edit `.env` values, secrets masked) |
 
-The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status snapshots over SSE (`/api/events`) with instant count/job updates, and falls back to polling otherwise. The dashboard is installable as a **PWA** (manifest + service worker) and serves cached data offline.
+Each page has a URL, so reload, Back/Forward and deep links work. The route is
+the hash path and a page's own state is its hash query —
+`#/explorer?collection=anilist&sort=title`. Pre-router links of the form
+`#collection=anilist` still resolve to the Explorer with their state intact.
+
+Widget visibility is stored as `hiddenWidgets` (opt-out), so a widget added in a
+newer build shows by default instead of being invisible to anyone with saved
+preferences.
+
+The top bar shows live pipeline state — which source is ingesting and at what
+rate — so it stays visible on every page, next to the connection chip
+(`live` / `polling` / `reconnecting`). The dashboard is installable as a **PWA**
+(manifest + service worker) and serves cached data when the backend is down.
+
+> **Counts vs jobs over SSE.** `/api/events` streams the ingestion jobs (the
+> large part of the payload); collection counts ride the poll instead, so they can
+> lag by up to the poll interval (15 s while realtime is on).
 
 ### API endpoints
 
@@ -522,12 +535,15 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/validate` | Recent validation violations |
 | `/api/coverage` | Reference-shorthand coverage matrix per collection |
 | `/api/benchmark` | Recorded strategy rows (from the benchmark script's log) + latest combine + ML gate report |
+| `/api/benchmark-manga` | Same, for the manga benchmark log |
+| `/api/combine` | Start a combine with the weights saved in Settings (`?base=&strategy=`), detached; reports `combine_running` |
+| `/api/labels` | `GET` newest labels, `POST` upsert a pair label |
+| `/api/export-config` | The exporter's saved configuration (`GET`/`POST`); shared by Settings and the CLI
 | `/api/alerts` | Anomaly evaluation (circuit open, low tokens, API down); posts to `WEBHOOK_URL` when set |
 | `/api/sample` | Random doc for the merge sampler (`?collection=&min=&field=`, defaults to `confidence`); also returns `refs`, the title each source holds for the record's references |
 | `/api/rejections` | Rejection-buffer stats + newest rows (`?decision=&limit=`) |
 | `/api/rejections/promote` | POST — copy decided pairs into `_labels` (approve→agree, reject→disagree; `unsure` skipped) |
 | `/api/slow` | Request latency extremes (>2s) |
-| `/api/schedule` | Scheduled-run info |
 | `/api/histogram` | Score/confidence histogram (`?collection=&field=`, 10 bins) |
 | `/api/failures` | Validation-log tail (newest 500) + `total` line count |
 | `/api/audit` | Audit-log tail (newest 200) + `total` line count |
@@ -542,11 +558,20 @@ The top bar has a **Live / Live off** toggle: `realtime` mode pushes full status
 | `/api/env` | Environment manager: list (masked secrets), `GET ?reveal=KEY`, `POST` upsert/remove |
 | `/api/settings` | Dashboard preferences (GET/POST, token rotate, webhook test) |
 | `/api/backups` | Backup archive list |
-| `/api/restore` | Restore from an archive already listed by `/api/backups` (`.gz` only; destructive — drops collections) |
+| `/api/restore` | Restore from an archive already listed by `/api/backups` (`.gz` only; **destructive** — drops collections). Runs to completion and returns the real exit code, so a failure reports a 500 rather than a false "started" |
 | `/api/action?job=&cmd=pause\|resume\|retry` | Control jobs |
-| `/api/backup?run=1` | Trigger async `mongodump` |
-| `/api/events` | SSE stream of status snapshots |
+| `/api/backup?run=1` | Run `mongodump` and report its exit code; a partial archive is unlinked so it cannot be listed as restorable |
+| `/api/events` | SSE stream of status snapshots (jobs; counts ride the poll) |
 | `/metrics` | Prometheus text |
+
+Every state-changing route (the `/api/action`, `/api/combine`, `/api/backup?run=1`,
+`/api/restore` controllers and the `/api/env`, `/api/settings`, `/api/limits`,
+`/api/export-config`, `/api/labels`, `/api/rejections`, `/api/explore/*` writers)
+requires a **same-origin** request. A browser always sends `Sec-Fetch-Site`, and
+sends `Origin` on anything cross-origin; either one indicating a foreign site is
+refused with 403. A client that sends neither header — `curl`, a script, the CLI —
+passes, so this closes the "any page the operator visits can drive the dashboard"
+hole without adding auth. Pair it with `DASHBOARD_TOKEN` for real authentication.
 
 ### Telemetry & control files
 

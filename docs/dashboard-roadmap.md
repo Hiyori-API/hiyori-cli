@@ -110,6 +110,12 @@ below. What shipped, including where it diverged from the plan:
 
 ## Dashboard v2 — One Dashboard + dedicated pages (2026-10)
 
+> [!NOTE]
+> **Historical.** This describes the seven-page layout as it was built. It was
+> later cut to three pages — see **Dashboard consolidation + hardening
+> (2026-10-18)** at the top of this file for what was removed, what merged where,
+> and why. Kept as the record of the decisions that produced it.
+
 Restructured from "5 widget pages" to a single live Dashboard plus purpose-built pages.
 
 **Navigation**
