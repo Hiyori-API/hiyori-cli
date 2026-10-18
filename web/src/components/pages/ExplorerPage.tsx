@@ -62,6 +62,29 @@ const EMPTY_STATES: Record<string, { title: string; desc: string }> = {
   pinned: { title: 'No pinned rows here', desc: 'Pin rows with the 📌 button — they show up when the Pinned filter is on.' },
 }
 
+/**
+ * The Explorer is a browser for the *catalogue* — ingested sources and the
+ * merged output. Infrastructure collections (_hiyori_ids, _migrations,
+ * embeddings, _labels, _counters, pair_rejections, llm_judgements) are
+ * bookkeeping and searching them only confused the picker with rows that
+ * are not anime/manga.
+ *
+ * Catalogue order: the merged outputs first (that is what we are really
+ * browsing), then each source with its manga side beside it. Alphabetical
+ * order put _hiyori_ids-style noise first and scattered the manga side away
+ * from its anime parent.
+ *
+ * Module scope because the meta bootstrap needs it too: the default
+ * collection must be one of these, not whichever key the API happened to
+ * serialise first.
+ */
+const COLLECTION_ORDER = [
+  'organized', 'organized_manga',
+  'anilist', 'anilist_manga',
+  'myanimelist', 'myanimelist_manga',
+  'kitsu', 'kitsu_manga',
+]
+
 interface SheetState { doc: ExploreRow; collection: string }
 
 function eqPrefs(): { zebra: boolean; mono: boolean; showSource: boolean } {
@@ -83,6 +106,12 @@ export function ExplorerPage() {
   // The table is gated on meta, so a failed meta request would leave skeletons
   // on screen forever with no way to tell it had broken.
   const [metaError, setMetaError] = useState<string | null>(null)
+  /** Bumped by the Retry button — re-runs the meta request without a reload. */
+  const [metaAttempt, setMetaAttempt] = useState(0)
+  // Settled means the collection list either arrived or definitively failed.
+  // Only the first case may hold the table back; a failure fails open so the
+  // table still loads while the error stays visible above it.
+  const metaSettled = metaReady || metaError !== null
   const [collection, setCollection] = useState(urlInit.collection || 'anilist')
   const [q, setQ] = useState(urlInit.q ?? '')
   const [qDebounced, setQDebounced] = useState(urlInit.q ?? '')
@@ -131,21 +160,6 @@ export function ExplorerPage() {
   const cancelExport = useRef(false)
   const modalOpenRef = useRef(false)
 
-  // The Explorer is a browser for the *catalogue* — ingested sources and the
-  // merged output. Infrastructure collections (_hiyori_ids, _migrations,
-  // embeddings, _labels, _counters, pair_rejections, llm_judgements) are
-  // bookkeeping and searching them only confused the picker with rows that
-  // are not anime/manga.
-  // Catalogue order: the merged outputs first (that is what we are really
-  // browsing), then each source with its manga side beside it. Alphabetical
-  // order put _hiyori_ids-style noise first and scattered the manga side away
-  // from its anime parent.
-  const COLLECTION_ORDER = [
-    'organized', 'organized_manga',
-    'anilist', 'anilist_manga',
-    'myanimelist', 'myanimelist_manga',
-    'kitsu', 'kitsu_manga',
-  ]
   const collections = useMemo(() => {
     const present = new Set(Object.keys(meta))
     return COLLECTION_ORDER.filter(c => present.has(c))
@@ -168,20 +182,31 @@ export function ExplorerPage() {
     void apiFetchMeta().then(m => {
       if (!on) return
       const colsMap = m.collections ?? {}
+      // A 200 with no `collections` is not a usable answer: treating it as ready
+      // would render an empty picker plus a table for a guessed collection.
+      if (Object.keys(colsMap).length === 0) throw new Error('the server returned no collections')
       setMeta(colsMap)
       setMetaError(null)
       setMetaReady(true)
       if (!urlInit.collection) {
-        const preferred = Object.keys(colsMap).find(c => !['organized', 'manga_organized'].includes(c)) ?? 'anilist'
+        // Must be a collection the picker actually offers. Taking the first key
+        // in the response chose `_hiyori_ids` (bookkeeping, not a chip), and
+        // the URL hash then pinned every later visit to a collection the chip
+        // row could not show.
+        const preferred = COLLECTION_ORDER.find(c => c in colsMap)
+          ?? Object.keys(colsMap).find(c => !c.startsWith('_'))
+          ?? 'anilist'
         setCollection(preferred)
         setFavs(loadFavs(preferred))
       }
     }).catch((e: unknown) => {
       if (!on) return
+      // Deliberately leaves metaReady false; `metaSettled` then fails the gate
+      // open so the table still fetches while this error is on screen.
       setMetaError(e instanceof Error ? e.message : String(e))
     })
     return () => { on = false }
-  }, [urlInit.collection])
+  }, [urlInit.collection, metaAttempt])
 
   useEffect(() => {
     if (collection) setFavs(loadFavs(collection))
@@ -261,7 +286,10 @@ export function ExplorerPage() {
   useEffect(() => {
     // Waiting for the collection list means the table never renders against a
     // placeholder collection and then re-renders when the real default lands.
-    if (!metaReady) return
+    // `metaSettled` MUST stay in the dependency list: on mount it is false, so
+    // without it the effect returns once and never re-runs when the list lands
+    // — a URL that already carried `#collection=...` fetched nothing at all.
+    if (!metaSettled) return
     const id = ++seq.current
     setLoading(true)
     const prebuilt = filters.filter(f => PREBUILT_IDS.has(f))
@@ -309,7 +337,7 @@ export function ExplorerPage() {
     }
     run(regex)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir, rangesKey, regex])
+  }, [collection, page, per, qDebounced, field, filtersKey, sort, dir, rangesKey, regex, metaSettled])
 
   // ---------- modal bookkeeping for keyboard ----------
   const modalOpen = !!(sheet || confirmDel || diffPair.length >= 2 || dupOpen || bulkSetOpen || sheetEditOpen)
@@ -728,14 +756,20 @@ export function ExplorerPage() {
 
         {/* collection switch (g e focuses this) */}
         <div ref={tabsRef} tabIndex={-1} className="collection-tabs flex flex-wrap items-center gap-2 outline-none" role="group" aria-label="Collections">
-          {!metaReady && !metaError && Array.from({ length: 4 }, (_, i) => (
+          {!metaSettled && Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-8 w-28 rounded-lg" />
           ))}
           {metaError && (
             <span className="flex items-center gap-2 text-xs text-warn">
               <AlertTriangle className="h-3.5 w-3.5" />
               Could not load collections — {metaError}
-              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setMetaError(null); setMetaReady(false); setMetaAttempt(a => a + 1) }}
+              >
+                Retry
+              </Button>
             </span>
           )}
           {metaReady && collections.map(c => {
@@ -779,7 +813,7 @@ export function ExplorerPage() {
             onSelectionChange={setSel}
             onRowClick={d => setSheet({ doc: d, collection })}
             maxHeight="62vh"
-            loading={loading}
+            loading={loading || !metaSettled}
             resizable
             ariaLabel="Explorer collection"
             multiSort
@@ -804,7 +838,7 @@ export function ExplorerPage() {
                   field={field}
                   onField={f => setField(f)}
                   resultCount={totalShown}
-                  loading={(loading || (!metaReady && !metaError)) && !docs.length}
+                  loading={(loading || !metaSettled) && !docs.length}
                   recents={recents}
                   onPickRecent={r => { setQ(r.q); setField(r.field as SearchField) }}
                   inputRef={searchRef}

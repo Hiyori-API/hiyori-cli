@@ -19,6 +19,7 @@ import { EmptyState } from '../empty'
 import { fmtCompact, fmtSec } from '@/lib/format'
 import { tzDateTime, type Tz } from '@/lib/time'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Notice } from '../notice'
 import { PageHead, Section } from '../widgets'
 
 const DEFAULT_WEIGHTS = { title: 31, episodes: 31, year: 15, season: 14, type: 6, tags: 3, status: 0 }
@@ -223,10 +224,10 @@ export function QualityPage() {
               reads — and typically takes tens of minutes.
             </DialogDescription>
           </DialogHeader>
-          <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+          <Notice tone="info">
             Existing identifiers are preserved, so this is a re-merge rather than a rebuild from scratch.
             Take a backup first from Ingest → Backups if you want a rollback point.
-          </p>
+          </Notice>
           <DialogFooter>
             <Button size="sm" variant="outline" onClick={() => setConfirmCombine(false)}>Cancel</Button>
             <Button

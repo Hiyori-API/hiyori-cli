@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Notice } from './notice'
 
 interface Props { children: ReactNode; label?: string }
 interface State { error: Error | null }
@@ -35,12 +36,18 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (!this.state.error) return this.props.children
     return (
-      <div role="alert" className="mx-auto max-w-md rounded-xl border border-red-500/40 bg-red-500/5 p-6 text-center">
-        <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-red-400" />
+      <Notice
+        tone="error"
+        variant="card"
+        className="mx-auto max-w-md flex-col items-center p-6 text-center"
+        icon={<AlertTriangle className="h-8 w-8" />}
+      >
         <h2 className="text-lg font-semibold">{this.props.label ?? 'Something went wrong'}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{String(this.state.error?.message ?? this.state.error ?? 'Unknown error')}</p>
+        <p className="mt-1 text-sm">
+          {String(this.state.error?.message ?? this.state.error ?? 'Unknown error')}
+        </p>
         {this.props.label === 'Explorer' && (
-          <p className="mt-1 text-xs text-muted-foreground">If this keeps happening, reset the cached Explorer data.</p>
+          <p className="mt-1 text-xs opacity-80">If this keeps happening, reset the cached Explorer data.</p>
         )}
         <div className="mt-4 flex items-center justify-center gap-2">
           <Button size="sm" onClick={() => this.setState({ error: null })}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Try again</Button>
@@ -48,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <Button size="sm" variant="destructive" onClick={this.resetExplorer}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Reset Explorer data</Button>
           )}
         </div>
-      </div>
+      </Notice>
     )
   }
 }

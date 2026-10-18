@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, Check, Copy, FileJson, FolderTree, Info, Loader2, PackageOpen,
+  Check, Copy, FileJson, FolderTree, Info, Loader2, PackageOpen,
   Play, RotateCcw, Save, ShieldAlert, SlidersHorizontal, Terminal, Upload,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,6 +21,7 @@ import {
   type ExportPreviewResponse, type ExportProfile, type ExportRunResponse, type ExportState,
 } from '@/lib/api'
 import { fmtCompact } from '@/lib/format'
+import { Notice } from '../notice'
 import { PageHead, Section } from '../widgets'
 
 /** Client-side defaults mirroring the server template (used before it loads / when offline). */
@@ -72,27 +73,18 @@ function formatBytes(n?: number): string {
   return `${(n / 1048576).toFixed(1)} MB`
 }
 
-/** Inline amber notice shown when a call 404s / the server is unreachable. */
+/** Inline notice shown when a call 404s / the server is unreachable. */
 function BackendNotice({ title, message, onRetry }: { title: string; message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/5 p-4">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
-      <div className="min-w-0 flex-1 text-xs">
-        <p className="font-medium text-warn">{title}</p>
-        <p className="mt-0.5 text-muted-foreground">{message}</p>
-        <p className="mt-1 text-muted-foreground">
+    <Notice tone="warn" variant="card" title={title} action={onRetry && <Button size="sm" variant="outline" onClick={onRetry}>Retry</Button>}>
+        <p>{message}</p>
+        <p className="mt-1">
           Expected endpoints: <code className="rounded bg-muted px-1">GET/POST /api/export-config</code>,{' '}
           <code className="rounded bg-muted px-1">GET /api/export/preview</code>,{' '}
           <code className="rounded bg-muted px-1">GET /api/export/dry-run</code>,{' '}
           <code className="rounded bg-muted px-1">POST /api/export/run</code>. The form stays editable; save, dry-run and run light up once the API is deployed.
         </p>
-      </div>
-      {onRetry && (
-        <Button size="sm" variant="outline" onClick={onRetry}>
-          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Retry
-        </Button>
-      )}
-    </div>
+    </Notice>
   )
 }
 
@@ -408,7 +400,7 @@ export function PublishPage() {
               {backend === 'missing' && <p className="text-xs text-muted-foreground">Preview unavailable — the export API is not up yet.</p>}
               {preview.loading && <Skeleton className="h-48 w-full" />}
               {!preview.loading && preview.error && (
-                <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{preview.error}</p>
+                <Notice tone="error">{preview.error}</Notice>
               )}
               {!preview.loading && !preview.error && (
                 <>
@@ -438,7 +430,7 @@ export function PublishPage() {
               <Button size="sm" variant="outline" disabled={backend !== 'ready' || dry.loading || configInvalid} onClick={onDryRun}>
                 {dry.loading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FolderTree className="mr-1.5 h-3.5 w-3.5" />}Dry run
               </Button>
-              {dry.error && <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{dry.error}</p>}
+              {dry.error && <Notice tone="error">{dry.error}</Notice>}
               {dry.data && (
                 <div className="space-y-2 text-xs">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -484,7 +476,7 @@ export function PublishPage() {
                 {combineRunning && <Badge variant="destructive">combine running — locked</Badge>}
                 {state.export_running && <Badge variant="outline">export running</Badge>}
               </div>
-              {run.error && <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{run.error}</p>}
+              {run.error && <Notice tone="error">{run.error}</Notice>}
               {run.data && (
                 <div className="space-y-2 text-xs">
                   {run.data.dir && (
@@ -520,13 +512,13 @@ export function PublishPage() {
         {/* Guarded publish — ships OFF */}
         <Section title="Publish to HiyoriDB" icon={Upload} badge={<Badge variant="outline">ships OFF</Badge>}>
           <div className="space-y-3 text-xs">
-            <div className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 p-3">
-              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
-              <p className="text-muted-foreground">
+            <Notice tone="warn" variant="card" icon={false}>
+              <p>
+                <ShieldAlert className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                 Pushing is intentionally disabled in the dashboard. Publishing clones the HiyoriDB repository, commits and pushes — that stays CLI-only so a
                 mis-click can never rewrite the public repo. The export above only writes to local storage.
               </p>
-            </div>
+            </Notice>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => setPublishOpen(true)}>
                 <Upload className="mr-1.5 h-3.5 w-3.5" />Publish…

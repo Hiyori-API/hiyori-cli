@@ -5,6 +5,7 @@ import {
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { cn } from 'cn'
+import { Notice } from './notice'
 import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
@@ -164,16 +165,14 @@ function ConnectionBanner() {
   const { error, data } = useStatus()
   if (!error) return null
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-4 py-2 text-xs text-warn"
+    <Notice
+      tone="warn"
+      variant="line"
+      className="rounded-none border-x-0 border-t-0"
+      icon={<Loader2 className="h-3.5 w-3.5 animate-spin" />}
     >
-      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-      <span>
-        Backend unreachable — {error}. {data ? 'Showing the last data received.' : 'Retrying…'}
-      </span>
-    </div>
+      Backend unreachable — {error}. {data ? 'Showing the last data received.' : 'Retrying…'}
+    </Notice>
   )
 }
 

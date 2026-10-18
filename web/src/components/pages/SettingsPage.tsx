@@ -15,6 +15,7 @@ import {
 import { useDebouncedCallback, useSettings } from '@/lib/hooks'
 import { fmtCompact } from '@/lib/format'
 import { EmptyState } from '../empty'
+import { Notice } from '../notice'
 import { PageHead, Section } from '../widgets'
 import { EnvSettings } from './settings-env'
 
@@ -241,12 +242,17 @@ export function SettingsPage() {
               <Button size="sm" variant="outline" onClick={() => void rotate()}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button>
             </div>
             {newToken && (
-              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs">
-                <div className="mb-1 flex items-center gap-2 text-emerald-400">New token (copy now — shown once)
-                  <Button size="icon-xs" variant="ghost" aria-label="Copy new token" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy className="h-3 w-3" /></Button>
-                </div>
+              <Notice
+                tone="success"
+                title={
+                  <span className="flex items-center gap-2">
+                    New token (copy now — shown once)
+                    <Button size="icon-xs" variant="ghost" aria-label="Copy new token" onClick={() => { void navigator.clipboard.writeText(newToken); toast('copied') }}><Copy className="h-3 w-3" /></Button>
+                  </span>
+                }
+              >
                 <code className="break-all">{newToken}</code>
-              </div>
+              </Notice>
             )}
             <div className="rounded-lg border p-3">
               <div className="mb-2 text-sm">Webhook URL</div>

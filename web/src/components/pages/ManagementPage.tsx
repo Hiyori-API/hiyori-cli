@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  AlertTriangle, Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Loader2, MoreHorizontal,
+  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Loader2, MoreHorizontal,
   Pause, Play, RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
 } from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
@@ -25,6 +25,7 @@ import { tzStr, type Tz } from '@/lib/time'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus } from '../source-status'
+import { Notice } from '../notice'
 import { PageHead, Section } from '../widgets'
 
 const SOURCES = ['anilist', 'myanimelist', 'kitsu', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga']
@@ -168,11 +169,9 @@ export function ManagementPage() {
       <PageHead title="Ingest" desc="Sources, scheduler and backups — plus the safety and change log." />
 
       {loadError && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <Notice tone="error" action={<Button size="sm" variant="outline" onClick={loadAll}>Retry</Button>}>
           Some panels could not load — {loadError}
-          <Button size="sm" variant="outline" onClick={loadAll}>Retry</Button>
-        </div>
+        </Notice>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
