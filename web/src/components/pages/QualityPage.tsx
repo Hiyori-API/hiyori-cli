@@ -303,6 +303,13 @@ export function QualityPage() {
       />
 
       {/* Q2: coverage as Matrix / Radar tabs (missing-refs bars kept in Radar) */}
+      <Tabs defaultValue="quality">
+        <TabsList>
+          <TabsTrigger value="quality">Metrics</TabsTrigger>
+          <TabsTrigger value="review">Review queue</TabsTrigger>
+          <TabsTrigger value="tuning">Tuning</TabsTrigger>
+        </TabsList>
+        <TabsContent value="quality" className="mt-4 space-y-4">
       <Section title="Reference coverage" icon={GitMerge} badge={<Badge variant="outline">{cols.length} collections</Badge>}>
         {cols.length === 0 ? <EmptyState icon={GitMerge} title="No coverage data" description="Ingest sources to populate reference coverage." /> : (
           <Tabs defaultValue="matrix">
@@ -410,95 +417,6 @@ export function QualityPage() {
             })()}
             {!hist.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
             {!histMl.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="ML scores (metadata_ml)" bins={histMl.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histMl.data.histogram ?? {}} color={['var(--chart-6)', 'var(--chart-2)']} />}
-            <div>
-              <div className="mb-3 flex items-center gap-3">
-                <span className="text-xs text-muted-foreground">min score</span>
-                <Slider
-                  value={[minConf]}
-                  min={0}
-                  max={97}
-                  step={1}
-                  aria-label="Minimum confidence score for sampled merges"
-                  onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }}
-                  className="flex-1"
-                />
-                <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
-              </div>
-              {sampled === undefined && !sample && (
-                <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" />
-              )}
-              {sampled === null && <p className="text-sm text-muted-foreground">No organized records{minConf > 0 ? ` above ${minConf}` : ''} found.</p>}
-              {sampled && (
-                <div className="space-y-2 text-sm">
-                  <div className="rounded-lg border p-2">
-                    <div className="font-medium">{sampleDoc.title ?? '(no title)'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      confidence: {sampleDoc.confidence?.toFixed?.(1) ?? sampleDoc.score?.toFixed?.(1) ?? '—'}
-                      {sampleRefRows.length < 2 && ' · single-source record: no pair to judge'}
-                    </div>
-                    {/* The per-source titles are the thing actually being judged: a
-                        merge is only correct if every reference describes the same
-                        work, and the merged title alone cannot show that. */}
-                    <div className="mt-1.5 space-y-1 border-t pt-1.5">
-                      {sampleRows.length === 0 && (
-                        <div className="text-xs text-muted-foreground">no reference ids on this record</div>
-                      )}
-                      {sampleRows.map(r => {
-                        const isBase = r === sampleBase
-                        const verdict = verdicts[pairKey(r)]
-                        return (
-                          <div key={pairKey(r)} className="flex items-center gap-2 text-xs">
-                            <span className="w-9 shrink-0 font-mono text-muted-foreground">{r.shorthand}</span>
-                            <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{r.id || '—'}</span>
-                            <span className={`min-w-0 flex-1 truncate ${r.title ? '' : 'italic text-muted-foreground'}`} title={r.title ?? undefined}>
-                              {r.title ?? 'not in a local source'}
-                            </span>
-                            {r.year ? <span className="shrink-0 tabular-nums text-muted-foreground">{r.year}</span> : null}
-                            {isBase ? (
-                              <span className="w-16 shrink-0 text-right text-muted-foreground">base</span>
-                            ) : r.title === null ? (
-                              <span className="w-16 shrink-0 text-right text-muted-foreground" title="This source's record is not in the local database, so there is nothing to compare">
-                                no data
-                              </span>
-                            ) : (
-                              <span className="flex w-16 shrink-0 justify-end gap-1">
-                                <button
-                                  type="button"
-                                  aria-label={`${r.shorthand} ${r.id} is the same work`}
-                                  title="Same work as the base reference"
-                                  onClick={() => recordVerdict(r, 1)}
-                                  className={`rounded border px-1.5 leading-5 ${verdict === 1 ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600' : 'text-muted-foreground hover:bg-muted'}`}
-                                >✓</button>
-                                <button
-                                  type="button"
-                                  aria-label={`${r.shorthand} ${r.id} is a different work`}
-                                  title="A different work — this reference does not belong"
-                                  onClick={() => recordVerdict(r, 0)}
-                                  className={`rounded border px-1.5 leading-5 ${verdict === 0 ? 'border-destructive bg-destructive/15 text-destructive' : 'text-muted-foreground hover:bg-muted'}`}
-                                >✗</button>
-                              </span>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      disabled={samplePairs.length === 0}
-                      title={samplePairs.length === 0 ? 'A pair label needs at least two reference sources.' : undefined}
-                      onClick={labelAllRight}
-                    >All look right</Button>
-                    <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
-                  </div>
-                  {(feed.right + feed.wrong) > 0 && (
-                    <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok) · pairs written to <code className="rounded bg-muted px-1">_labels</code></p>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         </Section>
         <Section title="Validation trend" icon={TrendingDown}>
@@ -517,8 +435,100 @@ export function QualityPage() {
           )}
         </Section>
       </div>
+        </TabsContent>
 
-      {/* Rejection buffer — review queue of turned-down pairs; promote into training labels */}
+        <TabsContent value="review" className="mt-4 space-y-4">
+      <Section title="Review queue" icon={ListChecks} badge={<Badge variant="outline">spot-check</Badge>}>
+          <div>
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">min score</span>
+              <Slider
+                value={[minConf]}
+                min={0}
+                max={97}
+                step={1}
+                aria-label="Minimum confidence score for sampled merges"
+                onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : val; setMinConf(Number(v ?? 0)) }}
+                className="flex-1"
+              />
+              <span className="w-10 text-right text-sm tabular-nums">{minConf}</span>
+            </div>
+            {sampled === undefined && !sample && (
+              <EmptyState icon={ListChecks} title="Spot-check merges" description="Draw a random merged record and judge correctness." action={() => draw()} actionLabel="Draw a sample" />
+            )}
+            {sampled === null && <p className="text-sm text-muted-foreground">No organized records{minConf > 0 ? ` above ${minConf}` : ''} found.</p>}
+            {sampled && (
+              <div className="space-y-2 text-sm">
+                <div className="rounded-lg border p-2">
+                  <div className="font-medium">{sampleDoc.title ?? '(no title)'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    confidence: {sampleDoc.confidence?.toFixed?.(1) ?? sampleDoc.score?.toFixed?.(1) ?? '—'}
+                    {sampleRefRows.length < 2 && ' · single-source record: no pair to judge'}
+                  </div>
+                  {/* The per-source titles are the thing actually being judged: a
+                      merge is only correct if every reference describes the same
+                      work, and the merged title alone cannot show that. */}
+                  <div className="mt-1.5 space-y-1 border-t pt-1.5">
+                    {sampleRows.length === 0 && (
+                      <div className="text-xs text-muted-foreground">no reference ids on this record</div>
+                    )}
+                    {sampleRows.map(r => {
+                      const isBase = r === sampleBase
+                      const verdict = verdicts[pairKey(r)]
+                      return (
+                        <div key={pairKey(r)} className="flex items-center gap-2 text-xs">
+                          <span className="w-9 shrink-0 font-mono text-muted-foreground">{r.shorthand}</span>
+                          <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{r.id || '—'}</span>
+                          <span className={`min-w-0 flex-1 truncate ${r.title ? '' : 'italic text-muted-foreground'}`} title={r.title ?? undefined}>
+                            {r.title ?? 'not in a local source'}
+                          </span>
+                          {r.year ? <span className="shrink-0 tabular-nums text-muted-foreground">{r.year}</span> : null}
+                          {isBase ? (
+                            <span className="w-16 shrink-0 text-right text-muted-foreground">base</span>
+                          ) : r.title === null ? (
+                            <span className="w-16 shrink-0 text-right text-muted-foreground" title="This source's record is not in the local database, so there is nothing to compare">
+                              no data
+                            </span>
+                          ) : (
+                            <span className="flex w-16 shrink-0 justify-end gap-1">
+                              <button
+                                type="button"
+                                aria-label={`${r.shorthand} ${r.id} is the same work`}
+                                title="Same work as the base reference"
+                                onClick={() => recordVerdict(r, 1)}
+                                className={`rounded border px-1.5 leading-5 ${verdict === 1 ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600' : 'text-muted-foreground hover:bg-muted'}`}
+                              >✓</button>
+                              <button
+                                type="button"
+                                aria-label={`${r.shorthand} ${r.id} is a different work`}
+                                title="A different work — this reference does not belong"
+                                onClick={() => recordVerdict(r, 0)}
+                                className={`rounded border px-1.5 leading-5 ${verdict === 0 ? 'border-destructive bg-destructive/15 text-destructive' : 'text-muted-foreground hover:bg-muted'}`}
+                              >✗</button>
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    disabled={samplePairs.length === 0}
+                    title={samplePairs.length === 0 ? 'A pair label needs at least two reference sources.' : undefined}
+                    onClick={labelAllRight}
+                  >All look right</Button>
+                  <Button size="sm" className="flex-1" variant="outline" onClick={() => draw(minConf)}>Next</Button>
+                </div>
+                {(feed.right + feed.wrong) > 0 && (
+                  <p className="text-xs text-muted-foreground">session: {feed.right} ✓ / {feed.wrong} ✗ ({(feed.right / Math.max(1, feed.right + feed.wrong) * 100).toFixed(0)}% ok) · pairs written to <code className="rounded bg-muted px-1">_labels</code></p>
+                )}
+              </div>
+            )}
+          </div>
+      </Section>
       <Section title="Rejection buffer" icon={ShieldX} badge={<Badge variant="outline">pair_rejections</Badge>}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="space-y-1.5 lg:col-span-2">
@@ -551,6 +561,9 @@ export function QualityPage() {
       </Section>
 
       {/* Q6: weight explorer — adjustable weights + honest CLI note, preview dropped */}
+        </TabsContent>
+
+        <TabsContent value="tuning" className="mt-4 space-y-4">
       <Section title="Weightage explorer" icon={SlidersHorizontal} badge={<Badge variant="outline">metadata_fuzzy</Badge>}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-3">
@@ -571,6 +584,8 @@ export function QualityPage() {
           </div>
         </div>
       </Section>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
