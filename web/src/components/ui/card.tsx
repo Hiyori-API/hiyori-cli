@@ -32,9 +32,16 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+function CardTitle({
+  className,
+  as: Tag = "div",
+  ...props
+}: React.ComponentProps<"div"> & { as?: "h2" | "h3" | "h4" | "div" }) {
+  // A card that is a top-level page panel should be a real heading so the page
+  // has a navigable outline; a card nested inside one should stay a div to
+  // avoid inventing levels that do not exist.
   return (
-    <div
+    <Tag
       data-slot="card-title"
       className={cn(
         "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",

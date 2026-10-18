@@ -155,7 +155,10 @@ export function Dashboard() {
               <StatusChip />
             </div>
           </header>
-          <main className="flex-1 p-6">
+          {/* A <section>, not a <main>: SidebarInset already renders the
+              page's single <main> landmark, and nesting a second one gives
+              screen-reader users two "main" regions to choose between. */}
+          <section aria-label={nav.label} className="flex-1 p-6">
             <Suspense fallback={<PageFallback />}>
               {view === 'dashboard' && <DashboardPage />}
               {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
@@ -165,7 +168,7 @@ export function Dashboard() {
               {view === 'publish' && <ErrorBoundary label="Publish"><PublishPage /></ErrorBoundary>}
               {view === 'settings' && <SettingsPage />}
             </Suspense>
-          </main>
+          </section>
         </SidebarInset>
       </div>
       <AlertToasts />

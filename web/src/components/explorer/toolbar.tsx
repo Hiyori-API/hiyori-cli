@@ -118,6 +118,7 @@ export function SearchBox({ q, onQ, field, onField, resultCount, loading, recent
             variant={regex ? 'default' : 'outline'}
             aria-pressed={regex}
             title={regex ? 'Regex search on' : 'Regex search off'}
+            aria-label="Treat search as a regular expression"
             className={cn('h-8 w-8 shrink-0 px-0', !regex && 'text-muted-foreground')}
             onClick={() => onRegex(!regex)}
           >

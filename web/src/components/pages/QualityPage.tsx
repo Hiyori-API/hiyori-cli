@@ -334,7 +334,13 @@ export function QualityPage() {
 
       {/* Q7 + Q4 + Q3: strategy benchmark, Anime/Manga tabs, one table, honesty note */}
       <Section title="Strategy benchmark" icon={Scale} badge={
-        <Button size="icon-xs" variant="ghost" title="Refresh benchmark + histogram" onClick={reloadAnalysis}><RefreshCw className="h-3 w-3" /></Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          title="Refresh benchmark + histogram"
+          aria-label="Refresh strategy benchmark and score histogram"
+          onClick={reloadAnalysis}
+        ><RefreshCw className="h-3 w-3" /></Button>
       }>
         <Tabs defaultValue="anime">
           <TabsList>

@@ -295,7 +295,13 @@ export function ManagementPage() {
                         <Badge variant="outline">{g.source}</Badge>
                         <span className="min-w-0 flex-1 truncate" title={g.title}>{g.title}</span>
                         <Badge variant="secondary" title={`${g.count} entries`}>×{g.count}</Badge>
-                        <Button size="icon-xs" variant="ghost" title="Retry source" onClick={() => void run('retry', g.source === '?' ? 'anilist' : g.source)}><RotateCcw className="h-3 w-3" /></Button>
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          title={`Retry ${g.source}`}
+                          aria-label={`Retry source ${g.source}`}
+                          onClick={() => void run('retry', g.source === '?' ? 'anilist' : g.source)}
+                        ><RotateCcw className="h-3 w-3" /></Button>
                       </div>
                       {g.errors.size > 0 && <div className="mt-1 text-amber-500">{Array.from(g.errors).join(', ')}</div>}
                     </div>

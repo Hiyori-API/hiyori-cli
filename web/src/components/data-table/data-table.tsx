@@ -527,7 +527,11 @@ export function DataTable<TData extends RowData>({
                             <button
                               type="button"
                               className={cn(
-                                'inline-flex items-center gap-1 hover:text-foreground',
+                                // min-h-6 (24px) is the smallest reliably
+                                // clickable target; compact density squeezes
+                                // the cell padding to 2px, which left the sort
+                                // control at 16px tall.
+                                'inline-flex min-h-6 items-center gap-1 px-1 hover:text-foreground',
                                 meta?.align === 'right' && 'flex-row-reverse',
                               )}
                               onClick={header.column.getToggleSortingHandler()}
@@ -668,10 +672,22 @@ export function DataTable<TData extends RowData>({
             <span className="whitespace-nowrap text-xs text-muted-foreground">
               page {paginationState.pageIndex + 1}/{Math.max(1, table.getPageCount())}
             </span>
-            <Button size="sm" variant="outline" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Previous page"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button size="sm" variant="outline" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Next page"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

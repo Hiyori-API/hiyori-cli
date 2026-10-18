@@ -156,3 +156,73 @@
   padding-left: 0.5rem !important;
   padding-right: 0.5rem !important;
 }
+
+/* ---------------------------------------------------------------------------
+ * Chart legend text must not wear the series colour.
+ *
+ * Recharts colours `.recharts-legend-item-text` with the series colour by
+ * default. That is fine for a thick area fill but wrong for 11px text: the
+ * light-theme ramp uses light steps that are legible as a fill on white and
+ * fall to 1.98:1 as text (WCAG AA needs 4.5:1). The swatch already carries the
+ * series identity, so the label takes the muted foreground ink in both themes.
+ * ------------------------------------------------------------------------- */
+.recharts-legend-item-text {
+  color: var(--muted-foreground) !important;
+}
+.recharts-legend-item-text:hover {
+  color: var(--foreground) !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion.
+ *
+ * The connection dot pulses forever and KPI values flash green on every change,
+ * which is unmitigated motion for vestibular-sensitive users.
+ *
+ * Deliberately NOT a blanket `animation: none !important`. That kills the
+ * loading spinner too, and a spinner is the one animation that *communicates*
+ * something — removing it leaves a blank panel with no sign that work is
+ * happening, which is worse than motion. So this targets the decorative loops
+ * only, and each keeps its end state: the dot still renders, the flash still
+ * resolves to the new value. Entrances and exits collapse to near-zero so they
+ * still convey "this appeared / this went" without travel.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* Infinite decorative loops: render their steady state instead. */
+  .animate-ping {
+    animation: none !important;
+  }
+
+  /* The live-connection dot is the one loop on this page. It renders its
+     steady state here rather than disappearing, so "connected" still reads. */
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Entrances/exits (tw-animate-css) keep the state change, lose the travel. */
+  [class*='animate-in'],
+  [class*='animate-out'] {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+
+  /* The KPI change flash is a colour transition, not travel — it still reads,
+   * but it should not linger. */
+  .transition-colors {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Focus visibility.
+ *
+ * The app relies on per-component `focus:ring` utilities, which is fragile: any
+ * element that forgets one is invisible to keyboard users. This is the floor
+ * that guarantees a visible ring everywhere, without restating it at every call
+ * site. `:focus-visible` (not `:focus`) so it does not show on mouse clicks.
+ * ------------------------------------------------------------------------- */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

@@ -29,6 +29,8 @@ export const WIDGETS: Array<[string, string]> = [
   ['alerts', 'Alert strip'],
 ]
 const ACCENTS = ['#4fb3ff', '#3fd06a', '#e8b64c', '#9b7bff', '#ff5f57', '#ff8fd8']
+/** Names for the swatches, so they are not identified by hue alone. */
+const ACCENT_NAMES = ['Blue', 'Green', 'Amber', 'Purple', 'Red', 'Pink']
 
 /** Compact choice chip / swatch used across the Interface card (S1). */
 function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
@@ -201,8 +203,19 @@ export function SettingsPage() {
             <div>
               <div className="mb-2 text-sm">Accent</div>
               <div className="flex gap-2">
-                {ACCENTS.map(a => (
-                  <button key={a} onClick={() => setPref({ accent: a })} className={`flex h-8 w-8 items-center justify-center rounded-full transition ${accent === a ? 'ring-2 ring-foreground' : ''}`} style={{ background: a }}>
+                {ACCENTS.map((a, i) => (
+                  // Named, not colour-only: the swatch carries the hue but the
+                  // accessible name and the tooltip carry which one it is, and
+                  // the selected one announces its state.
+                  <button
+                    key={a}
+                    onClick={() => setPref({ accent: a })}
+                    aria-label={`Accent colour ${ACCENT_NAMES[i]}`}
+                    aria-pressed={accent === a}
+                    title={ACCENT_NAMES[i]}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full transition ${accent === a ? 'ring-2 ring-foreground' : ''}`}
+                    style={{ background: a }}
+                  >
                     {accent === a && <Check className="h-4 w-4 text-white" />}
                   </button>
                 ))}

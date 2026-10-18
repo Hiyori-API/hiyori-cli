@@ -44,13 +44,31 @@ export function SeriesChartCard({ title, series, data, emptyMsg, helper, icon }:
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
+        <CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
         <div className="flex items-center gap-1.5">
           {helper}
-          <Button size="icon-sm" variant="ghost" title="Y-log" onClick={() => setLog(v => !v)} className={log ? 'text-primary' : ''}>
+          {/* Toggles carry their state too: a screen reader should hear both
+              what the control is and whether it is currently on. */}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            title="Log scale"
+            aria-label={`Use logarithmic scale${log ? ' (on)' : ''}`}
+            aria-pressed={log}
+            onClick={() => setLog(v => !v)}
+            className={log ? 'text-primary' : ''}
+          >
             <Logs className="h-3.5 w-3.5" />
           </Button>
-          <Button size="icon-sm" variant="ghost" title="Area/line" onClick={() => setArea(v => !v)} className={area ? 'text-primary' : ''}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            title="Area / line"
+            aria-label={`Show as filled area${area ? ' (on)' : ''}`}
+            aria-pressed={area}
+            onClick={() => setArea(v => !v)}
+            className={area ? 'text-primary' : ''}
+          >
             <ChartLine className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -88,7 +106,7 @@ export function CompositionStream({ title, data, keys, colors, emptyMsg }: {
 }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="h-52">
           {data.length ? (
@@ -115,7 +133,7 @@ export function CompositionStream({ title, data, keys, colors, emptyMsg }: {
 export function PipelineFunnel({ stages }: { stages: { name: string; value: number; color: string; hint?: string }[] }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Pipeline</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Pipeline</CardTitle></CardHeader>
       <CardContent>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
@@ -142,7 +160,7 @@ export function CompletenessRadar({ title, data, series, emptyMsg }: {
 }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="h-64">
           {data.length ? (
@@ -170,7 +188,7 @@ export function ThresholdScatter({ title, points }: {
 }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="h-56">
           {points.length > 1 ? (
@@ -196,7 +214,7 @@ export function BenchmarkBars({ title, rows }: { title: string; rows: Array<{ na
   const data = rows.map((r, i) => ({ name: r.name, dev: (r.wall_s - base) / base * 100, wall_s: r.wall_s, merges: r.merges ?? 0, speed: r.speed ?? 0, idx: i }))
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="h-56">
           {data.length ? (
@@ -228,7 +246,7 @@ export function DensityHistogram({ title, bins, counts, color = ['var(--chart-1)
   const data = bins.map((b, i) => ({ bin: `${b}${b + 10 === 100 ? '–100' : `–${b + 10}`}`, n: counts[String(b)] ?? 0, idx: i }))
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">{title}</CardTitle></CardHeader>
       <CardContent>
         {data.some(d => d.n > 0) ? (
           <div className="h-44">

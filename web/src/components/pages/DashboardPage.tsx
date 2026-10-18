@@ -235,11 +235,11 @@ export function DashboardPage() {
               <span className="text-muted-foreground/60">→</span>
               <span>merged</span>
               <span className="font-semibold tabular-nums text-foreground">{cx(merged)}</span>
-              <span className="text-muted-foreground/50">
+              <span className="text-muted-foreground">
                 ({cx(animeDocs)} anime · {cx(mangaDocs)} manga)
               </span>
               {liveSkipped > 0 && (
-                <span className="text-muted-foreground/60">
+                <span className="text-muted-foreground">
                   · {cx(liveSkipped)} skipped (already stored)
                 </span>
               )}
@@ -277,7 +277,7 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {visible('dataset') && (
               <Card>
-                <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Dataset</CardTitle></CardHeader>
+                <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Dataset</CardTitle></CardHeader>
                 <CardContent>
                   {dataset.length === 0 ? (
                     <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />
@@ -466,18 +466,60 @@ function SourcesTable({
         enableSorting: false,
         meta: { align: 'right', stickyRight: true } as const,
         cell: ({ row }) => {
-          const src = row.original.src
+          const { src, job } = row.original
+          // Only offer the action that applies to this job's phase. Rendering
+          // Pause/Resume/Retry on every row let you pause a job that already
+          // finished and resume one that never stopped — both no-ops that read
+          // as broken controls.
+          const phase = jobPhase(job)
+          const live = isJobLive(job)
           return (
             <span className="flex items-center justify-end gap-1">
-              <Button size="icon-sm" variant="ghost" title="Pause" onClick={() => onPause(src)}>
-                <Pause className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon-sm" variant="ghost" title="Resume" onClick={() => onResume(src)}>
-                <Play className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon-sm" variant="ghost" title="Retry" onClick={() => onRetry(src)}>
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
+              {live ? (
+                <>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title={`Pause ${src}`}
+                    aria-label={`Pause ingestion of ${src}`}
+                    onClick={() => onPause(src)}
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title={`Retry ${src}`}
+                    aria-label={`Retry ingestion of ${src}`}
+                    onClick={() => onRetry(src)}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title={`Resume ${src}`}
+                    aria-label={`Resume ingestion of ${src}`}
+                    onClick={() => onResume(src)}
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </Button>
+                  {phase === 'done' && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      title={`Retry ${src}`}
+                      aria-label={`Retry ingestion of ${src}`}
+                      onClick={() => onRetry(src)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
             </span>
           )
         },
@@ -522,7 +564,7 @@ function HealthCard({ gauges, extApis, circuits }: {
   const [open, setOpen] = useState(false)
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Health</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Health</CardTitle></CardHeader>
       <CardContent className="p-4">
         <div className="flex items-center justify-around">
           {gauges.map(g => (

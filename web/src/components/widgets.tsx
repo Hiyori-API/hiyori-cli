@@ -60,7 +60,7 @@ export function StatStrip({ items }: {
               it.tone === 'bad' && 'text-destructive',
             )}>{it.value}</p>
           </div>
-          {it.sub && <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground/70">{it.sub}</span>}
+          {it.sub && <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground">{it.sub}</span>}
         </div>
       ))}
     </div>
@@ -120,7 +120,7 @@ export function Section({ title, icon: Icon, children, defaultOpen = true, badge
           className="flex flex-1 items-center gap-2 text-left hover:bg-muted/40"
         >
           {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
-          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</span>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
           <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
         </button>
         {badge && <span className="ml-2 shrink-0">{badge}</span>}
