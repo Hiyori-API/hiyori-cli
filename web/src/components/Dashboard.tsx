@@ -12,11 +12,13 @@ import { StatusProvider, useStatus } from '@/lib/status-context'
 import { useSettings } from '@/lib/hooks'
 import { isIngestJob, isJobLive, type Job } from '@/lib/api'
 
+import { isRoute, navigate, useRoute, type Route } from '@/lib/router'
+
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
-type View = 'dashboard' | 'explorer' | 'settings'
+type View = Route
 
 interface NavItem {
   id: View
@@ -193,14 +195,19 @@ function StatusChip() {
 
 export function Dashboard() {
   useAppliedPreferences()
-  const [view, setView] = useState<View>('dashboard')
+  // The route lives in the hash, so reload, Back/Forward and shared links all
+  // land on the same page. `useRoute` reads `#/<route>` and ignores the query
+  // half, which the Explorer owns.
+  const view = useRoute()
   const nav = NAV.find(n => n.id === view) ?? NAV[0]
 
-  // Cross-page navigation (e.g. Settings → "Open Publish page") without a router.
+  // Cross-page navigation (e.g. Settings → "Open Publish page") without the
+  // event needing to know about the URL. The detail stays a route id; the
+  // router turns it into a history entry.
   useEffect(() => {
     const onNavigate = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail
-      if (NAV.some(n => n.id === detail)) setView(detail as View)
+      if (isRoute(detail)) navigate(detail)
     }
     window.addEventListener('hiyori:navigate', onNavigate)
     return () => window.removeEventListener('hiyori:navigate', onNavigate)
@@ -234,7 +241,7 @@ export function Dashboard() {
                     <SidebarMenuItem key={item.id}>
                       <SidebarMenuButton
                         isActive={view === item.id}
-                        onClick={() => setView(item.id)}
+                        onClick={() => navigate(item.id)}
                         tooltip={item.desc}
                       >
                         <item.icon />

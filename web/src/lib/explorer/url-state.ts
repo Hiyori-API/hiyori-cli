@@ -2,14 +2,23 @@
  * URL hash state for the Explorer — the single source of truth for
  * shareable, back/forward-friendly page state.
  *
- * Rendered as: `#collection=..&q=..&field=..&filter=a,b&sort=..&dir=..&page=..&per=..&cols=a,b&view=..&doc=..`
- * written with history.replaceState() so the URL stays copy/shareable
- * without spamming history entries. `hashchange`/`popstate` re-parse the
- * hash so manual edits and back/forward navigation are honoured.
+ * The hash is shared with the app router (`lib/router.ts`): the router owns the
+ * path segment and the Explorer owns the query that follows it, so the state is
+ * rendered as
+ * `#/explorer?collection=..&q=..&field=..&filter=a,b&sort=..&dir=..&page=..&per=..&cols=a,b&view=..&doc=..`
+ * (the part this module reads and writes is everything after `?`).
+ *
+ * Writes go through history.replaceState() so the URL stays copy/shareable
+ * without spamming history entries — and, importantly, without navigating: the
+ * route prefix is re-emitted on every write so a filter change never drops the
+ * app back to the default page. `hashchange`/`popstate` re-parse the hash so
+ * manual edits and back/forward navigation are honoured.
  *
  * `doc` is a deep link: when present on load the detail sheet opens for
  * that id.
  */
+
+import { hashFor, hashQuery } from '@/lib/router'
 
 export interface ExplorerUrlState {
   collection: string
@@ -76,7 +85,10 @@ const LIST_KEYS = new Set<keyof ExplorerUrlState>(['filters', 'cols'])
 const NUM_KEYS = new Set<keyof ExplorerUrlState>(['page', 'per'])
 
 export function parseHash(hash: string): Partial<ExplorerUrlState> {
-  const raw = hash.replace(/^#/, '')
+  // Only the query half is ours; the path half (`/explorer`) belongs to the
+  // router. parseHash is handed window.location.hash, so stripping it here
+  // keeps every caller working unchanged.
+  const raw = hashQuery(hash)
   if (!raw.trim()) return {}
   let sp: URLSearchParams
   try {
@@ -104,6 +116,7 @@ export function parseHash(hash: string): Partial<ExplorerUrlState> {
   return out
 }
 
+/** Serialize a state to the Explorer's query string (no `#`, no route). */
 export function serializeHash(s: Partial<ExplorerUrlState>): string {
   const sp = new URLSearchParams()
   for (const [param, key] of PARAM_MAP) {
@@ -122,8 +135,15 @@ export function serializeHash(s: Partial<ExplorerUrlState>): string {
   return sp.toString()
 }
 
-/** Build the full URL (path + query + hash) for a state. */
+/**
+ * Build the full URL (path + search + `#/explorer?…`) for a state.
+ *
+ * The `/explorer` route is always part of the result: this is what the Explorer
+ * hands to history.replaceState(), so a filter change keeps the app on its
+ * route instead of writing a bare query that the router would read as "no
+ * route".
+ */
 export function urlFor(s: Partial<ExplorerUrlState>): string {
   const qs = serializeHash(s)
-  return window.location.pathname + window.location.search + (qs ? `#${qs}` : '')
+  return window.location.pathname + window.location.search + hashFor('explorer', qs)
 }
