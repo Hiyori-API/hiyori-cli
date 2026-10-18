@@ -8,7 +8,6 @@ import { ChartLine, ChartNoAxesCombined, Logs } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TOOLTIP_STYLE } from './widgets'
-import { CARBON } from './charts'
 import { EmptyState } from './empty'
 
 export interface SeriesDef { key: string; color: string }
@@ -178,7 +177,7 @@ export function ThresholdScatter({ title, points }: {
                 <XAxis type="number" dataKey="threshold" name="threshold" domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
                 <YAxis type="number" dataKey="merges" name="merges" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: '3 3' }} />
-                <Scatter data={points} fill={CARBON.blue} />
+                <Scatter data={points} fill="#4fb3ff" />
               </ScatterChart>
             </ResponsiveContainer>
           ) : <EmptyState icon={ChartNoAxesCombined} title="No benchmark sweep" description="Run a threshold sweep to see the sensitivity curve." />}
@@ -204,7 +203,7 @@ export function BenchmarkBars({ title, rows }: { title: string; rows: Array<{ na
                 <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, n: unknown) => [n === 'dev' ? `${Number(v).toFixed(1)}% vs baseline` : `${v}`, String(n)]} />
                 <Bar dataKey="dev" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-                  {data.map(d => <Cell key={d.idx} fill={d.dev <= 0 ? CARBON.green : CARBON.orange} />)}
+                  {data.map(d => <Cell key={d.idx} fill={d.dev <= 0 ? '#3fd06a' : '#ff8f6b'} />)}
                   <LabelList dataKey="wall_s" position="right" formatter={(v: unknown) => `${Math.round(Number(v) / 60)}m`} fill="var(--muted-foreground)" fontSize={10} />
                 </Bar>
               </BarChart>
@@ -217,7 +216,7 @@ export function BenchmarkBars({ title, rows }: { title: string; rows: Array<{ na
 }
 
 /** Density histogram from fixed bins. */
-export function DensityHistogram({ title, bins, counts, color = [CARBON.blue, CARBON.cyan] }: {
+export function DensityHistogram({ title, bins, counts, color = ['#4fb3ff', '#7ac9ff'] }: {
   title: string
   bins: number[]
   counts: Record<string, number>

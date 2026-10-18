@@ -1,105 +1,77 @@
-/*
- * Carbon and Tailwind both need to style the same elements (Carbon renders the
- * real <button>/<input>, Tailwind lays out the page around them).
- *
- * Unlayered CSS beats layered CSS in the cascade regardless of specificity, so
- * importing Carbon's stylesheet normally means Carbon silently wins on every
- * shared property — that is why a `h-7` override on a Carbon button did
- * nothing. Declaring the layer order puts Carbon first and Tailwind's
- * utilities last, so our overrides win where we intend them to.
- */
-@layer carbon, theme, base, components, utilities;
-@import "@carbon/styles/css/styles.css" layer(carbon);
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #161616;
-  --card: #ffffff;
-  --card-foreground: #161616;
-  --popover: #ffffff;
-  --popover-foreground: #161616;
-  --primary: #0f62fe;
-  --primary-foreground: #ffffff;
-  --secondary: #e0e0e0;
-  --secondary-foreground: #161616;
-  --muted: #f4f4f4;
-  --muted-foreground: #525252;
-  --accent: #e0e0e0;
-  --accent-foreground: #161616;
-  --destructive: #da1e28;
-  --border: #e0e0e0;
-  --input: #8d8d8d;
-  --ring: #0f62fe;
-  /* Carbon is sharp by design: cards/panels 0, controls 0, tags 2. */
-  --radius: 0px;
-  --radius-tag: 2px;
-  /* Carbon categorical ramp (blue-first), for data visualization. */
-  --chart-1: #0f62fe;
-  --chart-2: #42be65;
-  --chart-3: #f1c21b;
-  --chart-4: #8a3ffc;
-  --chart-5: #ff832b;
-  /* Carbon's white shell: the header band is dark, the side nav is light. */
-  --header-bg: #161616;
-  --header-fg: #f4f4f4;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #161616;
-  --sidebar-primary: #0f62fe;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e0e0e0;
-  --sidebar-accent-foreground: #161616;
-  --sidebar-border: #e0e0e0;
-  --sidebar-ring: #0f62fe;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  /* Carbon gray100 (g100) — its signature dark theme. */
-  --background: #161616;
-  --foreground: #f4f4f4;
-  --card: #262626;
-  --card-foreground: #f4f4f4;
-  --popover: #262626;
-  --popover-foreground: #f4f4f4;
-  --primary: #4589ff;
-  --primary-foreground: #161616;
-  --secondary: #393939;
-  --secondary-foreground: #f4f4f4;
-  --muted: #262626;
-  --muted-foreground: #a8a8a8;
-  --accent: #393939;
-  --accent-foreground: #f4f4f4;
-  --destructive: #ff4d5d;
-  --border: #525252;
-  --input: #6f6f6f;
-  --ring: #4589ff;
-  --radius: 0px;
-  --radius-tag: 2px;
-  --chart-1: #4589ff;
-  --chart-2: #42be65;
-  --chart-3: #f1c21b;
-  --chart-4: #8a3ffc;
-  --chart-5: #ff832b;
-  /* Carbon keeps its header dark in g100 too — only the content layers lift. */
-  --header-bg: #161616;
-  --header-fg: #f4f4f4;
-  --sidebar: #161616;
-  --sidebar-foreground: #f4f4f4;
-  --sidebar-primary: #4589ff;
-  --sidebar-primary-foreground: #161616;
-  --sidebar-accent: #393939;
-  --sidebar-accent-foreground: #f4f4f4;
-  --sidebar-border: #393939;
-  --sidebar-ring: #4589ff;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -112,10 +84,7 @@
 
 @theme inline {
   --font-heading: var(--font-sans);
-  /* IBM Plex Sans — Carbon's typeface. Plex Mono carries the ids, reference
-     shorthands and counts that were already rendered mono. */
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -181,185 +150,3 @@
   padding-left: 0.5rem !important;
   padding-right: 0.5rem !important;
 }
-
-/* ---------------------------------------------------------------------------
- * Carbon app shell geometry.
- *
- * Carbon's Header/SideNav/Content ship as three sibling regions that Carbon
- * itself positions with a fixed grid (48px header, 16rem side nav). The
- * dashboard lays them out itself so the shell can collapse on narrow screens,
- * so the three numbers Carbon cares about are restated here as the same
- * custom properties Carbon's own stylesheet reads. Anything that changes Carbon's
- * geometry must change both, or the regions drift apart.
- * ------------------------------------------------------------------------- */
-.carbon-shell {
-  --header-height: 3rem;   /* 48px — Carbon's fixed header */
-  --side-nav-width: 16rem; /* 256px — Carbon's fixed side nav */
-}
-
-.carbon-shell > .cds--header {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline: 0;
-  z-index: 8000; /* Carbon's header sits above modals' scrim */
-  height: var(--header-height);
-  /* Carbon's own header paints `var(--cds-background)`, which in g100 is the
-   * same #161616 as the page, so a stock Carbon header is invisible against
-   * its own content area. Carbon's shell keeps a dedicated dark header band in
-   * BOTH themes (that dark bar over light content is the signature Carbon
-   * shell), so the band is driven by its own token pair rather than --card. */
-  background: var(--header-bg);
-  color: var(--header-fg);
-  border-block-end: 1px solid var(--header-fg);
-  border-block-end-color: color-mix(in oklab, var(--header-fg) 20%, transparent);
-}
-
-/* The connection chip sits inside a 48px header action, so it is centred in it
- * and loses its pill border in favour of the action's own hit area. */
-.carbon-shell .cds--header__global .carbon-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  /* Carbon's header action is a fixed 48x48 box; the chip must stay on one
-     line inside it rather than wrapping "live · 3s" onto two. */
-  white-space: nowrap;
-  font-size: 0.75rem;
-  line-height: 1;
-  color: var(--muted-foreground);
-}
-
-/* Carbon's SideNav draws a 1px inline-start border only when it is a direct
- * sibling of a fixed header; the brand block above supplies that edge here. */
-.carbon-sidenav {
-  position: fixed;
-  inset-block-start: var(--header-height);
-  inset-inline-start: 0;
-  inset-block-end: 0;
-  width: var(--side-nav-width);
-  max-width: var(--side-nav-width);
-  overflow-y: auto;
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
-  border-inline-end: 1px solid var(--sidebar-border);
-}
-
-.carbon-sidenav .cds--side-nav__list {
-  padding-block-start: 0;
-}
-
-/* The brand row is not a nav link, so it must not pick up link styling. */
-.carbon-sidenav-brand {
-  list-style: none;
-  border-block-end: 1px solid var(--sidebar-border);
-}
-
-.carbon-content {
-  margin-block-start: var(--header-height);
-  margin-inline-start: var(--side-nav-width);
-  min-height: calc(100vh - var(--header-height));
-  /* Carbon's content region uses the 16px grid gutter, not a 24px page pad. */
-  padding: 0;
-}
-
-/* Carbon draws an outline on every side-nav link in g100 (its `:focus` rule
- * resolves to a visible ring rather than transparent here), which turns the
- * whole rail into a stack of boxes. Reset it and put a real focus ring back on
- * :focus-visible only, so keyboard users still get one. */
-.carbon-sidenav .cds--side-nav__link {
-  outline: none;
-}
-
-.carbon-sidenav .cds--side-nav__link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-/* Active page: Carbon already tints the selected link; the dashboard adds the
- * IBM-blue left rail so the current page is identifiable at a glance. */
-.carbon-sidenav .cds--side-nav__link[aria-current='page'] {
-  color: var(--foreground);
-  font-weight: 600;
-  box-shadow: inset 2px 0 0 0 var(--sidebar-primary);
-}
-
-.carbon-sidenav .cds--side-nav__link:hover {
-  background: var(--sidebar-accent);
-  color: var(--foreground);
-}
-
-@media (max-width: 48rem) {
-  .carbon-sidenav {
-    display: none;
-  }
-  .carbon-content {
-    margin-inline-start: 0;
-  }
-}
-
-/* ---------------------------------------------------------------------------
- * Carbon component overrides.
- *
- * These live in plain CSS rather than Tailwind arbitrary variants on purpose.
- * Tailwind v4 reads `__` inside an arbitrary variant as its descendant escape,
- * so `[&_.cds--accordion__title]` compiles to `.cds--accordion title` — a
- * descendant *element* named `title`, not Carbon's BEM class. Every
- * `[&_.cds--xxx__yyy]` override was silently dead. Written as plain selectors
- * scoped to a hook class of our own, they work and they win: this file is
- * unlayered, while Carbon's stylesheet sits in @layer carbon.
- * ------------------------------------------------------------------------- */
-
-/* Carbon sizes its accordion trigger for a 48px row and draws a bordered
-   expando button; these panels are dense and use the Carbon header treatment. */
-/* Carbon resolves --cds-focus to a *visible* ring in g100 and applies it to
-   these elements unconditionally, so the unfocused heading draws a blue box.
-   Reset, and put a real ring back on keyboard focus only. */
-.carbon-accordion .cds--accordion__heading,
-.carbon-accordion .cds--accordion__arrow { outline: none; }
-
-.carbon-accordion .cds--accordion__heading:focus-visible,
-.carbon-accordion .cds--accordion__arrow:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-.carbon-accordion .cds--accordion__heading { margin: 0; }
-.carbon-accordion .cds--accordion__item { border: 0; background: transparent; }
-.carbon-accordion .cds--accordion__trigger {
-  min-height: 0;
-  padding: 0.75rem 1rem;
-  background: transparent;
-}
-.carbon-accordion .cds--accordion__trigger:hover { background: color-mix(in oklab, var(--muted) 40%, transparent); }
-/* Carbon's expando is a bordered button; the dashboard wants a bare chevron. */
-.carbon-accordion .cds--accordion__arrow {
-  border: 0;
-  background: transparent;
-  align-items: center;
-  justify-content: flex-end;
-  padding-inline-start: 0.75rem;
-}
-.carbon-accordion .cds--accordion__title {
-  flex: 1;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.0625em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.carbon-accordion .cds--accordion__content { padding: 0 1rem 1rem; }
-
-/* Carbon's TextInput is a 40px labelled field; the dashboard runs 32px bare
-   fields with no label gutter. */
-.carbon-input .cds--text-input__wrapper { width: 100%; }
-.carbon-input .cds--text-input__field-wrapper { height: 2rem; }
-.carbon-input .cds--text-input input {
-  height: 2rem;
-  min-height: 2rem;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-}
-.carbon-input .cds--label { display: none; }
-
-/* Checkboxes sit inside table cells that already carry an accessible name, so
-   Carbon's own label slot is not wanted. */
-.carbon-checkbox .cds--checkbox-label { display: none; }

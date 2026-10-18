@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSettings, fetchStatus, postSettings, type SettingsResponse, type StatusPayload, type UiSettings } from './api'
-import { applyTheme } from './theme'
 
 /**
  * Smart polling (D7): adaptive interval. Base `ms` normally; when replies stop
@@ -84,16 +83,6 @@ export function useSettings(): { settings: UiSettings; update: (patch: object) =
     settingsCache.fetched = true
     void refresh()
   }, [refresh])
-
-  // The document theme is server-owned (`prefs.theme`), but index.html ships a
-  // hardcoded `dark cds--g100` so the first paint is never wrong. This is the
-  // one place the stored preference is reconciled onto <html> — without it a
-  // light preference only took effect after a manual toggle, and Carbon's
-  // theme class could drift out of step with `dark`.
-  const theme = settings.prefs?.theme
-  useEffect(() => {
-    if (theme === 'light' || theme === 'dark') applyTheme(theme === 'dark')
-  }, [theme])
 
   const update = useCallback(async (patch: object) => {
     const res = await postSettings(patch)

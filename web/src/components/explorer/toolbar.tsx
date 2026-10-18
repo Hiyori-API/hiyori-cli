@@ -12,7 +12,7 @@ import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Tooltip } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtCount } from '@/lib/explorer/doc-utils'
 import type { SavedView } from '@/lib/explorer/views'
 import { SEARCH_FIELDS, type SearchField } from '@/lib/explorer/search-parse'
@@ -111,17 +111,20 @@ export function SearchBox({ q, onQ, field, onField, resultCount, loading, recent
           )}
         </div>
       </div>
-      <Tooltip label="Regex search — treat the box as a regular expression. Requires server support; falls back to plain search if unsupported.">
-        <Button
-          size="sm"
-          variant={regex ? 'default' : 'outline'}
-          aria-pressed={regex}
-          title={regex ? 'Regex search on' : 'Regex search off'}
-          className={cn('h-8 w-8 shrink-0 px-0', !regex && 'text-muted-foreground')}
-          onClick={() => onRegex(!regex)}
-        >
-          <Regex className="h-3.5 w-3.5" />
-        </Button>
+      <Tooltip>
+        <TooltipTrigger render={
+          <Button
+            size="sm"
+            variant={regex ? 'default' : 'outline'}
+            aria-pressed={regex}
+            title={regex ? 'Regex search on' : 'Regex search off'}
+            className={cn('h-8 w-8 shrink-0 px-0', !regex && 'text-muted-foreground')}
+            onClick={() => onRegex(!regex)}
+          >
+            <Regex className="h-3.5 w-3.5" />
+          </Button>
+        } />
+        <TooltipContent>Regex search — treat the box as a regular expression. Requires server support; falls back to plain search if unsupported.</TooltipContent>
       </Tooltip>
       {focused && !fieldOpen && recents.length > 0 && !q && (
         <div className="absolute top-9 left-0 z-40 w-72 rounded-lg border bg-popover p-1.5 text-sm shadow-lg">
@@ -310,8 +313,9 @@ export function RangesRow({ open, onToggle, ranges, onRanges }: {
   const any = Object.values(ranges).some(Boolean)
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Tooltip label="Filter by episodes / year. Sent as episodes_min…year_max — ignored by older backends.">
-        <Button size="sm" variant={any ? 'default' : 'outline'} onClick={onToggle} className={cn(!open && any && 'border-primary/50')}><SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />Ranges{any ? ' ·' : ''}</Button>
+      <Tooltip>
+        <TooltipTrigger render={<Button size="sm" variant={any ? 'default' : 'outline'} onClick={onToggle} className={cn(!open && any && 'border-primary/50')}><SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />Ranges{any ? ' ·' : ''}</Button>} />
+        <TooltipContent>Filter by episodes / year. Sent as episodes_min…year_max — ignored by older backends.</TooltipContent>
       </Tooltip>
       {open && (
         <span className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/20 px-2 py-1.5">

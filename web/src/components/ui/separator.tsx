@@ -1,14 +1,6 @@
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
 import { cn } from "cn"
 
-/**
- * Divider, restyled to Carbon.
- *
- * Carbon has no Separator component: it draws rules as layer tokens, so the
- * separator reads as Carbon's `layer-01` border rather than a component. The
- * controlled Base UI primitive is kept because Carbon offers no equivalent,
- * and it is a plain `<hr>` with no behaviour of its own.
- */
 function Separator({
   className,
   orientation = "horizontal",

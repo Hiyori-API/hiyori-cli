@@ -17,7 +17,7 @@ import type { ExploreRow } from '@/lib/api'
 import type { DataTableFeatures } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Tooltip } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   brandOf, describeField, externalUrl, isImageUrl, isMissing, linkUrl, longestImage,
   refsOf, sourceCollection, stringId, titleOf, type Brand,
@@ -183,8 +183,9 @@ function FieldHeader({ f }: { f: string }) {
   const desc = describeField(f)
   if (!desc) return <span>{f}</span>
   return (
-    <Tooltip label={desc}>
-      <span className="cursor-help underline decoration-dotted underline-offset-2">{f}</span>
+    <Tooltip>
+      <TooltipTrigger render={<span className="cursor-help underline decoration-dotted underline-offset-2">{f}</span>} />
+      <TooltipContent>{desc}</TooltipContent>
     </Tooltip>
   )
 }
@@ -270,7 +271,7 @@ export function buildColumns(cols: string[], ctx: ColumnCtx): ColumnDef<DataTabl
           <span className="mr-1 hidden max-w-[80px] truncate text-[10px] text-muted-foreground sm:inline">
             {refs.slice(0, 3).map(([sh]) => sh).join('·') || 'no refs'}
           </span>
-          <Button size="icon-xs" variant="ghost" title={fav ? 'Unpin' : 'Pin row'} aria-label={fav ? 'Unpin row' : 'Pin row'} onClick={(e: React.MouseEvent) => { e.stopPropagation(); ctx.onToggleFav(id) }}>
+          <Button size="icon-xs" variant="ghost" title={fav ? 'Unpin' : 'Pin row'} aria-label={fav ? 'Unpin row' : 'Pin row'} onClick={e => { e.stopPropagation(); ctx.onToggleFav(id) }}>
             <Pin className={`h-3 w-3 ${fav ? 'text-primary' : 'text-muted-foreground'}`} />
           </Button>
           <DropdownMenu>

@@ -1,20 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { type LucideIcon } from 'lucide-react'
-import { Accordion, AccordionItem } from '@carbon/react'
+import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { CARBON } from './charts'
 import { cn } from 'cn'
 
-/** Recharts tooltip surface, on Carbon's flat/square layer styling. */
 const TOOLTIP_STYLE = {
   background: 'var(--popover)',
   border: '1px solid var(--border)',
-  borderRadius: 0,
+  borderRadius: 8,
   fontSize: 12,
-  fontFamily: 'var(--font-sans)',
 } as const
 
-/** Pulses briefly when the underlying value changes. */
+/** Pulses green briefly when the underlying value changes. */
 export function ChangePulse({ value, className, pulse = true }: { value: string; className?: string; pulse?: boolean }) {
   const prev = useRef(value)
   const [flash, setFlash] = useState<boolean>(false)
@@ -32,7 +28,13 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
   }, [value, pulse])
 
   return (
-    <span className={cn('tabular-nums transition-colors duration-300', flash && 'text-chart-2', className)}>
+    <span
+      className={cn(
+        'tabular-nums transition-colors duration-300',
+        flash && 'text-emerald-400',
+        className,
+      )}
+    >
       {value}
     </span>
   )
@@ -52,17 +54,17 @@ export function KpiCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="min-w-0">
-            {/* Carbon's label treatment: small, tracked-out, muted. */}
-            <p className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-            <p className="mt-1.5 text-3xl font-light leading-none">{loading ? (
-              <span className="inline-block h-8 w-24 animate-pulse bg-muted" />
-            ) : (
-              <ChangePulse value={value} />
-            )}</p>
+            <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="mt-1.5 text-2xl font-semibold leading-none">
+              {loading ? (
+                <span className="inline-block h-7 w-20 animate-pulse rounded bg-muted" />
+              ) : (
+                <ChangePulse value={value} />
+              )}
+            </p>
             {sub && <p className="mt-1.5 truncate text-xs text-muted-foreground">{sub}</p>}
           </div>
-          {/* Carbon squares its icon wells; a pill reads as a different system. */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-muted text-muted-foreground">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
             <Icon className="h-4 w-4" />
           </div>
         </div>
@@ -71,15 +73,7 @@ export function KpiCard({
   )
 }
 
-/**
- * Collapsible panel section, on Carbon `Accordion`.
- *
- * This was a hand-rolled disclosure (a Card wrapping a button and a chevron);
- * Carbon has exactly this control, so the hand-rolled version is gone in
- * favour of the real one. The title is a node rather than a string because
- * these panels need a leading icon and a trailing badge, and Carbon's
- * `title` accepts one. The badge is padded clear of Carbon's own chevron.
- */
+/** Collapsible panel section. */
 export function Section({ title, icon: Icon, children, defaultOpen = true, badge, className }: {
   title: string
   icon?: LucideIcon
@@ -88,43 +82,33 @@ export function Section({ title, icon: Icon, children, defaultOpen = true, badge
   badge?: ReactNode
   className?: string
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <Card className={cn('overflow-hidden', className)}>
-      <Accordion
-        align="start"
-        size="sm"
-        className="carbon-accordion"
-      >
-        <AccordionItem
-          open={defaultOpen}
-          title={
-            <span className="flex items-center gap-2 pr-8">
-              {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
-              <span>{title}</span>
-              {badge && <span className="ml-auto shrink-0">{badge}</span>}
-            </span>
-          }
+      <div className="flex w-full items-center gap-2 rounded-t-xl px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+          className="flex flex-1 items-center gap-2 text-left hover:bg-muted/40"
         >
-          {children}
-        </AccordionItem>
-      </Accordion>
+          {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</span>
+          <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        </button>
+        {badge && <span className="ml-2 shrink-0">{badge}</span>}
+      </div>
+      {open && <CardContent className="border-t p-4">{children}</CardContent>}
     </Card>
   )
 }
 
-/**
- * Page title block.
- *
- * Carbon ships no PageHead component — its idiom is a heading plus supporting
- * text with actions right-aligned — so this keeps the layout and picks up
- * Carbon's type scale and spacing instead.
- */
 export function PageHead({ title, desc, actions }: { title: string; desc?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-start gap-3">
+    <div className="mb-5 flex flex-wrap items-center gap-3">
       <div className="min-w-0">
-        <h1 className="text-xl font-normal leading-tight">{title}</h1>
-        {desc && <p className="mt-1 text-sm text-muted-foreground">{desc}</p>}
+        <h1 className="text-lg font-semibold">{title}</h1>
+        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
       </div>
       {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
     </div>
@@ -133,14 +117,8 @@ export function PageHead({ title, desc, actions }: { title: string; desc?: strin
 
 export function StatusDot({ ok, pulse }: { ok: boolean; pulse?: boolean }) {
   return (
-    <span
-      className={cn(
-        'inline-block h-2 w-2 rounded-full',
-        ok ? 'bg-chart-2' : 'bg-destructive',
-        pulse && ok && 'animate-pulse',
-      )}
-    />
+    <span className={cn('inline-block h-2 w-2 rounded-full', ok ? 'bg-emerald-500' : 'bg-red-500', pulse && ok && 'animate-pulse')} />
   )
 }
 
-export { CARBON, TOOLTIP_STYLE }
+export { TOOLTIP_STYLE }

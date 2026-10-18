@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { CARBON } from '../charts'
 import {
   EXPORT_PROFILES, fetchExportConfig, fetchMeta, fetchSettings, postSettings, saveExportConfig,
   type ExportConfig, type UiSettings,
@@ -29,7 +28,7 @@ export const WIDGETS: Array<[string, string]> = [
   ['pipeline', 'Pipeline funnel'],
   ['alerts', 'Alert strip'],
 ]
-const ACCENTS = [CARBON.blue, CARBON.green, CARBON.yellow, CARBON.purple, CARBON.red, CARBON.magenta]
+const ACCENTS = ['#4fb3ff', '#3fd06a', '#e8b64c', '#9b7bff', '#ff5f57', '#ff8fd8']
 
 /** Compact choice chip / swatch used across the Interface card (S1). */
 function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
@@ -73,7 +72,7 @@ export function SettingsPage() {
   const widgets = prefs.widgets
   const dark = prefs.theme !== 'light'
   const density = prefs.density ?? 'compact'
-  const accent = prefs.accent ?? CARBON.blue
+  const accent = prefs.accent ?? '#4fb3ff'
   const tz = prefs.tz ?? 'local'
   const realtime = prefs.realtime !== false
   const hidden = prefs.hiddenCollections ?? []
@@ -87,9 +86,7 @@ export function SettingsPage() {
 
   const toggleTheme = () => {
     const next = dark ? 'light' : 'dark'
-    // The `useSettings` effect owns applying the theme from the preference, so
-    // this only has to persist the choice; applying it here as well would
-    // reintroduce a second path that can drift from the Carbon class.
+    document.documentElement.classList.toggle('dark', next === 'dark')
     setPref({ theme: next })
   }
   const toggleWidget = (id: string) => {

@@ -1,66 +1,17 @@
-import { TextInput } from "@carbon/react"
-import { useId } from "react"
+import * as React from "react"
+import { Input as InputPrimitive } from "@base-ui/react/input"
 import { cn } from "cn"
 
-/**
- * Carbon `TextInput` behind the dashboard's bare-`<input>` API.
- *
- * Carbon's TextInput is a labelled control (wrapper + label + input + helper
- * text) and its types require both `id` and `labelText`, while the dashboard's
- * `Input` is the bare field that page code labels itself. So the surface is the
- * standard input props, and Carbon's two required props are satisfied here: a
- * generated id when the caller gives none, and an empty `labelText` plus
- * `hideLabel` so no label slot is rendered.
- *
- * Height is pinned to 32px for the same density reason as Button — Carbon's
- * default text input is 40px.
- */
-export interface InputProps
-  extends Omit<React.ComponentProps<"input">, "size"> {
-  invalid?: boolean
-  invalidText?: string
-  helperText?: string
-}
-
-function Input({
-  className,
-  type = "text",
-  id,
-  invalid,
-  invalidText,
-  helperText,
-  ...props
-}: InputProps) {
-  const generated = useId()
-  const inputId = id ?? generated
-
-  // Carbon's TextInput types its handlers against `HTMLElement`, but the node
-  // Carbon renders is a real `<input>`, so a caller written against the DOM
-  // gets an `HTMLInputElement` at runtime. That mismatch is confined to this
-  // one cast rather than pushed onto every call site.
-  const passthrough = {
-    ...props,
-    defaultValue:
-      typeof props.defaultValue === "string" || typeof props.defaultValue === "number"
-        ? props.defaultValue
-        : undefined,
-  } as unknown as Record<string, unknown>
-
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
-    <TextInput
-      data-slot="input"
-      id={inputId}
+    <InputPrimitive
       type={type}
-      labelText=""
-      hideLabel
-      invalid={invalid}
-      invalidText={invalid && invalidText ? invalidText : undefined}
-      helperText={!invalid && helperText ? helperText : undefined}
-      // Height/padding/label-gutter overrides live in index.css under
-      // `.carbon-input` — Tailwind v4 mis-escapes `__` inside arbitrary
-      // variants, so they cannot be expressed as utilities here.
-      className={cn("carbon-input", className)}
-      {...passthrough}
+      data-slot="input"
+      className={cn(
+        "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        className
+      )}
+      {...props}
     />
   )
 }

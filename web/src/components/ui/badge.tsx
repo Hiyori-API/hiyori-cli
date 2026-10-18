@@ -1,110 +1,51 @@
-import { Tag as CarbonTag } from "@carbon/react"
+import { mergeProps } from "@base-ui/react/merge-props"
+import { useRender } from "@base-ui/react/use-render"
+import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
-/**
- * Carbon `Tag` behind the dashboard's badge API.
- *
- * Carbon has no "destructive"/"ghost"/"link" tag, so those map onto the Carbon
- * types that carry the same meaning (red, cool-gray, outline) and the two that
- * have no Tag equivalent keep their token-driven styling — Carbon has no
- * colour that reads as "link", and an unstyled ghost tag is a plain label.
- *
- * Carbon tags are 16px tall with a 2px radius; the dashboard's badges were
- * 20px pills, so the height is set here rather than leaving a jarring jump.
- */
-type Variant =
-  | "default"
-  | "secondary"
-  | "destructive"
-  | "outline"
-  | "ghost"
-  | "link"
-
-const TAG_TYPE: Record<
-  Exclude<Variant, "ghost" | "link">,
-  "blue" | "cool-gray" | "red" | "outline"
-> = {
-  default: "blue",
-  secondary: "cool-gray",
-  destructive: "red",
-  outline: "outline",
-}
-
-const TONE: Record<Variant, string> = {
-  // `text-*` overrides let a light Carbon tag read correctly on the dark g100
-  // surface, where Carbon's own default foreground would be too dim.
-  default: "",
-  secondary: "",
-  destructive: "",
-  outline: "",
-  ghost: "border border-transparent bg-transparent text-muted-foreground",
-  link: "border border-transparent bg-transparent text-primary underline-offset-4 hover:underline",
-}
-
-/** Carbon Tag colour types (see `TYPES` in @carbon/react Tag). */
-type CarbonTagType =
-  | "red"
-  | "magenta"
-  | "purple"
-  | "blue"
-  | "cyan"
-  | "teal"
-  | "green"
-  | "gray"
-  | "cool-gray"
-  | "warm-gray"
-  | "high-contrast"
-  | "outline"
-
-/**
- * Standard span props plus the Carbon Tag props the dashboard actually uses.
- * Carbon's own Tag props are a discriminated union that is narrower than what
- * these call sites pass (`title`, `className`, arbitrary children), so the
- * surface is widened here rather than edited at ~15 call sites.
- */
-export interface BadgeProps extends React.ComponentProps<"span"> {
-  variant?: Variant
-  type?: CarbonTagType
-  size?: "sm" | "md" | "lg"
-  filter?: boolean
-  onClose?: () => void
-}
-
-function Badge({ className, variant = "default", ...props }: BadgeProps) {
-  const plain = variant === "ghost" || variant === "link"
-  if (plain) {
-    return (
-      <span
-        data-slot="badge"
-        data-variant={variant}
-        className={cn(
-          "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2 text-xs font-medium [&>svg]:pointer-events-none [&>svg]:size-3",
-          TONE[variant],
-          className,
-        )}
-        {...props}
-      />
-    )
+const badgeVariants = cva(
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        secondary:
+          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+        destructive:
+          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
+        outline:
+          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
+        ghost:
+          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
   }
+)
 
-  return (
-    <CarbonTag
-      data-slot="badge"
-      data-variant={variant}
-      type={TAG_TYPE[variant]}
-      size="sm"
-      className={cn(
-        "h-5 max-w-none rounded-[2px] px-2 text-xs font-medium [&>svg]:size-3",
-        TONE[variant],
-        className,
-      )}
-      {...props}
-    />
-  )
+function Badge({
+  className,
+  variant = "default",
+  render,
+  ...props
+}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+  return useRender({
+    defaultTagName: "span",
+    props: mergeProps<"span">(
+      {
+        className: cn(badgeVariants({ variant }), className),
+      },
+      props
+    ),
+    render,
+    state: {
+      slot: "badge",
+      variant,
+    },
+  })
 }
-
-const badgeVariants = ({ variant = "default", className }: { variant?: Variant; className?: string } = {}) =>
-  cn(TONE[variant], className)
 
 export { Badge, badgeVariants }
-export type { Variant as BadgeVariant }

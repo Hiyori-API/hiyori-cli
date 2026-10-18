@@ -16,6 +16,7 @@ import type { PaginationState, SortingState, Updater } from '@tanstack/react-tab
 import type { ExploreRow, UiSettings } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
 import { PageHead } from '@/components/widgets'
@@ -678,7 +679,7 @@ export function ExplorerPage() {
 
   // ---------- render ----------
   return (
-    
+    <TooltipProvider delay={300}>
       <div className="space-y-4">
         <PageHead
           title="Explorer"
@@ -847,7 +848,7 @@ export function ExplorerPage() {
           onSheetEditClose={() => setSheetEditOpen(false)}
         />
       </div>
-    
+    </TooltipProvider>
   )
 }
 

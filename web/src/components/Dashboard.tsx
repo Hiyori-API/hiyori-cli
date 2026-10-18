@@ -1,8 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal, Upload } from 'lucide-react'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
 import {
-  Header, HeaderName, SideNav, SideNavItems, SideNavLink, SkipToContent,
-} from '@carbon/react'
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
+} from '@/components/ui/sidebar'
 import { AlertToasts } from './alert-toast'
 import { ErrorBoundary } from './error-boundary'
 import { StatusProvider, useStatus } from '@/lib/status-context'
@@ -36,15 +39,8 @@ function PageFallback() {
   )
 }
 
-/**
- * Connection state for the header chip: the dot's colour/hollow/pulse and the
- * label, derived in one place so they cannot disagree.
- *
- * Dot colours come from the Carbon ramp (green/red/cyan/amber) rather than the
- * stock Tailwind greens and reds, so status reads as part of the same palette
- * as the charts and tags.
- */
-function useConnectionState(): { label: string; dot: string; hollow: boolean; pulse: boolean } {
+/** Single header connection chip (G7) — realtime toggle lives in Settings now. */
+function StatusChip() {
   const { realtime, sseOpen, sseReconnects, refreshMs } = useStatus()
   const [online, setOnline] = useState<boolean>(navigator.onLine)
   useEffect(() => {
@@ -56,19 +52,30 @@ function useConnectionState(): { label: string; dot: string; hollow: boolean; pu
   }, [])
 
   const secs = Math.max(1, Math.round(refreshMs / 1000))
+  let dot = 'bg-emerald-500'
+  let hollow = false
+  let pulse = false
+  let label: string
+  if (!online) {
+    dot = 'bg-red-500'
+    label = 'offline · cached'
+  } else if (realtime) {
+    if (sseOpen) {
+      dot = 'bg-emerald-500'
+      pulse = true
+      label = `live · ${secs}s`
+    } else {
+      hollow = true
+      label = `reconnecting (${sseReconnects})`
+    }
+  } else {
+    dot = 'bg-sky-500'
+    label = `polling · ${secs}s`
+  }
 
-  if (!online) return { label: 'offline · cached', dot: 'bg-destructive', hollow: false, pulse: false }
-  if (!realtime) return { label: `polling · ${secs}s`, dot: 'bg-chart-2', hollow: false, pulse: false }
-  if (sseOpen) return { label: `live · ${secs}s`, dot: 'bg-chart-2', hollow: false, pulse: true }
-  return { label: `reconnecting (${sseReconnects})`, dot: 'bg-chart-3', hollow: true, pulse: false }
-}
-
-/** Single header connection chip (G7) — realtime toggle lives in Settings now. */
-function StatusChip() {
-  const { label, dot, hollow, pulse } = useConnectionState()
   return (
-    <span role="status" title="Connection status" className="carbon-status tabular-nums">
-      <span className={`h-2 w-2 shrink-0 rounded-full ${hollow ? 'border border-chart-3 bg-transparent' : dot} ${pulse ? 'animate-pulse' : ''}`} />
+    <span role="status" title="Connection status" className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums text-muted-foreground">
+      <span className={`h-2 w-2 rounded-full ${hollow ? 'border border-amber-500 bg-transparent' : dot} ${pulse ? 'animate-pulse' : ''}`} />
       {label}
     </span>
   )
@@ -90,67 +97,79 @@ export function Dashboard() {
 
   return (
     <StatusProvider>
-      {/* Carbon app shell: Header on top, fixed SideNav left, content in the
-          `cds--content` region. Carbon owns the geometry (48px header, 16rem
-          side nav), so the layout below only places the three regions. */}
-      <div className="cds--body carbon-shell min-h-screen">
-        <SkipToContent />
-        <Header aria-label="HiyoriDB">
-          <HeaderName prefix="Hiyori">DB</HeaderName>
-          {/* Carbon's HeaderGlobalBar is not a component — it is the
-              `cds--header__global` wrapper that right-aligns the header's
-              trailing content.
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <Sidebar collapsible="icon">
+          <SidebarHeader>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton size="lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Activity className="h-4 w-4" />
+                  </div>
+                  <div className="grid flex-1 text-left leading-tight">
+                    <span className="truncate font-semibold">Hiyori<span className="text-primary">DB</span></span>
+                    <span className="truncate text-xs text-muted-foreground">{nav.desc}</span>
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {NAV.map(item => (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton isActive={view === item.id} onClick={() => setView(item.id)} tooltip={item.label}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter>
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              hiyori-cli · v2 dashboard
+            </div>
+          </SidebarFooter>
+          <SidebarRail />
+        </Sidebar>
 
-              The connection chip lives here directly rather than inside a
-              HeaderGlobalAction: that action is a fixed 48x48 *icon* slot, and
-              "live · 3s" does not fit inside it (it clipped). Carbon reserves
-              those for icon actions (alerts, help, account); a live status is
-              header text, so it is laid out as text. */}
-          <div className="cds--header__global ml-auto flex items-center gap-1 px-4">
-            <span className="sr-only">Connection status: </span>
-            <StatusChip />
-          </div>
-        </Header>
-
-        <SideNav aria-label="Page" expanded className="carbon-sidenav">
-          <SideNavItems>
-            <li className="carbon-sidenav-brand">
-              <div className="flex items-center gap-2.5 px-4 py-4">
-                <span className="flex h-7 w-7 items-center justify-center bg-primary text-primary-foreground">
-                  <Activity className="h-4 w-4" />
-                </span>
-                <span className="leading-tight">
-                  <span className="block text-sm font-semibold">HiyoriDB</span>
-                  <span className="block text-xs text-muted-foreground">{nav.desc}</span>
-                </span>
-              </div>
-            </li>
-            {NAV.map(item => (
-              <SideNavLink
-                key={item.id}
-                isActive={view === item.id}
-                onClick={() => setView(item.id)}
-                renderIcon={() => <item.icon className="h-4 w-4" />}
-              >
-                {item.label}
-              </SideNavLink>
-            ))}
-          </SideNavItems>
-        </SideNav>
-
-        <main className="cds--content carbon-content">
-          <Suspense fallback={<PageFallback />}>
-            {view === 'dashboard' && <DashboardPage />}
-            {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
-            {view === 'management' && <ManagementPage />}
-            {view === 'quality' && <QualityPage />}
-            {view === 'logs' && <LogsPage />}
-            {view === 'publish' && <ErrorBoundary label="Publish"><PublishPage /></ErrorBoundary>}
-            {view === 'settings' && <SettingsPage />}
-          </Suspense>
-        </main>
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-5">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem><BreadcrumbPage>HiyoriDB</BreadcrumbPage></BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem><BreadcrumbPage className="text-muted-foreground">{nav.label}</BreadcrumbPage></BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <div className="ml-auto flex items-center gap-2">
+              <StatusChip />
+            </div>
+          </header>
+          <main className="flex-1 p-6">
+            <Suspense fallback={<PageFallback />}>
+              {view === 'dashboard' && <DashboardPage />}
+              {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
+              {view === 'management' && <ManagementPage />}
+              {view === 'quality' && <QualityPage />}
+              {view === 'logs' && <LogsPage />}
+              {view === 'publish' && <ErrorBoundary label="Publish"><PublishPage /></ErrorBoundary>}
+              {view === 'settings' && <SettingsPage />}
+            </Suspense>
+          </main>
+        </SidebarInset>
       </div>
       <AlertToasts />
+    </SidebarProvider>
     </StatusProvider>
   )
 }

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   EXPORT_PROFILES, ExportApiError, dryRunExport, fetchExportConfig, previewExport,
   resetExportConfig, runExport, saveExportConfig,
@@ -249,7 +249,7 @@ export function PublishPage() {
   const deltas = run.data?.changelog ?? run.data?.deltas
 
   return (
-    <>
+    <TooltipProvider delay={300}>
       <div className="space-y-4">
         <PageHead
           title="Export & Publish"
@@ -470,16 +470,19 @@ export function PublishPage() {
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">Writes the dump to <code className="rounded bg-muted px-1">storage/publish</code> only — never pushes to HiyoriDB.</p>
               <div className="flex flex-wrap items-center gap-2">
-                <Tooltip
-                  label={combineRunning
-                    ? 'A combine run is in progress — export is locked (409).'
-                    : configInvalid
-                      ? 'Fix the filename pattern / entity selection first.'
-                      : 'Writes to storage/publish only; publishing stays CLI-only.'}
-                >
-                  <Button size="sm" disabled={runDisabled} onClick={onRun}>
-                    {running ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}Run export
-                  </Button>
+                <Tooltip>
+                  <TooltipTrigger render={<span className="inline-flex" />}>
+                    <Button size="sm" disabled={runDisabled} onClick={onRun}>
+                      {running ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}Run export
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {combineRunning
+                      ? 'A combine run is in progress — export is locked (409).'
+                      : configInvalid
+                        ? 'Fix the filename pattern / entity selection first.'
+                        : 'Writes to storage/publish only; publishing stays CLI-only.'}
+                  </TooltipContent>
                 </Tooltip>
                 {combineRunning && <Badge variant="destructive">combine running — locked</Badge>}
                 {state.export_running && <Badge variant="outline">export running</Badge>}
@@ -563,7 +566,7 @@ export function PublishPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </TooltipProvider>
   )
 }
 
