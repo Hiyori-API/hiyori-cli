@@ -146,6 +146,37 @@ if (str_starts_with($path, '/assets/') || str_starts_with($path, '/vite.svg')) {
 }
 
 // Read-only review browser for the dry-run dump under output/ (gitignored).
+
+/**
+ * Resolve a request path inside a base directory, refusing anything that
+ * escapes it.
+ *
+ * The `/output/` and `/storage/backups/` routes concatenated the raw request
+ * path onto a directory and called readfile(), so `/output/../.env` served the
+ * application's own .env and `/output/../../../../../etc/passwd` served the
+ * system file. Neither required authentication. This resolves the real path and
+ * requires it to live under the intended directory, which is what the
+ * `/web/public` route already did correctly.
+ *
+ * @return string|null absolute path when it is a real file inside $baseDir
+ */
+function containedFile(string $relative, string $baseDir): ?string
+{
+    if (str_contains($relative, "\0")) {
+        return null;
+    }
+    $base = realpath($baseDir);
+    if ($base === false) {
+        return null;
+    }
+    $candidate = realpath($baseDir . '/' . ltrim($relative, '/'));
+    if ($candidate === false || !is_file($candidate)) {
+        return null;
+    }
+
+    return str_starts_with($candidate, $base . DIRECTORY_SEPARATOR) ? $candidate : null;
+}
+
 if ($path === '/output' || $path === '/output/') {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
@@ -162,8 +193,8 @@ if ($path === '/output' || $path === '/output/') {
     exit;
 }
 if (str_starts_with($path, '/output/')) {
-    $file = dirname(__DIR__) . $path;
-    if (is_file($file)) {
+    $file = containedFile(substr($path, strlen('/output/')), dirname(__DIR__) . '/output');
+    if ($file !== null) {
         $ext = pathinfo($file, PATHINFO_EXTENSION);
         $mimes = ['json' => 'application/json', 'jsonl' => 'application/x-ndjson', 'csv' => 'text/csv', 'md' => 'text/markdown', 'sql' => 'text/plain', 'gz' => 'application/gzip'];
         header('Content-Type: ' . ($mimes[$ext] ?? 'text/plain') . '; charset=utf-8');
@@ -176,8 +207,8 @@ if (str_starts_with($path, '/output/')) {
 
 // Static assets (vendored libs) — safe allowlist of extensions.
 if (str_starts_with($path, '/vendor/')) {
-    $file = __DIR__ . str_replace(['..', '//'], '', $path);
-    if (is_file($file)) {
+    $file = containedFile(substr($path, strlen('/vendor/')), __DIR__ . '/vendor');
+    if ($file !== null) {
         $ext = pathinfo($file, PATHINFO_EXTENSION);
         $mime = ['js' => 'application/javascript', 'css' => 'text/css', 'woff2' => 'font/woff2'][$ext] ?? 'application/octet-stream';
         header('Content-Type: ' . $mime);
@@ -2063,7 +2094,52 @@ function updateDotEnv(string $key, ?string $value): bool
     return true;
 }
 
+
+/**
+ * Reject requests that did not originate from this dashboard.
+ *
+ * No route had any Origin, Referer or Sec-Fetch check, so `/api/env?raw=1`
+ * (which returns the whole .env) and `?reveal=<key>` were readable by any page
+ * the operator happened to visit — DNS rebinding is enough, because the
+ * attacker's page resolves to 127.0.0.1 and the browser then treats it as
+ * same-origin at the network layer.
+ *
+ * A browser always sends Sec-Fetch-Site, and sends Origin on anything
+ * cross-origin. Both are checked. Non-browser clients (curl, the CLI) send
+ * neither and are allowed through, which keeps the local tool usable.
+ *
+ * This is the right defence for a loopback tool; setting DASHBOARD_TOKEN adds
+ * real authentication on top. Neither replaces the other.
+ */
+function sameOriginRequest(): bool
+{
+    $site = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
+    if ($site === 'cross-site') {
+        return false;
+    }
+
+    $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($origin === '') {
+        return true;
+    }
+
+    $host = (string) (parse_url($origin, PHP_URL_HOST) ?? '');
+    $reqHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $reqName = explode(':', $reqHost)[0];
+
+    return in_array($host, ['localhost', '127.0.0.1', '::1'], true) || $host === $reqName;
+}
+
+/** 403 unless the request came from this dashboard. */
+function requireSameOrigin(): void
+{
+    if (!sameOriginRequest()) {
+        sendJson(['error' => 'cross-origin request refused'], 403);
+    }
+}
+
 if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    requireSameOrigin();
     $vars = listEnvVars();
     $reveal = (string) ($_GET['reveal'] ?? '');
     if (($_GET['raw'] ?? '') === '1') {
@@ -2084,6 +2160,7 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireSameOrigin();
     $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
 
     if (isset($body['raw'])) {
@@ -2131,8 +2208,8 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Serve backup archives as downloads (they live under storage/backups).
 if (str_starts_with($path, '/storage/backups/')) {
-    $file = dirname(__DIR__) . $path;
-    if (is_file($file)) {
+    $file = containedFile(substr($path, strlen('/storage/backups/')), dirname(__DIR__) . '/storage/backups');
+    if ($file !== null) {
         header('Content-Type: application/gzip');
         header('Content-Disposition: attachment; filename="' . basename($file) . '"');
         header('Content-Length: ' . filesize($file));
