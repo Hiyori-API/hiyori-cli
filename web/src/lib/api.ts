@@ -110,7 +110,13 @@ export interface CombineStats {
   merges?: number
   threshold?: number
   scores?: { avg?: number; min?: number; max?: number }
-  score_histogram?: { p70_80?: number; p80_90?: number; p90_100?: number }
+  /**
+   * Pair counts per score band. The four bands partition the merged pairs, so
+   * they sum to `merges` for any threshold — `p0_70` was added because the
+   * original three dropped every merge below 70, which made the bins
+   * under-report whenever `threshold` was configured below 70.
+   */
+  score_histogram?: { p0_70?: number; p70_80?: number; p80_90?: number; p90_100?: number }
   completed_at?: string
 }
 

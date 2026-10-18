@@ -989,11 +989,12 @@ if ($path === '/api/export/preview') {
     } catch (\Throwable $e) {
         sendJson(['error' => 'export preview failed', 'detail' => $e->getMessage()], 500);
     }
-    $out = is_array($result) ? $result : [];
-    $out['entry'] ??= null;
-    $out['rendered'] ??= $out['json'] ?? null;
-    $out['kind'] ??= $kind;
-    if (!isset($out['profile']) && isset($config['profile'])) {
+    // `Exporter::preview()` declares `kind`/`filename`/`entry`/`json` in its
+    // PHPDoc, so the old `is_array()` + `??=` guards were dead. `rendered` is
+    // the router-side alias the dashboard reads for the rendered JSON body.
+    $out = $result;
+    $out['rendered'] = $result['json'];
+    if (isset($config['profile'])) {
         $out['profile'] = $config['profile'];
     }
 
@@ -1008,10 +1009,12 @@ if ($path === '/api/export/dry-run') {
     } catch (\Throwable $e) {
         sendJson(['error' => 'export dry-run failed', 'detail' => $e->getMessage()], 500);
     }
-    $out = is_array($result) ? $result : [];
-    $out += ['files' => 0, 'byKind' => [], 'sampleFilenames' => [], 'bytesEstimate' => 0];
-    $byKind = is_array($out['byKind']) ? $out['byKind'] : [];
-    $samples = is_array($out['sampleFilenames']) ? $out['sampleFilenames'] : [];
+    // `Exporter::dryRun()` declares `files`/`byKind`/`sampleFilenames`/
+    // `bytesEstimate` in its PHPDoc, so the `is_array()` guards and the
+    // defensive `+=` defaults were dead.
+    $out = $result;
+    $byKind = $out['byKind'];
+    $samples = $out['sampleFilenames'];
     $out += [
         'by_kind' => $byKind,
         'counts' => $byKind,
@@ -1061,20 +1064,22 @@ if ($path === '/api/export/run') {
         sendJson(['error' => 'export run failed', 'detail' => $e->getMessage()], 500);
     }
 
-    $out = is_array($result) ? $result : [];
-    $written = is_array($out['written'] ?? null) ? $out['written'] : [];
-    $changelog = is_array($out['changelog'] ?? null) ? $out['changelog'] : [];
+    // `Exporter::write()` declares `dir`/`written`/`files`/`rows`/`changelog`
+    // (and their int offsets) in its PHPDoc, so the `is_array()`/`??`
+    // defensive guards were dead.
+    $out = $result;
+    $written = $out['written'];
+    $changelog = $out['changelog'];
     auditAppend('export.run', [
-        'dir' => $out['dir'] ?? null,
-        'files' => exportFileCount($out['files'] ?? null, $written),
-        'rows' => $out['rows'] ?? null,
+        'dir' => $out['dir'],
+        'files' => exportFileCount($out['files'], $written),
+        'rows' => $out['rows'],
     ]);
 
-    $out += ['dir' => null, 'written' => [], 'files' => 0, 'rows' => 0, 'changelog' => null];
     $out += ['deltas' => [
-        'added' => (int) ($changelog['added'] ?? 0),
-        'changed' => (int) ($changelog['updated'] ?? 0),
-        'removed' => (int) ($changelog['removed'] ?? 0),
+        'added' => $changelog['added'],
+        'changed' => $changelog['updated'],
+        'removed' => $changelog['removed'],
     ]];
 
     sendJson($out);

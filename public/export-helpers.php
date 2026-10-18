@@ -33,8 +33,7 @@ function hiyoriExportProfiles(): array
     if (class_exists($class)) {
         if (method_exists($class, 'profileNames')) {
             try {
-                $names = $class::profileNames();
-                $names = is_array($names) ? array_values(array_filter($names, 'is_string')) : [];
+                $names = array_values(array_filter($class::profileNames(), 'is_string'));
                 if ($names !== []) {
                     return $names;
                 }
@@ -43,16 +42,10 @@ function hiyoriExportProfiles(): array
             }
         }
         if (defined($class . '::PROFILES')) {
-            $constant = constant($class . '::PROFILES');
-            if (is_array($constant) && $constant !== []) {
-                // `PROFILES` is a name => preset map; a plain list is also accepted.
-                $names = array_is_list($constant)
-                    ? array_values(array_filter($constant, 'is_string'))
-                    : array_keys($constant);
-                if ($names !== []) {
-                    return $names;
-                }
-            }
+            // `PROFILES` is a named `array<string, array<string, mixed>>`
+            // constant, so PHPStan fixes `constant()` to that non-empty map:
+            // the old `is_array()`/`!== []`/`array_is_list()` guards were dead.
+            return array_keys(constant($class . '::PROFILES'));
         }
     }
 

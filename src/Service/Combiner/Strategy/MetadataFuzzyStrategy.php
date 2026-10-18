@@ -272,7 +272,16 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                 'min' => round(min($scores), 1),
                 'max' => round(max($scores), 1),
             ] : null,
+            // Four bins that partition every scored match, so they always sum
+            // to count($scores) (== `merges` for entries that resolve a
+            // reference id). `threshold` is configurable down to >0, so a
+            // threshold below 70 produces merged pairs that land below the old
+            // first band; without `p0_70` those were dropped and the dashboard
+            // divided the three surviving bins by their own (too small) sum.
+            // The 70/80/90 band names are part of the API contract
+            // (web/src/lib/api.ts), so they must not be renamed.
             'score_histogram' => [
+                'p0_70' => count(array_filter($scores, fn ($s) => $s < 70)),
                 'p70_80' => count(array_filter($scores, fn ($s) => $s >= 70 && $s < 80)),
                 'p80_90' => count(array_filter($scores, fn ($s) => $s >= 80 && $s < 90)),
                 'p90_100' => count(array_filter($scores, fn ($s) => $s >= 90)),

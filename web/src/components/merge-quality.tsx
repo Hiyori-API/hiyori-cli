@@ -85,7 +85,7 @@ export function MergeQualityPanel({ coverage, combine, backup }: {
         docs: r.docs,
         al, mal, k,
         gap: Math.max(0, 1 - (al + mal + k)),
-        c70: 0, c80: 0, c90: 0,
+        c0: 0, c70: 0, c80: 0, c90: 0,
         pct,
         detail: CRITICAL.map(c => `${c.label} ${fmtPct(r[c.key], r.docs)}`).join(' · '),
       }
@@ -103,8 +103,8 @@ export function MergeQualityPanel({ coverage, combine, backup }: {
     const merges = Number(combine?.merges ?? 0)
     if (hist && merges > 0) {
       const b = (v: unknown) => Number(v ?? 0)
-      const p70 = b(hist.p70_80), p80 = b(hist.p80_90), p90 = b(hist.p90_100)
-      const total = p70 + p80 + p90
+      const p0 = b(hist.p0_70), p70 = b(hist.p70_80), p80 = b(hist.p80_90), p90 = b(hist.p90_100)
+      const total = p0 + p70 + p80 + p90
       // Distinct keys, so the confidence row cannot inherit the AniList /
       // MyAnimeList / Kitsu colours above it — same shape, different meaning.
       out.push({
@@ -112,11 +112,12 @@ export function MergeQualityPanel({ coverage, combine, backup }: {
         kind: 'pairs',
         docs: merges,
         al: 0, mal: 0, k: 0, gap: 0,
+        c0: p0 / (total || 1),
         c70: p70 / (total || 1),
         c80: p80 / (total || 1),
         c90: p90 / (total || 1),
         pct: Math.round(((p80 + p90) / (total || 1)) * 100),
-        detail: `${cx(p70)} at 70–80 · ${cx(p80)} at 80–90 · ${cx(p90)} at 90–100`,
+        detail: `${cx(p0)} below 70 · ${cx(p70)} at 70–80 · ${cx(p80)} at 80–90 · ${cx(p90)} at 90–100`,
       })
     }
     return out
@@ -168,8 +169,9 @@ export function MergeQualityPanel({ coverage, combine, backup }: {
                 <Bar dataKey="mal" name="MyAnimeList ref" stackId="q" fill={COLORS[1]} isAnimationActive={false} />
                 <Bar dataKey="k" name="Kitsu ref" stackId="q" fill={COLORS[2]} isAnimationActive={false} />
                 <Bar dataKey="gap" name="Missing" stackId="q" fill="var(--muted)" isAnimationActive={false} />
-                <Bar dataKey="c70" name="scored 70–80" stackId="q" fill={COLORS[5]} fillOpacity={0.35} isAnimationActive={false} />
-                <Bar dataKey="c80" name="scored 80–90" stackId="q" fill={COLORS[5]} fillOpacity={0.65} isAnimationActive={false} />
+                <Bar dataKey="c0" name="scored below 70" stackId="q" fill={COLORS[5]} fillOpacity={0.2} isAnimationActive={false} />
+                <Bar dataKey="c70" name="scored 70–80" stackId="q" fill={COLORS[5]} fillOpacity={0.45} isAnimationActive={false} />
+                <Bar dataKey="c80" name="scored 80–90" stackId="q" fill={COLORS[5]} fillOpacity={0.7} isAnimationActive={false} />
                 <Bar dataKey="c90" name="scored 90–100" stackId="q" fill={COLORS[5]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
@@ -189,7 +191,7 @@ export function MergeQualityPanel({ coverage, combine, backup }: {
             <span className="text-muted-foreground/60">·</span>
             <span>
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-sm align-middle" style={{ background: COLORS[5] }} />
-              confidence bands (70–80 / 80–90 / 90–100)
+              confidence bands (below 70 / 70–80 / 80–90 / 90–100)
             </span>
             <span className="text-muted-foreground/60">·</span>
             <span>% of the 3-reference budget per document; dashed line is {TARGET}%</span>
