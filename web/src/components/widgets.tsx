@@ -104,36 +104,77 @@ export function KpiCard({
   )
 }
 
-/** Collapsible panel section. */
-export function Section({ title, icon: Icon, children, defaultOpen = true, badge, className }: {
+/**
+ * Panel heading.
+ *
+ * Vertical rhythm comes from the Card itself (`--card-spacing`), so this adds no
+ * vertical padding — an earlier version stacked `py-3` on the Card's own `py-4`
+ * and the header read bloated. Horizontal padding is ours because the Card only
+ * sets vertical; without it the heading sits flush against the card edge while
+ * the body below it is inset.
+ */
+export function PanelHead({ title, icon: Icon, badge, action, className }: {
+  title: string
+  icon?: LucideIcon
+  badge?: ReactNode
+  action?: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('flex items-center gap-2 px-(--card-spacing)', className)}>
+      {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+      <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
+      {badge && <span className="ml-auto shrink-0">{badge}</span>}
+      {action}
+    </div>
+  )
+}
+
+/**
+ * Panel section. Collapsible by default; pass `collapsible={false}` for a panel
+ * whose body is short enough that collapsing it only adds a step.
+ */
+export function Section({ title, icon: Icon, children, defaultOpen = true, badge, className, collapsible = true }: {
   title: string
   icon?: LucideIcon
   children: ReactNode
   defaultOpen?: boolean
   badge?: ReactNode
   className?: string
+  collapsible?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+
+  if (!collapsible) {
+    return (
+      <Card className={cn('overflow-hidden', className)}>
+        <PanelHead title={title} icon={Icon} badge={badge} />
+        <CardContent className="mt-4">{children}</CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className={cn('overflow-hidden', className)}>
-      {/* The header is one clickable row. The hover tint lives on the button and
-          the button carries the padding (with a negative margin pulling it back
-          over the card edge), because putting the padding on the wrapper left
-          the tint hugging the icon and title instead of the whole header. */}
-      <div className="flex w-full items-stretch">
+      {/* The whole header band is the hit target. The negative margins cancel
+          the Card's own padding on all four sides at once so the tint reaches
+          the card edge evenly — bleeding only on the inline axis left the right
+          side visibly short. `py-4` keeps the label on the same baseline as a
+          non-collapsible PanelHead. */}
+      <div className="flex items-stretch">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="-mx-4 flex flex-1 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+          className="-mx-4 -my-4 flex flex-1 items-center gap-2 px-4 py-4 text-left transition-colors hover:bg-muted/40"
         >
           {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
           <ChevronDown className={cn('ml-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
         </button>
-        {badge && <span className="flex shrink-0 items-center pr-4">{badge}</span>}
+        {badge && <span className="ml-2 flex shrink-0 items-center">{badge}</span>}
       </div>
-      {open && <CardContent className="border-t p-4">{children}</CardContent>}
+      {open && <CardContent className="mt-4">{children}</CardContent>}
     </Card>
   )
 }

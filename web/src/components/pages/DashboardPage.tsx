@@ -10,14 +10,14 @@ import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { Sparkline, useChartColors } from '../charts'
 import { isIngestJob, isJobLive, jobPhase, postAction, type BackupInfo, type CombineStats, type HealthCheck, type Job } from '@/lib/api'
-import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
+import { ChangePulse, PageHead, PanelHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
@@ -275,7 +275,7 @@ export function DashboardPage() {
           )}
 
           {visible('fleet') && (
-            <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>}>
+            <Section title="Sources" icon={Layers} badge={<Badge variant="outline">{jobKeys.length}</Badge>} collapsible={false}>
               {jobKeys.length === 0 ? (
                 <EmptyState icon={Activity} title="No ingestion jobs" description="Start a source (Management → Sources) to see live progress, speed and ETA." />
               ) : (
@@ -293,13 +293,13 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {visible('dataset') && (
               <Card>
-                <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Dataset</CardTitle></CardHeader>
-                <CardContent>
+                <PanelHead title="Dataset" icon={Database} />
+                <CardContent className="flex min-h-0 flex-1 flex-col">
                   {dataset.outer.length === 0 ? (
                     <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />
                   ) : (
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                      <div className="h-40 w-full shrink-0 sm:w-40">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="h-40 w-full shrink-0 sm:h-auto sm:min-h-40 sm:w-40 sm:max-w-44">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             {/* Outer ring: one slice per pipeline source. */}
@@ -318,8 +318,8 @@ export function DashboardPage() {
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <ScrollArea className="max-h-40 min-w-0 flex-1">
-                        <div className="space-y-2 text-sm">
+                      <ScrollArea className="min-w-0 flex-1 sm:max-h-56">
+                        <div className="space-y-1.5 text-sm">
                           {dataset.outer.map(e => (
                             <div key={e.name} className="flex items-center justify-between gap-2">
                               <span className="flex min-w-0 items-center gap-2">
@@ -615,7 +615,7 @@ function MergeCard({ combine, backup, extApis, circuits }: {
   if (!combine) {
     return (
       <Card>
-        <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Merge</CardTitle></CardHeader>
+        <PanelHead title="Merge" icon={GitMerge} />
         <CardContent className="p-4">
           <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
         </CardContent>
@@ -632,70 +632,80 @@ function MergeCard({ combine, backup, extApis, circuits }: {
   const total = counts.reduce((a, b) => a + b, 0)
 
   return (
-    <Card>
-      <CardHeader><CardTitle as="h2" className="text-sm uppercase tracking-wide text-muted-foreground">Merge</CardTitle></CardHeader>
-      <CardContent className="p-4">
+    <Card className="flex flex-col">
+      <PanelHead title="Merge" icon={GitMerge} />
+      <CardContent className="flex min-h-0 flex-1 flex-col">
+        {/* One line answers the only question that matters: how many pairs, by
+            what method. Everything below is detail on that number. */}
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-medium tabular-nums">{cx(combine.merges)}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="truncate text-xs text-muted-foreground">
             pairs · {combine.strategy} · base {combine.base}
           </span>
         </div>
 
         {total > 0 && (
           <div className="mt-3">
-            <div className="flex h-2 w-full overflow-hidden rounded-sm" role="img"
-                 aria-label={`Match confidence: ${bins.map((b, i) => `${b.label} ${counts[i]}`).join(', ')}`}>
+            <div
+              className="flex h-2 w-full overflow-hidden rounded-sm"
+              role="img"
+              aria-label={`Match confidence: ${bins.map((b, i) => `${b.label} score, ${counts[i]} pairs`).join('; ')}`}
+            >
               {bins.map((b, i) => counts[i] > 0 && (
                 <span key={b.key} style={{ width: `${(counts[i] / total) * 100}%`, background: b.color }} />
               ))}
             </div>
-            <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
-              {bins.map((b, i) => (
-                <span key={b.key} className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-sm" style={{ background: b.color }} />
-                  {b.label} {cx(counts[i])}
-                </span>
-              ))}
-            </div>
+            {/* The distribution as one compact line. It was three legend columns
+                stacked under the bar, which made it the tallest thing in the
+                card and the least scannable part of it. */}
+            <p className="mt-1.5 truncate text-[10px] tabular-nums text-muted-foreground">
+              {bins.map((b, i) => `${b.label} ${cx(counts[i])}`).join('  ·  ')}
+            </p>
           </div>
         )}
 
-        <dl className="mt-3 space-y-1 text-xs">
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">mean score</dt>
-            <dd className="tabular-nums">{combine.scores?.avg ?? '—'}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">accept floor</dt>
-            <dd className="tabular-nums">{combine.threshold ?? '—'}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">last run</dt>
-            <dd>{ago(combine.completed_at)}</dd>
-          </div>
-          {backup?.last?.mtime != null && (
-            <div className="flex justify-between gap-2">
-              <dt className="text-muted-foreground">last backup</dt>
-              <dd>{ago(new Date(backup.last.mtime * 1000).toISOString())}</dd>
-            </div>
-          )}
-        </dl>
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>avg <span className="tabular-nums text-foreground">{combine.scores?.avg ?? '—'}</span></span>
+          <span>floor <span className="tabular-nums text-foreground">{combine.threshold ?? '—'}</span></span>
+          <span>ran {ago(combine.completed_at)}</span>
+        </p>
 
-        <div className="mt-3 border-t pt-2">
+        {/* Run metadata and endpoint health are reference, not glance. Folded
+            away so the card's resting height is the three facts above. */}
+        <div className="mt-auto border-t pt-2">
           <button
             type="button"
             onClick={() => setOpen(o => !o)}
             aria-expanded={open}
-            className="flex w-full items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            className="flex w-full items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
-            Endpoints & circuits
-            <span className="ml-auto tabular-nums">{extApis.length + circuits.length}</span>
+            Run detail
+            <span className="ml-auto normal-case tabular-nums tracking-normal text-muted-foreground">
+              {extApis.length + circuits.length} endpoints
+            </span>
           </button>
           {open && (
-            <ScrollArea className="mt-2 max-h-32">
-              <div className="space-y-1 text-xs">
+            <dl className="mt-2 space-y-1 text-xs">
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">strategy</dt>
+                <dd className="truncate tabular-nums">{combine.strategy}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">base collection</dt>
+                <dd className="tabular-nums">{combine.base}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">score range</dt>
+                <dd className="tabular-nums">{combine.scores?.min ?? '—'}–{combine.scores?.max ?? '—'}</dd>
+              </div>
+              {backup?.last?.mtime != null && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">last backup</dt>
+                  <dd>{ago(new Date(backup.last.mtime * 1000).toISOString())}</dd>
+                </div>
+              )}
+              <div className="border-t pt-1.5">
                 {extApis.length === 0 && circuits.length === 0 ? (
                   <p className="text-muted-foreground">no external endpoints or circuits</p>
                 ) : (
@@ -708,14 +718,14 @@ function MergeCard({ combine, backup, extApis, circuits }: {
                       </div>
                     ))}
                     {circuits.length > 0 && (
-                      <div className="border-t pt-1 text-[10px] text-muted-foreground">
-                        circuits: {circuits.map(([src, s]) => `${src}:${s.circuit_state === 'open' ? 'OPEN' : 'closed'}`).join(' · ')}
+                      <div className="pt-1 text-[10px] text-muted-foreground">
+                        circuits: {circuits.map(([src, st]) => `${src}:${st.circuit_state === 'open' ? 'OPEN' : 'closed'}`).join(' · ')}
                       </div>
                     )}
                   </>
                 )}
               </div>
-            </ScrollArea>
+            </dl>
           )}
         </div>
       </CardContent>
