@@ -362,13 +362,28 @@ export async function fetchExplore(p: ExploreParams): Promise<ExploreResponse> {
   return r.json() as Promise<ExploreResponse>
 }
 
-export async function deleteDocs(collection: string, ids: string[]): Promise<{ deleted?: number; error?: string }> {
-  const r = await fetch('/api/explore/delete', {
+/**
+ * POST /api/explore/bulk {action:'delete'} — snapshot the docs to
+ * `explore_undo_<collection>`, then delete them.
+ *
+ * This used to POST to `/api/explore/delete`, which does not exist: the server
+ * answered 404 `{error:'not found'}`, `r.json()` handed that body back, and the
+ * Explorer toasted "deleted 0 docs" while nothing happened. The bulk route is
+ * the one the other Explorer mutations (`bulkAction`) already use; it reports
+ * the affected row count as `affected` and the undo snapshot as `batch`.
+ */
+export async function deleteDocs(collection: string, ids: string[]): Promise<{ deleted?: number; batch?: number; error?: string }> {
+  const r = await fetch('/api/explore/bulk', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ collection, ids }),
+    body: JSON.stringify({ collection, ids, action: 'delete' }),
   })
-  return r.json() as Promise<{ deleted?: number; error?: string }>
+  let body: { affected?: number; batch?: number; error?: string } = {}
+  try {
+    body = await r.json()
+  } catch { /* non-JSON error page */ }
+  if (!r.ok) return { error: body.error ?? `delete ${r.status}` }
+  return { deleted: body.affected ?? 0, batch: body.batch }
 }
 
 export interface MetaCollection { count?: number; fields?: string[] }
@@ -420,15 +435,35 @@ export interface SettingsResponse {
   note?: string
   webhook?: string
   reset?: boolean
+  /** Set by `useSettings().update` when the save request failed. */
+  error?: string
 }
 
+/**
+ * POST JSON and reject on a non-2xx reply.
+ *
+ * Returning the error body as if it were a success made every caller treat a
+ * refused write (400 invalid key, 403 cross-origin, 404 route missing) as if it
+ * had been stored. Callers that surface `{ error }` bodies still get one, but
+ * only for 2xx replies; anything else throws with the server's message.
+ */
 async function jsonPost(url: string, body: object): Promise<unknown> {
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return r.json()
+  let data: unknown = null
+  try {
+    data = await r.json()
+  } catch { /* empty or non-JSON body */ }
+  if (!r.ok) {
+    const detail =
+      (data as { error?: string; message?: string } | null)?.error ??
+      (data as { message?: string } | null)?.message
+    throw new Error(detail || `${url} → HTTP ${r.status}`)
+  }
+  return data
 }
 
 export async function fetchSettings(): Promise<SettingsResponse> {
@@ -481,11 +516,34 @@ export async function fetchHistogram(collection = 'organized', field?: string): 
   return r.json() as Promise<{ histogram?: Record<string, number>; bins?: number[]; field?: string }>
 }
 
+/**
+ * Download a collection dump as JSONL/CSV.
+ *
+ * `/api/export?collection=…&format=…` is documented in
+ * docs/dashboard-roadmap.md but was never implemented: the server answers
+ * 404 `{error:'not found', path:'/api/export'}`. The old version pointed an
+ * `<a download>` at that URL unconditionally, so the browser cheerfully saved
+ * the 404 JSON body as `organized.jsonl`. Fetch it first and only offer the
+ * file once the server has actually produced a dump; a 404/500 now rejects
+ * instead of writing a garbage file.
+ */
 export async function downloadExport(collection: string, format: 'jsonl' | 'csv'): Promise<void> {
+  const url = `/api/export?collection=${encodeURIComponent(collection)}&format=${format}`
+  const r = await fetch(url)
+  if (!r.ok) {
+    let detail = ''
+    try {
+      detail = ((await r.json()) as { error?: string }).error ?? ''
+    } catch { /* non-JSON body */ }
+    throw new ExportApiError(r.status, detail || `${url} → HTTP ${r.status}`)
+  }
+  const blob = await r.blob()
+  const href = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = `/api/export?collection=${encodeURIComponent(collection)}&format=${format}`
+  a.href = href
   a.download = `${collection}.${format}`
   a.click()
+  URL.revokeObjectURL(href)
 }
 
 /** Open the /api/events SSE stream for near-instant updates. */

@@ -61,6 +61,7 @@ export function ManagementPage() {
   // Same pattern as the Dashboard: an action that spawns a worker shows its
   // spinner immediately rather than looking inert until the next poll.
   const [busySrc, setBusySrc] = useState<string | null>(null)
+  const [runnowBusy, setRunnowBusy] = useState(false)
   const [restorePick, setRestorePick] = useState<string | null>(null)
   const [max, setMax] = useState(100)
   const [win, setWin] = useState(60)
@@ -136,13 +137,37 @@ export function ManagementPage() {
   const run = async (cmd: string, src: string) => {
     setBusySrc(src)
     setConfirm(null)
+    let ok = false
     try {
-      await postAction(`ingest-${src}`, cmd as 'start' | 'retry' | 'pause' | 'resume')
+      const res = await postAction(`ingest-${src}`, cmd as 'start' | 'retry' | 'pause' | 'resume')
+      if (res.error) throw new Error(res.error)
+      ok = true
       toast.success(`${src} → ${cmd}`)
+    } catch (e) {
+      // try/finally without a catch swallowed every failed action: no toast, no
+      // log, the row just sat there. Say what failed.
+      toast.error(`${src} → ${cmd} failed — ${e instanceof Error ? e.message : String(e)}`)
     } finally {
-      // Hold the spinner past the response so it covers the poll that actually
-      // reflects the change, rather than blinking off straight away.
-      window.setTimeout(() => setBusySrc(b => (b === src ? null : b)), 2000)
+      // Hold the spinner past a successful response so it covers the poll that
+      // actually reflects the change, rather than blinking off straight away.
+      // On failure there is nothing to wait for, so clear it now.
+      if (ok) window.setTimeout(() => setBusySrc(b => (b === src ? null : b)), 2000)
+      else setBusySrc(b => (b === src ? null : b))
+    }
+  }
+
+  // Await the trigger before announcing success — the old order toasted "all
+  // sources triggered" even when the request never reached the server.
+  const runNow = async () => {
+    setRunnowBusy(true)
+    try {
+      const res = await postAction('schedule', 'runnow')
+      if (res.error) throw new Error(res.error)
+      toast.success('all sources triggered')
+    } catch (e) {
+      toast.error(`could not trigger all sources — ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setRunnowBusy(false)
     }
   }
 
@@ -153,15 +178,23 @@ export function ManagementPage() {
   }
   const doRestore = async () => {
     if (!restorePick) return
-    const r = await restoreBackup(restorePick)
-    if (r.error) toast.error(r.error)
-    else { toast.success(`restore of ${restorePick} started`); setRestorePick(null) }
+    try {
+      const r = await restoreBackup(restorePick)
+      if (r.error) toast.error(r.error)
+      else { toast.success(`restore of ${restorePick} started`); setRestorePick(null) }
+    } catch (e) {
+      toast.error(`restore failed — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const saveLimits = async () => {
-    await postLimits({ max, window: win })
-    toast.success('limits saved — applied on next ingest start')
-    loadAll()
+    try {
+      await postLimits({ max, window: win })
+      toast.success('limits saved — applied on next ingest start')
+      loadAll()
+    } catch (e) {
+      toast.error(`limits not saved — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   return (
@@ -230,8 +263,11 @@ export function ManagementPage() {
                   <span className="font-medium">{sched?.next_in != null ? `in ${Math.round(sched.next_in / 60)}m` : '—'}</span>
                 </div>
                 <p className="col-span-full text-[10px] text-muted-foreground">Managed via <code>hiyori schedule --install</code> or SCHEDULE_* env vars — edit there, not here.</p>
-                <Button size="sm" variant="outline" className="col-span-full" onClick={() => { void postAction('schedule', 'runnow'); toast('all sources triggered') }}>
-                  <Terminal className="mr-1.5 h-3.5 w-3.5" />Run now
+                <Button size="sm" variant="outline" className="col-span-full" disabled={runnowBusy} onClick={() => void runNow()}>
+                  {runnowBusy
+                    ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    : <Terminal className="mr-1.5 h-3.5 w-3.5" />}
+                  {runnowBusy ? 'Triggering…' : 'Run now'}
                 </Button>
               </div>
             </div>

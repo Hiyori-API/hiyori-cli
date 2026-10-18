@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchEnv, fetchEnvRaw, postEnv, postEnvPatterns, postEnvRaw, type EnvVar } from '@/lib/api'
 import { useSettings } from '@/lib/hooks'
 import { EmptyState } from '../empty'
+import { Notice } from '../notice'
 
 /** Settings → Environment: manage .env variables from the dashboard. */
 export function EnvSettings() {
@@ -25,8 +26,16 @@ export function EnvSettings() {
   const { settings } = useSettings()
   const patterns = (settings.env_sensitive_patterns as string[] | undefined) ?? []
 
+  const [loadError, setLoadError] = useState<string | null>(null)
   const reload = useCallback(async () => {
-    setEnv((await fetchEnv()).env ?? [])
+    try {
+      setEnv((await fetchEnv()).env ?? [])
+      setLoadError(null)
+    } catch (e) {
+      // Without this the failed request left `env === null` (a skeleton forever)
+      // or, after an edit, an empty table with no hint that anything broke.
+      setLoadError(e instanceof Error ? e.message : String(e))
+    }
   }, [])
 
   useEffect(() => { void reload() }, [reload])
@@ -42,11 +51,17 @@ export function EnvSettings() {
   }
 
   const update = async (key: string, value: string | null) => {
-    const r = await postEnv({ key, value })
-    if (r.error) { toast.error(r.error); return }
-    setEditing(null)
-    await reload()
-    toast.success(value === null ? `${key} removed` : `${key} updated`)
+    try {
+      const r = await postEnv({ key, value })
+      if (r.error) { toast.error(r.error); return }
+      setEditing(null)
+      await reload()
+      toast.success(value === null ? `${key} removed` : `${key} updated`)
+    } catch (e) {
+      // A refused write (invalid key, cross-origin, server down) now rejects
+      // instead of coming back as a body; say so rather than doing nothing.
+      toast.error(`${value === null ? 'remove' : 'save'} ${key} failed — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const add = async () => {
@@ -77,11 +92,15 @@ export function EnvSettings() {
   }
 
   const saveRaw = async () => {
-    const r = await postEnvRaw(raw ?? '')
-    if (r.error) { toast.error(r.error); return }
-    setRawOpen(false)
-    await reload()
-    toast.success('.env updated')
+    try {
+      const r = await postEnvRaw(raw ?? '')
+      if (r.error) { toast.error(r.error); return }
+      setRawOpen(false)
+      await reload()
+      toast.success('.env updated')
+    } catch (e) {
+      toast.error(`could not save .env — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const downloadRaw = async () => {
@@ -98,14 +117,22 @@ export function EnvSettings() {
   const addPattern = async () => {
     const p = pattern.trim()
     if (!p) return
-    await postEnvPatterns([...patterns, p])
-    setPattern('')
-    await reload()
-    toast.success('pattern added')
+    try {
+      await postEnvPatterns([...patterns, p])
+      setPattern('')
+      await reload()
+      toast.success('pattern added')
+    } catch (e) {
+      toast.error(`could not add pattern — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
   const removePattern = async (p: string) => {
-    await postEnvPatterns(patterns.filter(x => x !== p))
-    await reload()
+    try {
+      await postEnvPatterns(patterns.filter(x => x !== p))
+      await reload()
+    } catch (e) {
+      toast.error(`could not remove pattern — ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const vars = env ?? []
@@ -119,7 +146,13 @@ export function EnvSettings() {
         use 👁 to reveal one at a time. Changes apply on the next request. Actions are audited.
       </p>
 
-      {env === null ? <Skeleton className="h-32 w-full" /> : vars.length === 0 ? (
+      {loadError && (
+        <Notice tone="error" action={<Button size="sm" variant="outline" onClick={() => void reload()}>Retry</Button>}>
+          Could not load environment variables — {loadError}
+        </Notice>
+      )}
+
+      {env === null ? (loadError ? null : <Skeleton className="h-32 w-full" />) : vars.length === 0 ? (
         <EmptyState icon={KeyRound} title="No environment variables" description="Everything the app loads from .env will appear here." />
       ) : (
         <div className="space-y-4">

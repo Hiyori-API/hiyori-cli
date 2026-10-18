@@ -47,7 +47,18 @@ export interface ExploreResp {
   error?: string
 }
 
+/**
+ * Collection the Explorer is currently browsing.
+ *
+ * `undo` restores a delete batch belonging to *one* collection, and the
+ * Explorer's undo toast was calling `undoExplore()` with no argument, so the
+ * server got `{}` and answered 400 `bad collection`. Tracking the last
+ * `explore()` request keeps that call site correct without changing its shape.
+ */
+let lastCollection = 'anilist'
+
 export async function explore(p: ExploreReq): Promise<ExploreResp> {
+  lastCollection = p.collection
   const qs = new URLSearchParams()
   const entries: Array<[string, string | number | undefined]> = [
     ['collection', p.collection],
@@ -115,8 +126,9 @@ export async function bulkAction(collection: string, ids: string[], action: stri
   return postJson<BulkResp>('/api/explore/bulk', { collection, ids, action, ...(key !== undefined ? { key } : {}), ...(value !== undefined ? { value } : {}) })
 }
 
-export async function undoExplore(): Promise<BulkResp> {
-  return postJson<BulkResp>('/api/explore/undo', {})
+/** POST /api/explore/undo {collection, batch?} — restore the latest (or given) delete batch. */
+export async function undoExplore(collection: string = lastCollection, batch?: number): Promise<BulkResp> {
+  return postJson<BulkResp>('/api/explore/undo', batch === undefined ? { collection } : { collection, batch })
 }
 
 export async function restoreExplore(file: string): Promise<BulkResp> {
