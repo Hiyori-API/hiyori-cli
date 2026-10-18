@@ -25,6 +25,10 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.625rem;
+  /* Semantic warning ink. Amber was hardcoded 40 times as amber-500/600/400
+     with hand-paired dark variants, so the same severity rendered three
+     different ways across pages. One token, theme-aware. */
+  --warn: oklch(0.55 0.14 62);
   --chart-1: oklch(0.62 0.19 258);
   --chart-2: oklch(0.63 0.11 190);
   --chart-3: oklch(0.72 0.15 70);
@@ -62,6 +66,7 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --warn: oklch(0.79 0.14 75);
   --chart-1: oklch(0.72 0.16 258);
   --chart-2: oklch(0.76 0.11 190);
   --chart-3: oklch(0.79 0.14 75);
@@ -103,6 +108,7 @@
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
+  --color-warn: var(--warn);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);

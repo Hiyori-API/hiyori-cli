@@ -36,7 +36,7 @@ export function AlertToasts() {
             className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm shadow-lg backdrop-blur ${
               a.level === 'critical'
                 ? 'border-red-500/60 bg-red-500/15 text-red-400'
-                : 'border-amber-500/60 bg-amber-500/15 text-amber-400'
+                : 'border-warn/60 bg-warn/15 text-warn'
             }`}
           >
             {a.level === 'critical' ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />}

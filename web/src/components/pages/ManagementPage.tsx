@@ -289,7 +289,7 @@ export function ManagementPage() {
               <EmptyState icon={CheckCircle2} title="No active alerts" description="Circuit breaks and API outages will appear here." />
             ) : visibleAlerts.map((a, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <span className={`h-2 w-2 rounded-full ${a.level === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                <span className={`h-2 w-2 rounded-full ${a.level === 'critical' ? 'bg-red-500' : 'bg-warn'}`} />
                 <span className="flex-1">{a.msg}</span>
                 {acks.includes(a.msg ?? '') ? <Badge variant="secondary">acked</Badge> : (
                   <Button size="sm" variant="ghost" onClick={() => void update({ prefs: { ...settings.prefs, acks: [...acks, a.msg ?? ''] } })}><BellOff className="mr-1 h-3.5 w-3.5" />Ack</Button>
@@ -321,7 +321,7 @@ export function ManagementPage() {
                           onClick={() => void run('retry', g.source === '?' ? 'anilist' : g.source)}
                         ><RotateCcw className="h-3 w-3" /></Button>
                       </div>
-                      {g.errors.size > 0 && <div className="mt-1 text-amber-500">{Array.from(g.errors).join(', ')}</div>}
+                      {g.errors.size > 0 && <div className="mt-1 text-warn">{Array.from(g.errors).join(', ')}</div>}
                     </div>
                   ))}
                 </div>

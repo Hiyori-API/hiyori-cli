@@ -292,12 +292,12 @@ export function DetailSheet({ doc, collection, collections, onOpenChange, onOpen
           <TabsContent value="fields" className="overflow-y-auto pr-1">
             <RefMapSection doc={d} collections={collections} onOpenRef={onOpenRef} />
             {issues.length > 0 && (
-              <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-500">Validation issues ({issues.length})</p>
+              <div className="mb-3 rounded-lg border border-warn/30 bg-warn/5 p-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-warn">Validation issues ({issues.length})</p>
                 {issues.map((iss, i) => (
                   <div key={i} className="mb-1 text-xs">
                     {Object.entries(iss.errors ?? {}).map(([f, msgs]) => (
-                      <p key={f}><span className="font-mono text-amber-400">{f}</span>: {(Array.isArray(msgs) ? msgs : [String(msgs)]).join('; ')}</p>
+                      <p key={f}><span className="font-mono text-warn">{f}</span>: {(Array.isArray(msgs) ? msgs : [String(msgs)]).join('; ')}</p>
                     ))}
                   </div>
                 ))}

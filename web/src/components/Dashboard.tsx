@@ -143,7 +143,7 @@ function PipelineChip() {
       className={pill}
       title={`${liveKeys.join(', ')} · ${rate.toFixed(1)}/s combined${errors ? ` · ${errors} errors` : ''}`}
     >
-      <span className={cn('h-2 w-2 shrink-0 rounded-full', stalled ? 'bg-amber-500' : 'animate-pulse bg-emerald-500')} />
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', stalled ? 'bg-warn' : 'animate-pulse bg-emerald-500')} />
       <span className="max-w-40 truncate">{name}</span>
       <span className="text-muted-foreground/60">·</span>
       {stalled ? 'no progress' : `${rate.toFixed(1)}/s`}
@@ -187,7 +187,7 @@ function StatusChip() {
 
   return (
     <span role="status" title="Connection status" className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums text-muted-foreground">
-      <span className={`h-2 w-2 rounded-full ${hollow ? 'border border-amber-500 bg-transparent' : dot} ${pulse ? 'animate-pulse' : ''}`} />
+      <span className={`h-2 w-2 rounded-full ${hollow ? 'border border-warn bg-transparent' : dot} ${pulse ? 'animate-pulse' : ''}`} />
       {label}
     </span>
   )

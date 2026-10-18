@@ -95,7 +95,7 @@ export function LogsPage() {
                   </span>
                 ))}
                 {maxSlowMs != null && (
-                  <span className="ml-auto text-muted-foreground">max <span className="tabular-nums font-medium text-amber-500">{fmtCompact(maxSlowMs)}ms</span></span>
+                  <span className="ml-auto text-muted-foreground">max <span className="tabular-nums font-medium text-warn">{fmtCompact(maxSlowMs)}ms</span></span>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground">p95/p99 time-series requires per-request metric logging; volume buckets use the slow-request feed for now.</p>
@@ -192,7 +192,7 @@ function ValidationTable({ rows, tz }: { rows: ValidationEvent[]; tz: Tz }) {
       id: 'errors',
       header: 'Errors',
       accessorFn: r => Object.keys(r.errors ?? {}).join(', '),
-      cell: info => <span className="text-amber-500">{Object.keys(info.row.original.errors ?? {}).join(', ')}</span>,
+      cell: info => <span className="text-warn">{Object.keys(info.row.original.errors ?? {}).join(', ')}</span>,
       sortingFn: 'basic',
       meta: { align: 'left' } as const,
     },
@@ -285,7 +285,7 @@ function SlowTable({ slow, tz }: { slow: SlowEntry[]; tz: Tz }) {
       sortFn: 'basic',
       sortDescFirst: true,
       meta: { align: 'right' },
-      cell: ({ row }) => <span className="tabular-nums text-amber-500">{fmtCompact(row.original.ms)}ms</span>,
+      cell: ({ row }) => <span className="tabular-nums text-warn">{fmtCompact(row.original.ms)}ms</span>,
     }),
     slowHelper.accessor('method', {
       id: 'method',

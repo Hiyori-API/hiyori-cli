@@ -96,7 +96,7 @@ export function ExplorerDialogs(props: ExplorerDialogsProps) {
                   <tr key={k} className="border-t align-top">
                     <td className="px-3 py-2 font-medium">{k}</td>
                     <td className="px-3 py-2 break-all whitespace-pre-wrap text-emerald-400">{previewVal(a)}</td>
-                    <td className="px-3 py-2 break-all whitespace-pre-wrap text-amber-400">{previewVal(b)}</td>
+                    <td className="px-3 py-2 break-all whitespace-pre-wrap text-warn">{previewVal(b)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -203,7 +203,7 @@ export function ColumnsMenu({ fields, cols, onToggle, onReset, emptyStats }: {
               <DropdownMenuCheckboxItem key={f} checked={cols.includes(f)} onCheckedChange={() => onToggle(f)}>
                 <span className="flex w-full items-center gap-2 pr-6">
                   <span className="min-w-0 flex-1 truncate">{f}</span>
-                  {pct > 0 && <span className={cn('shrink-0 text-[10px] tabular-nums', pct >= 50 ? 'text-amber-500' : 'text-muted-foreground')}>{pct}% empty</span>}
+                  {pct > 0 && <span className={cn('shrink-0 text-[10px] tabular-nums', pct >= 50 ? 'text-warn' : 'text-muted-foreground')}>{pct}% empty</span>}
                 </span>
               </DropdownMenuCheckboxItem>
             )

@@ -109,7 +109,7 @@ function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<str
           return (
             <span
               title={String(v)}
-              className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground'}`}
+              className={`rounded px-1 ${pct > 0.5 ? 'bg-emerald-500/20 text-emerald-500' : pct > 0 ? 'bg-warn/20 text-warn' : 'text-muted-foreground'}`}
             >
               {pct > 0 ? (pct * 100).toFixed(0) : '·'}
             </span>
@@ -149,7 +149,7 @@ function CoverageMatrixTable({ coverage }: { coverage: Record<string, Record<str
           <span className="rounded bg-emerald-500/20 px-1 text-emerald-500">60</span> over half
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="rounded bg-amber-500/20 px-1 text-amber-500">12</span> some
+          <span className="rounded bg-warn/20 px-1 text-warn">12</span> some
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-muted-foreground">·</span> none
@@ -521,7 +521,7 @@ export function QualityPage() {
                   <div className="h-3 flex-1 rounded bg-muted">
                     {/* Scale by the tallest bucket. The old `n * 10` capped at
                         100% made 10 violations and 400 look identical. */}
-                    <div className="h-full rounded bg-amber-500/70" style={{ width: trendPeak > 0 ? `${(b.n / trendPeak) * 100}%` : '0%' }} />
+                    <div className="h-full rounded bg-warn/70" style={{ width: trendPeak > 0 ? `${(b.n / trendPeak) * 100}%` : '0%' }} />
                   </div>
                   <span className="tabular-nums text-muted-foreground">{b.n}</span>
                 </div>
@@ -636,7 +636,7 @@ export function QualityPage() {
                   <Badge variant={r.decision === 'approve' ? 'default' : r.decision === 'reject' ? 'secondary' : 'outline'} className="w-16 justify-center">{r.decision}</Badge>
                   <span className="font-mono text-muted-foreground">{r.base_source}:{r.base_id} ↔ {r.candidate_source}:{r.candidate_id}</span>
                   <span className="ml-auto tabular-nums text-muted-foreground">{r.score != null ? Number(r.score).toFixed(1) : '—'}</span>
-                  <span className={r.promoted ? 'text-muted-foreground' : 'text-amber-600'}>{r.promoted ? 'promoted' : 'pending'}</span>
+                  <span className={r.promoted ? 'text-muted-foreground' : 'text-warn'}>{r.promoted ? 'promoted' : 'pending'}</span>
                 </div>
               ))
             )}

@@ -59,7 +59,7 @@ const DOT: Record<SourceLevel, string> = {
   // A finished run is deliberately not green: green here means "working", and
   // a completed job is at rest.
   done: 'bg-sky-500',
-  warn: 'bg-amber-500 animate-pulse',
+  warn: 'bg-warn animate-pulse',
   crit: 'bg-red-500 animate-pulse',
   none: 'bg-muted',
 }
@@ -73,7 +73,7 @@ export function SourceStatusBlip({ status, size = 'md' }: { status: SourceStatus
 export function SourceStatusLabel({ status }: { status: SourceStatus }) {
   if (status.level === 'ok' || status.level === 'done') return <span className="text-[10px] text-muted-foreground">{status.label}</span>
   if (status.level === 'none') return null
-  const cls = status.level === 'crit' ? 'text-red-400' : 'text-amber-400'
+  const cls = status.level === 'crit' ? 'text-red-400' : 'text-warn'
   return <span className={cn('text-[10px] font-medium', cls)}>● {status.label}</span>
 }
 

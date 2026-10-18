@@ -75,10 +75,10 @@ function formatBytes(n?: number): string {
 /** Inline amber notice shown when a call 404s / the server is unreachable. */
 function BackendNotice({ title, message, onRetry }: { title: string; message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+    <div role="alert" className="flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/5 p-4">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
       <div className="min-w-0 flex-1 text-xs">
-        <p className="font-medium text-amber-600 dark:text-amber-400">{title}</p>
+        <p className="font-medium text-warn">{title}</p>
         <p className="mt-0.5 text-muted-foreground">{message}</p>
         <p className="mt-1 text-muted-foreground">
           Expected endpoints: <code className="rounded bg-muted px-1">GET/POST /api/export-config</code>,{' '}
@@ -314,7 +314,7 @@ export function PublishPage() {
                         <span>Manga</span>
                       </label>
                     </div>
-                    {noEntities && <p className="mt-1 text-[10px] text-amber-500">Select at least one entity kind.</p>}
+                    {noEntities && <p className="mt-1 text-[10px] text-warn">Select at least one entity kind.</p>}
                   </div>
 
                   <div>
@@ -408,7 +408,7 @@ export function PublishPage() {
               {backend === 'missing' && <p className="text-xs text-muted-foreground">Preview unavailable — the export API is not up yet.</p>}
               {preview.loading && <Skeleton className="h-48 w-full" />}
               {!preview.loading && preview.error && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-muted-foreground">{preview.error}</p>
+                <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{preview.error}</p>
               )}
               {!preview.loading && !preview.error && (
                 <>
@@ -438,7 +438,7 @@ export function PublishPage() {
               <Button size="sm" variant="outline" disabled={backend !== 'ready' || dry.loading || configInvalid} onClick={onDryRun}>
                 {dry.loading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FolderTree className="mr-1.5 h-3.5 w-3.5" />}Dry run
               </Button>
-              {dry.error && <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-muted-foreground">{dry.error}</p>}
+              {dry.error && <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{dry.error}</p>}
               {dry.data && (
                 <div className="space-y-2 text-xs">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -484,7 +484,7 @@ export function PublishPage() {
                 {combineRunning && <Badge variant="destructive">combine running — locked</Badge>}
                 {state.export_running && <Badge variant="outline">export running</Badge>}
               </div>
-              {run.error && <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-muted-foreground">{run.error}</p>}
+              {run.error && <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted-foreground">{run.error}</p>}
               {run.data && (
                 <div className="space-y-2 text-xs">
                   {run.data.dir && (
@@ -507,7 +507,7 @@ export function PublishPage() {
                   {deltas && (
                     <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
                       <span>CHANGELOG: <span className="text-emerald-500">+{deltas.added ?? 0} added</span></span>
-                      <span className="text-amber-500">~{deltas.changed ?? 0} changed</span>
+                      <span className="text-warn">~{deltas.changed ?? 0} changed</span>
                       <span className="text-red-500">-{deltas.removed ?? 0} removed</span>
                     </div>
                   )}
@@ -520,8 +520,8 @@ export function PublishPage() {
         {/* Guarded publish — ships OFF */}
         <Section title="Publish to HiyoriDB" icon={Upload} badge={<Badge variant="outline">ships OFF</Badge>}>
           <div className="space-y-3 text-xs">
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
-              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <div className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 p-3">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
               <p className="text-muted-foreground">
                 Pushing is intentionally disabled in the dashboard. Publishing clones the HiyoriDB repository, commits and pushes — that stays CLI-only so a
                 mis-click can never rewrite the public repo. The export above only writes to local storage.

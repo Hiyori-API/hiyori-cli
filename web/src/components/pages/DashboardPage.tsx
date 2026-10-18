@@ -12,14 +12,14 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip as Tip, TooltipContent as TipContent, TooltipProvider as TipProvider, TooltipTrigger as TipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
 import { Sparkline, useChartColors } from '../charts'
 import { isIngestJob, isJobLive, jobPhase, postAction, type BackupInfo, type CombineStats, type HealthCheck, type Job } from '@/lib/api'
-import { ChangePulse, PageHead, PanelHead, Section, StatusDot, StatStrip } from '../widgets'
+import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceLogo, SourceStatusBlip, SourceStatusLabel, rowStatus, type SourceStatus } from '../source-status'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { EmptyState } from '../empty'
@@ -211,7 +211,7 @@ export function DashboardPage() {
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+          className="flex items-center gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn"
         >
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
           <span>Backend offline — reconnecting…</span>
@@ -280,9 +280,8 @@ export function DashboardPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {visible('dataset') && (
-              <Card>
-                <PanelHead title="Dataset" icon={Database} />
-                <CardContent className="flex min-h-0 flex-1 flex-col">
+              <Section title="Dataset" icon={Database} collapsible={false} className="flex flex-col">
+                <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                   {dataset.outer.length === 0 ? (
                     <EmptyState icon={Database} title="No collections" description="Ingest a source to build the dataset." />
                   ) : (
@@ -331,7 +330,7 @@ export function DashboardPage() {
                     </div>
                   )}
                 </CardContent>
-              </Card>
+              </Section>
             )}
 
             {visible('health') && (
@@ -546,8 +545,8 @@ function SourcesTable({
           if (run.kind === 'stalled') {
             return (
               <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                <span className="text-xs text-amber-600 dark:text-amber-400">no progress {fmtSec(run.sinceSec)}</span>
+                <span className="h-2 w-2 shrink-0 rounded-full bg-warn" />
+                <span className="text-xs text-warn">no progress {fmtSec(run.sinceSec)}</span>
                 <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)} processed</span>
               </span>
             )
@@ -567,8 +566,8 @@ function SourcesTable({
           if (run.kind === 'stale') {
             return (
               <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                <span className="text-xs text-amber-600 dark:text-amber-400">stopped {fmtSec(run.agoSec)} ago</span>
+                <span className="h-2 w-2 shrink-0 rounded-full bg-warn" />
+                <span className="text-xs text-warn">stopped {fmtSec(run.agoSec)} ago</span>
                 <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{cx(processed)} processed</span>
               </span>
             )
@@ -777,12 +776,9 @@ function MergeCard({ combine, backup, coverage }: {
   const COLORS = useChartColors()
   if (!combine) {
     return (
-      <Card>
-        <PanelHead title="Merge" icon={GitMerge} />
-        <CardContent className="p-4">
-          <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
-        </CardContent>
-      </Card>
+      <Section title="Merge" icon={GitMerge} collapsible={false}>
+        <EmptyState icon={GitMerge} title="Never combined" description="Run a combine strategy to see merge confidence here." />
+      </Section>
     )
   }
 
@@ -819,9 +815,8 @@ function MergeCard({ combine, backup, coverage }: {
   }, [coverage])
 
   return (
-    <Card className="flex flex-col">
-      <PanelHead title="Merge" icon={GitMerge} />
-      <CardContent className="flex min-h-0 flex-1 flex-col">
+    <Section title="Merge" icon={GitMerge} collapsible={false} className="flex flex-col">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
         {/* One line answers the only question that matters: how many pairs, by
             what method. Everything below is detail on that number. */}
         <div className="flex items-baseline gap-2">
@@ -869,6 +864,6 @@ function MergeCard({ combine, backup, coverage }: {
         </p>
 
       </CardContent>
-    </Card>
+    </Section>
   )
 }
