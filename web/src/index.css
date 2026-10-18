@@ -226,3 +226,43 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Coherent scrollbars.
+ *
+ * The app mixes three scrolling surfaces: native `overflow-auto` containers
+ * (DataTable, dialogs, sheets, dropdowns), Base UI ScrollArea (overlay thumb)
+ * and the window. Left alone, each paints the OS-default scrollbar — a wide,
+ * light-grey track in light mode and a near-invisible one in dark mode — which
+ * reads as three different design systems on one page.
+ *
+ * These rules make every native container use the same thin, themed thumb the
+ * rest of the UI uses (muted token, primary on hover, sharp corners), and keep
+ * the track transparent so it does not add a second colour. Firefox reads
+ * `scrollbar-width` / `scrollbar-color`; Chromium reads the pseudo-elements.
+ * `ScrollArea` keeps its own thumb because it is an overlay control.
+ * ------------------------------------------------------------------------- */
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--muted-foreground);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--primary);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

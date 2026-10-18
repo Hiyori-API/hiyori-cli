@@ -21,6 +21,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
 import { PageHead } from '@/components/widgets'
 import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc, type ExploreResp } from '@/lib/explorer/backend'
+import { SourceLogo } from '@/components/source-status'
 import { brandOf, fmtCount, isMissing, isScalar, stringId, titleOf } from '@/lib/explorer/doc-utils'
 import { addRecent, loadFavs, loadRecents, toggleFav as favToggle, type RecentSearch } from '@/lib/explorer/favorites'
 import { fetchServerViews, loadLocalViews, mergeViews, persistLocalViews, pushViewsToServer } from '@/lib/explorer/views'
@@ -123,7 +124,16 @@ export function ExplorerPage() {
   const cancelExport = useRef(false)
   const modalOpenRef = useRef(false)
 
-  const collections = useMemo(() => Object.keys(meta), [meta])
+  // The Explorer is a browser for the *catalogue* — ingested sources and the
+  // merged output. Infrastructure collections (_hiyori_ids, _migrations,
+  // embeddings, _labels, _counters, pair_rejections, llm_judgements) are
+  // bookkeeping and searching them only confused the picker with rows that
+  // are not anime/manga.
+  const collections = useMemo(() => {
+    const isSource = (c: string) => /^(anilist|kitsu|myanimelist)(?:_manga)?$/.test(c)
+    const isMerged = (c: string) => c === 'organized' || c === 'organized_manga'
+    return Object.keys(meta).filter(c => isSource(c) || isMerged(c))
+  }, [meta])
   const docs = data?.docs ?? []
   const fields = data?.fields ?? []
   const total = data?.total ?? 0
@@ -703,7 +713,14 @@ export function ExplorerPage() {
                 onClick={() => { setCollection(c); setPage(1) }}
                 className={cn('flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm', active ? 'border-primary/60 bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-muted/40')}
               >
-                {brand && <span className="brand-chip" style={{ background: brand.color }}>{brand.label}</span>}
+                {brand && (
+                  <span
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted"
+                    title={brand.label}
+                  >
+                    <SourceLogo source={c} size={20} />
+                  </span>
+                )}
                 <span className="max-w-[140px] truncate">{c}</span>
                 <span className="ml-1 text-xs tabular-nums text-muted-foreground">{fmtCount(meta[c]?.count ?? 0)}</span>
               </button>

@@ -124,7 +124,7 @@ export function PanelHead({ title, icon: Icon, badge, action, className }: {
     <div className={cn('flex items-center gap-2 px-(--card-spacing)', className)}>
       {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
       <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
-      {badge && <span className="ml-auto shrink-0">{badge}</span>}
+      {badge && <span className="shrink-0">{badge}</span>}
       {action}
     </div>
   )
