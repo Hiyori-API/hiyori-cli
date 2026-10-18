@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, MoreHorizontal,
+  Archive, BellOff, CheckCircle2, Clock, Download, Gauge, ListChecks, Loader2, MoreHorizontal,
   Pause, Play, RefreshCw, RotateCcw, ServerCog, ShieldAlert, Terminal,
 } from 'lucide-react'
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table'
@@ -57,6 +57,9 @@ export function ManagementPage() {
   const [auditFilter, setAuditFilter] = useState('all')
   const [limits, setLimits] = useState<{ max?: number; window?: number; source?: string }>({})
   const [confirm, setConfirm] = useState<{ cmd: string; src: string } | null>(null)
+  // Same pattern as the Dashboard: an action that spawns a worker shows its
+  // spinner immediately rather than looking inert until the next poll.
+  const [busySrc, setBusySrc] = useState<string | null>(null)
   const [restorePick, setRestorePick] = useState<string | null>(null)
   const [max, setMax] = useState(100)
   const [win, setWin] = useState(60)
@@ -125,9 +128,16 @@ export function ManagementPage() {
   )
 
   const run = async (cmd: string, src: string) => {
-    await postAction(`ingest-${src}`, cmd as 'start' | 'retry' | 'pause' | 'resume')
-    toast.success(`${src} → ${cmd}`)
+    setBusySrc(src)
     setConfirm(null)
+    try {
+      await postAction(`ingest-${src}`, cmd as 'start' | 'retry' | 'pause' | 'resume')
+      toast.success(`${src} → ${cmd}`)
+    } finally {
+      // Hold the spinner past the response so it covers the poll that actually
+      // reflects the change, rather than blinking off straight away.
+      window.setTimeout(() => setBusySrc(b => (b === src ? null : b)), 2000)
+    }
   }
 
   const doBackup = async () => {
@@ -168,7 +178,15 @@ export function ManagementPage() {
                     <SourceStatusLabel status={sourceStatus(data?.health, src)} />
                     <Badge variant={phase === 'done' ? 'secondary' : phase === 'running' ? 'outline' : 'ghost'}>{paused ? 'paused' : phase}</Badge>
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${src}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>} />
+                      <DropdownMenuTrigger
+                        render={
+                          <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${src}`} disabled={busySrc === src}>
+                            {busySrc === src
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <MoreHorizontal className="h-3.5 w-3.5" />}
+                          </Button>
+                        }
+                      />
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setConfirm({ cmd: 'start', src })}><Play className="h-3.5 w-3.5" />Start</DropdownMenuItem>
                         <DropdownMenuItem disabled={!!paused} onClick={() => void run('pause', src)}><Pause className="h-3.5 w-3.5" />Pause</DropdownMenuItem>

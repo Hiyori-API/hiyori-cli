@@ -4,7 +4,7 @@ import {
   Activity, Database, Gauge, GitMerge, Hash, Layers, Loader2,
   Play, Pause, RotateCcw, Timer,
 } from 'lucide-react'
-import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from 'cn'
 import { ago, fmt, fmtSec } from '@/lib/format'
 import { toast } from 'sonner'
@@ -159,6 +159,7 @@ export function DashboardPage() {
   // Management confirmed the same command, so the one place it was easiest to
   // hit was the one place it asked nothing.
   const [confirmRetry, setConfirmRetry] = useState<string | null>(null)
+
   const retry = async (src: string) => {
     await postAction(`ingest-${src}`, 'retry')
     toast(`${src} retry scheduled`)
@@ -334,7 +335,7 @@ export function DashboardPage() {
             )}
 
             {visible('health') && (
-              <MergeCard combine={data?.combine} backup={data?.backup} />
+              <MergeCard combine={data?.combine} backup={data?.backup} coverage={data?.coverage ?? {}} />
             )}
           </div>
 
@@ -719,7 +720,11 @@ function SourcesTable({
         },
       },
     ],
-    [onPause, onResume, onRetry],
+    // `pending` must be a dependency. The cell closures read it to render the
+    // spinner, so without it here a click repainted nothing until the next data
+    // poll happened to recreate these handlers — which is why the loader lagged
+    // behind the button by a whole cycle.
+    [onPause, onResume, onRetry, pending],
   )
 
   return (
@@ -764,10 +769,12 @@ function rowTooltip(r: SourceRow): string {
  * The score histogram is the useful part — an average hides the problem, since
  * a run can average 96 while a fifth of its merges sit near the floor.
  */
-function MergeCard({ combine, backup }: {
+function MergeCard({ combine, backup, coverage }: {
   combine: CombineStats | undefined
   backup: BackupInfo | undefined
+  coverage: Record<string, Record<string, number | undefined>>
 }) {
+  const COLORS = useChartColors()
   if (!combine) {
     return (
       <Card>
@@ -779,13 +786,37 @@ function MergeCard({ combine, backup }: {
     )
   }
 
-  const bins = [
-    { key: 'p70_80', label: '70–80', color: 'var(--chart-3)' },
-    { key: 'p80_90', label: '80–90', color: 'var(--chart-1)' },
-    { key: 'p90_100', label: '90–100', color: 'var(--chart-6)' },
-  ] as const
-  const counts = bins.map(b => Number(combine.score_histogram?.[b.key] ?? 0))
-  const total = counts.reduce((a, b) => a + b, 0)
+
+  /**
+   * Completeness of the merged output, as a radar.
+   *
+   * The Merge card showed only confidence — how sure the matcher was about the
+   * pairs it merged. That says nothing about whether the merged records are
+   * actually *rich*: a record can be merged at 99 confidence and still carry a
+   * single reference id. Plotting the two merged collections against the same
+   * axes makes the real state visible at a glance: anime is well covered,
+   * manga is merged but barely enriched.
+   */
+  const mergeRadar = useMemo(() => {
+    const cov = coverage ?? {}
+    const axes = ['al', 'mal', 'k', 'cr', 'tx', 't', 'nf', 'yt']
+    const series = [
+      { key: 'anime', row: 'organized' as const },
+      { key: 'manga', row: 'organized_manga' as const },
+    ].filter(sr => (cov[sr.row]?.total ?? 0) > 0)
+
+    const rows = axes.map(ax => {
+      const row: Record<string, string | number> = { ref: ax }
+      for (const sr of series) {
+        const total = cov[sr.row]?.total ?? 0
+        row[sr.key] = total > 0 ? Math.round(((cov[sr.row]?.[ax] ?? 0) / total) * 100) : 0
+      }
+      return row
+    })
+    // Drop axes nothing carries, so the shape is not padded with dead spokes.
+    const used = rows.filter(r => series.some(sr => Number(r[sr.key]) > 0))
+    return { rows: used.length >= 3 ? used : [], series: series.map(sr => sr.key) }
+  }, [coverage])
 
   return (
     <Card className="flex flex-col">
@@ -800,23 +831,31 @@ function MergeCard({ combine, backup }: {
           </span>
         </div>
 
-        {total > 0 && (
-          <div className="mt-3">
-            <div
-              className="flex h-2 w-full overflow-hidden rounded-sm"
-              role="img"
-              aria-label={`Match confidence: ${bins.map((b, i) => `${b.label} score, ${counts[i]} pairs`).join('; ')}`}
-            >
-              {bins.map((b, i) => counts[i] > 0 && (
-                <span key={b.key} style={{ width: `${(counts[i] / total) * 100}%`, background: b.color }} />
-              ))}
-            </div>
-            {/* The distribution as one compact line. It was three legend columns
-                stacked under the bar, which made it the tallest thing in the
-                card and the least scannable part of it. */}
-            <p className="mt-1.5 truncate text-[10px] tabular-nums text-muted-foreground">
-              {bins.map((b, i) => `${b.label} ${cx(counts[i])}`).join('  ·  ')}
-            </p>
+        {/* Completeness of the merged output, not just the matcher's certainty.
+            A record can merge at 99 confidence and still carry one reference. */}
+        {mergeRadar.rows.length > 0 && (
+          <div className="mt-2 h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={mergeRadar.rows} cx="50%" cy="50%" outerRadius="72%">
+                <PolarGrid stroke="var(--border)" />
+                <PolarAngleAxis dataKey="ref" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} />
+                <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(v) => [`${v}%`]}
+                />
+                {mergeRadar.series.map((key, i) => (
+                  <Radar
+                    key={key}
+                    name={key}
+                    dataKey={key}
+                    stroke={COLORS[i % COLORS.length]}
+                    fill={COLORS[i % COLORS.length]}
+                    fillOpacity={0.22}
+                  />
+                ))}
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
         )}
 

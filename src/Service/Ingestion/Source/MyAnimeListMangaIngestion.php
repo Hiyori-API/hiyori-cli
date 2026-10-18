@@ -79,6 +79,10 @@ final class MyAnimeListMangaIngestion
 
             foreach ($entries as $entry) {
                 $itemId = $entry['node']['id'];
+                // Honour a pause set from the dashboard. Checked per record, not per
+                // page: a page is 500 entries and at the configured delay that can be
+                // many minutes, so pausing only between pages would read as a dead button.
+                Telemetry::waitIfPaused($sourceKey);
                 $processed++;
 
                 if ($db->exists($config->getTable(), $config->getShorthand(), $itemId)) {

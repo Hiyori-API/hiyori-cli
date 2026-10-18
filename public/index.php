@@ -1125,13 +1125,19 @@ if ($path === '/api/action') {
         auditAppend('schedule.runnow', ['sources' => (string) $srcs]);
         sendJson(['job' => $job, 'cmd' => 'runnow', 'scheduled' => true]);
     }
+    // The worker reads `control-<source>.json` (Telemetry::isPaused), and the
+    // status payload reads the same name via controls() — which strips the
+    // `ingest-` prefix. This handler was the only writer using the prefixed job
+    // name, so pause wrote control-ingest-<source>.json while the worker waited
+    // on control-<source>.json and never saw it. Normalise to the source name.
+    $sourceName = str_starts_with($job, 'ingest-') ? substr($job, 7) : $job;
     file_put_contents(
-        dirname(__DIR__) . '/storage/state/control-' . $job . '.json',
+        dirname(__DIR__) . '/storage/state/control-' . $sourceName . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
     auditAppend('job.' . $cmd2, ['job' => $job]);
 
-    sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($job)]);
+    sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($sourceName)]);
 }
 
 /**
