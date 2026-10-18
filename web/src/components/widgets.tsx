@@ -40,6 +40,33 @@ export function ChangePulse({ value, className, pulse = true }: { value: string;
   )
 }
 
+export function StatStrip({ items }: {
+  items: { label: string; value: string; icon: LucideIcon; sub?: string; tone?: 'ok' | 'warn' | 'bad' }[]
+}) {
+  return (
+    <div className="grid grid-cols-1 divide-y divide-border rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      {items.map(it => (
+        <div key={it.label} className="flex items-center gap-3 px-4 py-3">
+          <it.icon className={cn(
+            'h-4 w-4 shrink-0 text-muted-foreground',
+            it.tone === 'warn' && 'text-chart-5',
+            it.tone === 'bad' && 'text-destructive',
+          )} />
+          <div className="min-w-0">
+            <p className="truncate text-xs text-muted-foreground">{it.label}</p>
+            <p className={cn(
+              'truncate text-xl font-medium leading-tight tabular-nums',
+              it.tone === 'warn' && 'text-chart-5',
+              it.tone === 'bad' && 'text-destructive',
+            )}>{it.value}</p>
+          </div>
+          {it.sub && <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground/70">{it.sub}</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function KpiCard({
   label, value, icon: Icon, sub, loading,
 }: {

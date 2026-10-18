@@ -17,7 +17,7 @@ import { useStatus } from '@/lib/status-context'
 import { useCachedFetch, useFailures } from '@/lib/fetch-cache'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
 import { CompletenessRadar, DensityHistogram } from '../chartcard'
-import { COLORS } from '../charts'
+import { useChartColors } from '../charts'
 import { EmptyState } from '../empty'
 import { fmt, fmtCompact, fmtSec } from '@/lib/format'
 import { tzDateTime, type Tz } from '@/lib/time'
@@ -202,6 +202,8 @@ export function QualityPage() {
     })
   }, [coverage, cols])
 
+  const COLORS = useChartColors()
+
   const radarSeries = cols.map((c, i) => ({ key: c, color: COLORS[i % COLORS.length] }))
 
   const missingRows = useMemo(() => cols.map((c, i) => ({
@@ -361,7 +363,7 @@ export function QualityPage() {
             ) : (
               <BenchmarkTable rows={benchManga} />
             )}
-            {!histManga.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Manga merged scores (organized_manga)" bins={histManga.data?.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histManga.data?.histogram ?? {}} color={['#9b7bff', '#b9a6ff']} />}
+            {!histManga.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Manga merged scores (organized_manga)" bins={histManga.data?.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histManga.data?.histogram ?? {}} color={['var(--chart-4)', 'var(--chart-1)']} />}
           </TabsContent>
         </Tabs>
       </Section>
@@ -401,7 +403,7 @@ export function QualityPage() {
               )
             })()}
             {!hist.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="Merged scores" bins={hist.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={hist.data.histogram ?? {}} />}
-            {!histMl.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="ML scores (metadata_ml)" bins={histMl.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histMl.data.histogram ?? {}} color={['#34d399', '#6ee7b7']} />}
+            {!histMl.data ? <Skeleton className="h-44 w-full" /> : <DensityHistogram title="ML scores (metadata_ml)" bins={histMl.data.bins ?? [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]} counts={histMl.data.histogram ?? {}} color={['var(--chart-6)', 'var(--chart-2)']} />}
             <div>
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-xs text-muted-foreground">min score</span>

@@ -15,9 +15,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '@/lib/hooks'
 import { useStatus } from '@/lib/status-context'
-import { COLORS } from '../charts'
+import { useChartColors, useSeriesColors } from '../charts'
 import { isJobLive, jobPhase, postAction, type HealthCheck, type Job } from '@/lib/api'
-import { ChangePulse, KpiCard, PageHead, Section, StatusDot } from '../widgets'
+import { ChangePulse, PageHead, Section, StatusDot, StatStrip } from '../widgets'
 import { SourceStatusBlip, SourceStatusLabel, sourceStatus, type SourceStatus } from '../source-status'
 import { alignSeries, CompositionStream, SeriesChartCard } from '../chartcard'
 import { DataTable, type DataTableFeatures } from '@/components/data-table/data-table'
@@ -77,11 +77,27 @@ export function DashboardPage() {
   const jobKeys = Object.keys(jobs).filter(k => (jobs[k] as Job)?.source).sort()
   const activeJobs = jobKeys.filter(k => isJobLive(jobs[k] as Job))
   const totalDocs = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts])
-  const totalErrors = useMemo(() => jobKeys.reduce((a, k) => a + ((jobs[k] as Job).errors ?? 0), 0), [jobs, jobKeys])
+  // Errors are only meaningful for the run you are watching. Summing every job
+  // ever recorded — including finished and stale ones — produced a
+  // monotonically climbing counter (295 and rising) that read as an active
+  // alarm during a healthy ingest. Split the two numbers: failures on the live
+  // run, and skips separately, since a skip is usually "already had it", not a
+  // fault.
+  const { liveErrors, liveSkipped } = useMemo(() => {
+    let e = 0
+    let s = 0
+    for (const k of activeJobs) {
+      const j = jobs[k] as Job
+      e += j.errors ?? 0
+      s += j.skipped ?? 0
+    }
+    return { liveErrors: e, liveSkipped: s }
+  }, [jobs, activeJobs])
   // Only live jobs contribute to the combined rate; a stale run's last
   // per_second would otherwise keep the KPI non-zero forever.
   const activeRate = useMemo(() => jobKeys.reduce((a, k) => a + (isJobLive(jobs[k] as Job) ? ((jobs[k] as Job).per_second ?? 0) : 0), 0), [jobs, jobKeys])
 
+  const COLORS = useChartColors()
   const dataset = useMemo(() => {
     const keys = Object.keys(counts).sort().filter(k => !hiddenCollections.includes(k))
     return keys.map((k, i) => ({ name: k, value: counts[k], color: COLORS[i % COLORS.length] }))
@@ -106,11 +122,15 @@ export function DashboardPage() {
 
   const h = data?.health
   const health = h?.checks
+  // Gauges mean something, so they take semantic colours rather than the next
+  // categorical one: warn while there is headroom, bad only once it is gone.
+  const SERIES = useSeriesColors()
+  const gaugeColor = (pct: number) => (pct >= 90 ? SERIES.bad : pct >= 75 ? SERIES.warn : SERIES.good)
   const gauges = [
-    { key: 'disk', label: 'Disk', value: health?.disk_space?.used_percent ?? 0, color: '#ff8f6b' },
-    { key: 'mem', label: 'Memory', value: health?.memory?.used_percent ?? 0, color: '#e8b64c' },
-    { key: 'mongo', label: 'MongoDB', value: health?.mongodb?.healthy === false ? 0 : health?.mongodb?.latency_ms != null ? Math.min(100, Math.max(10, 100 - health.mongodb.latency_ms / 10)) : 0, color: '#3fd06a' },
-  ]
+    { key: 'disk', label: 'Disk', value: health?.disk_space?.used_percent ?? 0 },
+    { key: 'mem', label: 'Memory', value: health?.memory?.used_percent ?? 0 },
+    { key: 'mongo', label: 'MongoDB', value: health?.mongodb?.healthy === false ? 0 : health?.mongodb?.latency_ms != null ? Math.min(100, Math.max(10, 100 - health.mongodb.latency_ms / 10)) : 0 },
+  ].map(g => ({ ...g, color: g.key === 'mongo' ? SERIES.good : gaugeColor(g.value) }))
   const circuits = Object.entries(health?.rate_limiter?.limiters ?? {})
   const extApis = Object.entries(health?.external_apis?.endpoints ?? {})
 
@@ -163,19 +183,27 @@ export function DashboardPage() {
       )}
 
       {!dataReady && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map(i => <Skeleton key={i} className="h-28 w-full" />)}
-        </div>
+        <Skeleton className="h-[4.5rem] w-full rounded-lg" />
       )}
 
       {data && (
         <>
           {visible('kpi') && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <KpiCard label="Total docs" value={cx(totalDocs)} icon={Database} sub={`${cx(activeJobs.length)} active sources`} />
-              <KpiCard label="Ingest rate" value={`${activeRate.toFixed(1)}/s`} icon={Gauge} sub="combined entries per second" />
-              <KpiCard label="Errors" value={cx(totalErrors)} icon={Hash} sub="since start" />
-            </div>
+            <StatStrip
+              items={[
+                { label: 'Total docs', value: cx(totalDocs), icon: Database, sub: `${cx(activeJobs.length)} active` },
+                { label: 'Ingest rate', value: `${activeRate.toFixed(1)}/s`, icon: Gauge, sub: 'entries/sec' },
+                {
+                  label: 'Errors',
+                  value: cx(liveErrors),
+                  icon: Hash,
+                  // Tone follows the number: a clean live run should not render
+                  // in the same ink as a run that is failing.
+                  tone: liveErrors > 0 ? 'warn' : 'ok',
+                  sub: activeJobs.length ? `on ${activeJobs.length} live` : 'no live source',
+                },
+              ]}
+            />
           )}
 
           {visible('pipeline') && (
@@ -188,6 +216,11 @@ export function DashboardPage() {
               <span className="text-muted-foreground/50">
                 ({cx(animeDocs)} anime · {cx(mangaDocs)} manga)
               </span>
+              {liveSkipped > 0 && (
+                <span className="text-muted-foreground/60">
+                  · {cx(liveSkipped)} skipped (already stored)
+                </span>
+              )}
               {lastCombine && (
                 <span className="ml-auto min-w-0 truncate">
                   · last combine <span className="font-medium text-foreground">{lastCombine.strategy}</span> {lastCombine.ago}
@@ -327,6 +360,11 @@ function SourcesTable({
         header: 'Source',
         accessorFn: r => r.src,
         sortingFn: 'alphanumeric',
+        // Capped so the table fits a narrow viewport: the name truncates with a
+        // title tooltip instead of stretching and shoving the pinned Actions
+        // column over Progress.
+        size: 260,
+        minSize: 180,
         meta: { align: 'left' } as const,
         cell: ({ row }) => {
           const { src, status } = row.original

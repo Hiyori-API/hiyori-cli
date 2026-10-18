@@ -515,7 +515,7 @@ export function DataTable<TData extends RowData>({
                             'whitespace-nowrap px-2 py-2 font-medium',
                             meta?.align === 'right' && 'text-right',
                             meta?.align === 'center' && 'text-center',
-                            meta?.stickyRight && 'sticky right-0 z-20 bg-background',
+                            meta?.stickyRight && 'sticky right-0 z-20 border-l border-border bg-background',
                             isStickyLeft && 'sticky z-20 border-r border-border bg-background',
                             meta?.className,
                             isSelect && 'w-8 px-3',
@@ -620,7 +620,7 @@ export function DataTable<TData extends RowData>({
                               meta?.align === 'right' && 'text-right',
                               meta?.align === 'center' && 'text-center',
                               meta?.stickyRight &&
-                                'sticky right-0 z-10 bg-background group-hover/row:bg-muted/30 dark:group-hover/row:bg-muted/30 dark:bg-background',
+                                'sticky right-0 z-10 border-l border-border bg-background group-hover/row:bg-muted/30 dark:group-hover/row:bg-muted/30 dark:bg-background',
                               isStickyLeft &&
                                 'sticky z-10 border-r border-border bg-background group-hover/row:bg-muted/30 dark:group-hover/row:bg-muted/30 dark:bg-background',
                               meta?.truncate && 'max-w-[220px] truncate',
