@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, Clock, Copy, Database, Download, KeyRound, LayoutDashboard, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, Upload, X } from 'lucide-react'
+import { Check, Clock, Copy, Database, Download, KeyRound, LayoutDashboard, Moon, PackageOpen, Palette, RotateCcw, Rows3, Send, Settings2, Sun, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
@@ -91,20 +91,35 @@ export function SettingsPage() {
     setPref({ hiddenCollections: hidden.includes(c) ? hidden.filter(x => x !== c) : [...hidden, c] })
   }
 
+  // postSettings rejects on a non-OK response, so every caller needs a catch —
+  // otherwise a failure is an unhandled rejection with no visible feedback.
+  const call = async (body: object, ok: string) => {
+    try {
+      const r = await postSettings(body)
+      toast.success(ok)
+      return r
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'request failed')
+      return null
+    }
+  }
+
   const rotate = async () => {
-    const r = await postSettings({ token_rotate: true })
-    setNewToken(r.token ?? null)
-    toast.success('token rotated — re-login needed')
+    const r = await call({ token_rotate: true }, 'token rotated — re-login needed')
+    setNewToken((r?.token as string | undefined) ?? null)
   }
   const saveWebhook = async () => {
-    const r = await postSettings({ webhook })
-    setEnv(e => ({ ...e, webhook: r.webhook ?? webhook }))
-    toast.success('webhook saved')
+    const r = await call({ webhook }, 'webhook saved')
+    if (r) setEnv(e => ({ ...e, webhook: (r.webhook as string | undefined) ?? webhook }))
   }
   const testWebhook = async () => {
-    const r = await postSettings({ webhook_test: true }) as { test?: string }
-    if (r.test === 'sent') toast.success('test delivered')
-    else toast.error(r.test ?? 'failed')
+    try {
+      const r = await postSettings({ webhook_test: true }) as { test?: string }
+      if (r.test === 'sent') toast.success('test delivered')
+      else toast.error(r.test ?? 'failed')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'webhook test failed')
+    }
   }
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
@@ -125,8 +140,7 @@ export function SettingsPage() {
     }
   }
   const resetAll = async () => {
-    await postSettings({ reset: true })
-    toast('settings reset')
+    if (!await call({ reset: true }, 'settings reset')) return
     refresh()
   }
 
@@ -139,7 +153,6 @@ export function SettingsPage() {
       .then(() => { setExportApi('ready'); toast.success('export profile saved') })
       .catch(() => toast.error('export profile not saved — backend not ready'))
   }
-  const openPublish = () => window.dispatchEvent(new CustomEvent('hiyori:navigate', { detail: 'publish' }))
 
   return (
     <div className="space-y-4">
@@ -314,7 +327,6 @@ export function SettingsPage() {
             </Select>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={openPublish}><Upload className="mr-1.5 h-3.5 w-3.5" />Open Publish page</Button>
             {exportApi === 'missing' && <span className="text-[10px] text-muted-foreground">Export API not reachable — the profile is kept locally.</span>}
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Activity, Database, GitMerge, LayoutDashboard, Loader2, ScrollText, Settings as SettingsIcon, SlidersHorizontal, Upload } from 'lucide-react'
+import { Activity, Database, LayoutDashboard, Loader2, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react'
 import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { cn } from 'cn'
@@ -15,56 +15,31 @@ import { isIngestJob, isJobLive, type Job } from '@/lib/api'
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
 const ExplorerPage = lazy(() => import('./pages/ExplorerPage').then(m => ({ default: m.ExplorerPage })))
 const ManagementPage = lazy(() => import('./pages/ManagementPage').then(m => ({ default: m.ManagementPage })))
-const QualityPage = lazy(() => import('./pages/QualityPage').then(m => ({ default: m.QualityPage })))
-const LogsPage = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })))
-const PublishPage = lazy(() => import('./pages/PublishPage').then(m => ({ default: m.PublishPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
-type View = 'dashboard' | 'explorer' | 'management' | 'quality' | 'logs' | 'publish' | 'settings'
+type View = 'dashboard' | 'explorer' | 'management' | 'settings'
 
 interface NavItem {
   id: View
   label: string
   icon: typeof LayoutDashboard
   desc: string
-  /** One-line statement of what this stage does, shown as the nav tooltip. */
-  stage?: string
 }
 
 /**
- * Navigation follows the pipeline, not a filing cabinet.
+ * Flat navigation.
  *
- * The previous list was flat and alphabetical-ish — Publish sat between Logs
- * and Settings — so nothing told an operator where they were in the run. These
- * groups map to the four things the tool actually does, in the order it does
- * them: watch, ingest, merge, ship. Inspection is separate because browsing and
- * debugging are not stages of the pipeline, they are things you do *about* it.
+ * Pipeline stage grouping was useful when seven surfaces competed for attention.
+ * With Merge quality, Logs and Publish removed there are four, so the headings
+ * became more chrome than structure — a single list is easier to scan at this
+ * size. Settings stays pinned in the footer.
  */
-const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
-  {
-    label: 'Overview',
-    items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
-    ],
-  },
-  {
-    label: 'Pipeline',
-    items: [
-      { id: 'management', label: 'Ingest', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups', stage: 'Pull records from the upstream APIs' },
-      { id: 'quality', label: 'Merge quality', icon: GitMerge, desc: 'Coverage, benchmarks, sampler', stage: 'Decide whether the merge is good' },
-      { id: 'publish', label: 'Publish', icon: Upload, desc: 'Export & publish dump', stage: 'Ship the merged output' },
-    ],
-  },
-  {
-    label: 'Inspect',
-    items: [
-      { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
-      { id: 'logs', label: 'Logs', icon: ScrollText, desc: 'Slow requests, validation, runs' },
-    ],
-  },
+const NAV: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Live telemetry' },
+  { id: 'management', label: 'Ingest', icon: SlidersHorizontal, desc: 'Sources, scheduler, backups' },
+  { id: 'explorer', label: 'Explorer', icon: Database, desc: 'MongoDB browser' },
 ]
 
-const NAV: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
 const SETTINGS_ITEM: NavItem = { id: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'Preferences' }
 
 function PipelineChipDivider() {
@@ -254,27 +229,24 @@ export function Dashboard() {
             </SidebarMenu>
           </SidebarHeader>
           <SidebarContent>
-            {NAV_GROUPS.map(group => (
-              <SidebarGroup key={group.label}>
-                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {group.items.map(item => (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton
-                          isActive={view === item.id}
-                          onClick={() => setView(item.id)}
-                          tooltip={item.stage ? `${item.label} — ${item.stage}` : item.label}
-                        >
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {NAV.map(item => (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton
+                        isActive={view === item.id}
+                        onClick={() => setView(item.id)}
+                        tooltip={item.desc}
+                      >
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
             <SidebarMenu>
@@ -311,10 +283,7 @@ export function Dashboard() {
               {view === 'dashboard' && <DashboardPage />}
               {view === 'explorer' && <ErrorBoundary label="Explorer"><ExplorerPage /></ErrorBoundary>}
               {view === 'management' && <ManagementPage />}
-              {view === 'quality' && <QualityPage />}
-              {view === 'logs' && <LogsPage />}
-              {view === 'publish' && <ErrorBoundary label="Publish"><PublishPage /></ErrorBoundary>}
-              {view === 'settings' && <SettingsPage />}
+                    {view === 'settings' && <SettingsPage />}
             </Suspense>
           </section>
         </SidebarInset>

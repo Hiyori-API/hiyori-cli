@@ -439,7 +439,7 @@ function SourcesTable({
         const processed = job.processed ?? 0
         const pct = total ? Math.min(100, (processed / total) * 100) : 0
         const pending = Math.max(0, total - processed)
-        const status = rowStatus(job, health, src)
+        const status = rowStatus(job, health, src, controls[k]?.paused)
         const phase = jobPhase(job)
         const clock = progressClock.current[k]
         const idleSec = clock ? Math.round((now - clock.since) / 1000) : 0

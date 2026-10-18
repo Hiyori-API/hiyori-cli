@@ -1,7 +1,7 @@
 import { cn } from 'cn'
 import { jobPhase, type HealthCheck, type Job } from '@/lib/api'
 
-export type SourceLevel = 'ok' | 'warn' | 'crit' | 'none' | 'done'
+export type SourceLevel = 'ok' | 'warn' | 'crit' | 'none' | 'done' | 'paused'
 export interface SourceStatus { level: SourceLevel; label: string }
 
 /** Map an ingestion source key to its API health + rate-limit state. */
@@ -42,11 +42,22 @@ export function sourceStatus(health: HealthCheck | undefined, key: string): Sour
  *   done  finished successfully — nothing to do, so deliberately not green
  *   none  no health signal for this source
  */
-export function rowStatus(job: Job | undefined, health: HealthCheck | undefined, key: string): SourceStatus {
+export function rowStatus(
+  job: Job | undefined,
+  health: HealthCheck | undefined,
+  key: string,
+  paused = false,
+): SourceStatus {
   const api = sourceStatus(health, key)
   // An API failure outranks everything: a stopped circuit is the reason a run
   // is not progressing, whatever phase the job claims.
   if (api.level === 'crit') return api
+
+  // Pause outranks the phase. A paused worker still reports `running` in its
+  // state file, so without this the blip kept showing the green "working" dot
+  // after Pause — it was the only signal on the row that did not react, and it
+  // contradicted the Status column beside it.
+  if (paused) return { level: 'paused', label: 'paused' }
 
   const phase = jobPhase(job)
   if (phase === 'done') return { level: 'done', label: api.label }
@@ -61,6 +72,9 @@ const DOT: Record<SourceLevel, string> = {
   done: 'bg-sky-500',
   warn: 'bg-warn animate-pulse',
   crit: 'bg-red-500 animate-pulse',
+  // Held, not working and not broken: a deliberate stop should not read as
+  // either health or failure.
+  paused: 'bg-muted-foreground',
   none: 'bg-muted',
 }
 
@@ -71,7 +85,9 @@ export function SourceStatusBlip({ status, size = 'md' }: { status: SourceStatus
 }
 
 export function SourceStatusLabel({ status }: { status: SourceStatus }) {
-  if (status.level === 'ok' || status.level === 'done') return <span className="text-[10px] text-muted-foreground">{status.label}</span>
+  if (status.level === 'ok' || status.level === 'done' || status.level === 'paused') {
+    return <span className="text-[10px] text-muted-foreground">{status.label}</span>
+  }
   if (status.level === 'none') return null
   const cls = status.level === 'crit' ? 'text-red-400' : 'text-warn'
   return <span className={cn('text-[10px] font-medium', cls)}>● {status.label}</span>
