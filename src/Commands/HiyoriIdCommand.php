@@ -82,6 +82,11 @@ final class HiyoriIdCommand extends Command
             $didWork = true;
 
             $resolution = $migrator->stripDuplicateRegistryIdentityKeys(dryRun: $dryRun);
+            // The registry side and the document side are resolved separately:
+            // a merged document keeps the cross-source link it was built with,
+            // so unsetting the ref on the losing registry row alone leaves the
+            // documents still claiming it (and the release gate still red).
+            $documentResolution = $migrator->stripDuplicateDocumentRefs(dryRun: $dryRun);
             // A dry run must not write anything, so the index step is only
             // attempted for real. The resolution report above already shows
             // exactly which refs would be dropped.
@@ -92,7 +97,7 @@ final class HiyoriIdCommand extends Command
             }
 
             if ($asJson) {
-                $payload = ['resolve' => $resolution];
+                $payload = ['resolve' => $resolution, 'resolve_documents' => $documentResolution];
                 if ($indexes !== null) {
                     $payload['indexes'] = $indexes;
                 }
@@ -100,6 +105,11 @@ final class HiyoriIdCommand extends Command
             } else {
                 $io->section($dryRun ? 'Duplicate registry identity refs (dry run)' : 'Duplicate registry identity refs resolved');
                 $io->text(sprintf('%d duplicate reference(s) %s (hiyori_ids never change).', $resolution['resolved'], $dryRun ? 'would be resolved' : 'resolved'));
+                $io->text(sprintf(
+                    '%d duplicate document reference(s) %s.',
+                    $documentResolution['resolved'],
+                    $dryRun ? 'would be resolved' : 'resolved',
+                ));
                 if ($resolution['keys'] !== []) {
                     $rows = [];
                     foreach ($resolution['keys'] as $key) {

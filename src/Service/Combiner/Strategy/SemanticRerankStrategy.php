@@ -66,6 +66,10 @@ final class SemanticRerankStrategy extends CombinerStrategy
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'skipped_cross_kind_sources' => 0,
             'examined' => 0,
@@ -139,7 +143,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
                     }
 
                     $scores[] = $blended;
-                    if (self::persistMerge($db, $source, $entryArray, $candidate, $collection, $blended)) {
+                    if (self::persistMerge($db, $source, $entryArray, $candidate, $collection, $blended, $buildId)) {
                         $counters['merged']++;
                     }
                     break;

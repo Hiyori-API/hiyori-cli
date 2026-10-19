@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineBuild;
 use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
@@ -74,6 +75,10 @@ final class MetadataMlStrategy extends CombinerStrategy
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'skipped_cross_kind_sources' => 0,
             'examined' => 0,
@@ -191,6 +196,7 @@ final class MetadataMlStrategy extends CombinerStrategy
                 } catch (\Throwable) {
                     // Pre-v3 databases have no id registry; keep the merge without it.
                 }
+                $extra = array_merge($extra, CombineBuild::stamp($baseShorthand, $buildId));
 
                 $db->mergeIntoOrganized($mergedEntry, $baseShorthand, $baseId, $collection, $extra);
                 $counters['total_merged']++;
@@ -204,7 +210,7 @@ final class MetadataMlStrategy extends CombinerStrategy
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && !$merged && $baseId !== '') {
-                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection, $buildId)) {
                     $counters['passthrough']++;
                 }
             }

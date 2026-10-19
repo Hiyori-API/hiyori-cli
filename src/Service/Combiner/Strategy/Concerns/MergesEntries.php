@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy\Concerns;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineBuild;
 use Hiyori\Service\Database;
 use Hiyori\Service\Exporter;
 use Hiyori\Service\SourceConfigurationFactory;
@@ -17,6 +18,7 @@ trait MergesEntries
     /**
      * @param array<string, mixed> $entryArray base entry (already converted from BSON)
      * @param array<string, mixed> $match      matched entry from another source
+     * @param string|null           $buildId    the run's build id, stamped on the document
      */
     protected static function persistMerge(
         Database $db,
@@ -25,6 +27,7 @@ trait MergesEntries
         array $match,
         string $collection,
         float $score,
+        ?string $buildId = null,
     ): bool {
         $baseTable = $source->get()->getTable();
         $baseShorthand = $source->get()->getShorthand();
@@ -40,6 +43,7 @@ trait MergesEntries
             $baseId,
             $collection,
             $score,
+            $buildId,
         );
     }
 
@@ -65,6 +69,11 @@ trait MergesEntries
      * score-driven view (`/api/histogram`, `/api/sample`, the Quality page's
      * min-score filter) instead of parking them in the 0-10 bin as if the
      * merge had been scored and failed.
+     *
+     * `$buildId` is the id of the run writing the document. It is stamped on
+     * the document so the end-of-run sweep can tell this run's documents from
+     * the ones it did not write (see {@see CombineSweeper}). Pass null when
+     * there is no run behind the write: the document is then left unmarked.
      */
     protected static function persistAccumulated(
         Database $db,
@@ -73,6 +82,7 @@ trait MergesEntries
         string $baseId,
         string $collection,
         ?float $score,
+        ?string $buildId = null,
     ): bool {
         if ($baseId === '') {
             return false;
@@ -87,6 +97,9 @@ trait MergesEntries
             $extra['hiyori_id'] = $db->allocateHiyoriId($kind, is_array($refs) ? $refs : [], $slug);
         } catch (\Throwable) {
             // Pre-v3 databases have no id registry; keep the merge without it.
+        }
+        if ($buildId !== null && $buildId !== '') {
+            $extra = array_merge($extra, CombineBuild::stamp($baseShorthand, $buildId));
         }
 
         $db->mergeIntoOrganized($merged, $baseShorthand, $baseId, $collection, $extra);
@@ -110,12 +123,14 @@ trait MergesEntries
      * record that had nothing to merge with.
      *
      * @param array<string, mixed> $entryArray base entry (already converted from BSON)
+     * @param string|null           $buildId    the run's build id, stamped on the document
      */
     protected static function persistPassthrough(
         Database $db,
         SourceConfigurationFactory $source,
         array $entryArray,
         string $collection,
+        ?string $buildId = null,
     ): bool {
         $baseShorthand = $source->get()->getShorthand();
         $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
@@ -135,6 +150,7 @@ trait MergesEntries
             $baseId,
             $collection,
             null,
+            $buildId,
         );
     }
 }

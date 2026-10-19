@@ -76,44 +76,56 @@ jobs:
           php -r "echo 'GITHUB_REPO: ' . (getenv('GITHUB_REPO') ?: 'MISSING') . PHP_EOL;"
           php -r "new MongoDB\Client(getenv('MONGODB_URL'))->selectDatabase('admin')->command(['ping'=>1]); echo 'MongoDB OK' . PHP_EOL;"
 
-      - name: Run migrations (setup)
-        working-directory: hiyori-cli
-        run: php hiyori migrate
-
-      - name: Combine (merge all sources into organized)
-        working-directory: hiyori-cli
-        run: |
-          # Anime base = anilist; manga base = anilist_manga (see scripts/finalize-merges.sh).
-          # --passthrough keeps base entries that matched nothing, so the release holds
-          # one document per ingested entry and no registry id is left without a document.
-          php hiyori combine anilist --passthrough --export=per-entry-json
-          php hiyori combine anilist_manga --passthrough --into=organized_manga --export=per-entry-json
-
-      - name: Release gate (no duplicate identity keys)
-        # Fails the release if a combined collection repeats an identity key --
-        # mal/al for organized, mal_manga/al_manga for organized_manga -- or if
-        # a collection is empty, which would make the check vacuous. Franchise
-        # keys (k/cr/t/nf/...) are reported but allowed.
-        working-directory: hiyori-cli
-        run: php hiyori combine:dupes
-
-      # Optional F1 gate (needs a labelled hold-out pairs file; run manually):
-      #   php hiyori ml:export-pairs --holdout 30
-      #   php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
-      #   php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl --margin 2 --strict
-
-      - name: Publish compressed Tier B release
+      # The release chain lives in exactly one place: `php hiyori pipeline:release`
+      # (src/Commands/PipelineCommand.php) owns the stage order -- migrate ->
+      # combine anime -> combine manga -> hiyori-id --backfill -> combine:dupes
+      # (the release gate) -> combine:dedupe -> release --verify -- asserts a
+      # precondition before every stage and refuses to continue on a bad input.
+      # This job runs that orchestrator; it does not spell the order out again.
+      - name: Release pipeline (migrate, combine, release gate, publish)
         working-directory: hiyori-cli
         env:
           GH_TOKEN: ${{ secrets.HIYORI_DB_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.HIYORI_DB_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
         run: |
-          php hiyori release \
+          # Anime base = anilist, manga base = anilist_manga (the orchestrator's
+          # combine stages), both with --passthrough, so the release holds one
+          # document per ingested entry and no registry id is left without one.
+          # The release stage takes repo/branch/tag; --verify is always on.
+          php hiyori pipeline:release \
             --repo "$GITHUB_REPO" \
             --branch master \
-            --tag "${GITHUB_REF_NAME:-data-$(date +%Y.%V)}" \
-            --verify
+            --tag "${GITHUB_REF_NAME:-data-$(date +%Y.%V)}"
+
+      - name: Release gate (no duplicate identity keys)
+        # The gate itself ran inside the pipeline: the `dupes` stage reports the
+        # duplicate identity keys -- mal/al for organized, mal_manga/al_manga for
+        # organized_manga -- and the `release` stage refuses to publish while
+        # the gate fails (an empty collection is a failure too, because then
+        # the check proves nothing). Franchise keys (k/cr/t/nf/...) are reported
+        # but allowed. This step prints the verdict from the run record, so the
+        # gate is still visible on its own in the job output.
+        if: always()
+        working-directory: hiyori-cli
+        run: |
+          php -r '
+            $file = "storage/state/pipeline-release-latest.json";
+            if (!is_file($file)) { echo "no pipeline run record at $file" . PHP_EOL; exit(0); }
+            $record = json_decode((string) file_get_contents($file), true);
+            $record = is_array($record) ? $record : [];
+            foreach ((array) ($record["stages"] ?? []) as $stage) {
+                $id = (string) ($stage["stage"] ?? "");
+                if ($id !== "dupes" && $id !== "release") { continue; }
+                printf("gate %-8s %-8s %s%s", $id, (string) ($stage["status"] ?? "?"), (string) ($stage["precondition"]["name"] ?? "-"), PHP_EOL);
+            }
+            printf("pipeline status: %s (failed stage: %s)%s", (string) ($record["status"] ?? "?"), (string) ($record["failed_stage"] ?? "none"), PHP_EOL);
+          '
+
+      # Optional F1 gate (needs a labelled hold-out pairs file; run manually):
+      #   php hiyori ml:export-pairs --holdout 30
+      #   php hiyori ml:train --in storage/ml/pairs-*-train.jsonl
+      #   php hiyori combine:benchmark --in storage/ml/pairs-*-holdout.jsonl --margin 2 --strict
 
       - name: Summary
         if: success()

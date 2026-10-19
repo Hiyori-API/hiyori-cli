@@ -113,6 +113,10 @@ final class FellegiSunterStrategy extends CombinerStrategy
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'skipped_cross_kind_sources' => 0,
             'examined' => 0,
@@ -191,7 +195,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
                 $scores[] = $score;
                 $counters['merged_sources'][$currentSource->getTable()] = ((int) ($counters['merged_sources'][$currentSource->getTable()] ?? 0)) + 1;
 
-                if (self::persistMerge($db, $source, $entryArray, $best, $collection, $score)) {
+                if (self::persistMerge($db, $source, $entryArray, $best, $collection, $score, $buildId)) {
                     $counters['total_merged']++;
                     $merged = true;
                 }
@@ -204,7 +208,7 @@ final class FellegiSunterStrategy extends CombinerStrategy
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && !$merged && $baseId !== '') {
-                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection, $buildId)) {
                     $counters['passthrough']++;
                 }
             }

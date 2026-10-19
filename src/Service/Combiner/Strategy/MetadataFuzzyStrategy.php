@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineBuild;
 use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
@@ -156,6 +157,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         // not found"). Progress is persisted after every batch so a crash can
         // be resumed instead of restarting the whole base.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'examined' => 0,
             // `merged` counts distinct documents written. `total_merged` counts
@@ -280,6 +285,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                             // Fallback: continue without hiyori_id (should not happen after migration v3)
                             $extra = ['confidence' => $score];
                         }
+                        $extra = array_merge($extra, CombineBuild::stamp($baseShorthand, $buildId));
 
                         $db->mergeIntoOrganized(
                             $mergedEntry,
@@ -299,7 +305,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && $bestForEntry === 0.0 && $baseId !== '') {
-                if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
+                if (self::persistPassthrough($db, $source, $entryArray, $collection, $buildId)) {
                     $counters['passthrough']++;
                 }
             }

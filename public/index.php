@@ -17,6 +17,7 @@ use Hiyori\Service\AlertNotifier;
 use Hiyori\Service\Database;
 use Hiyori\Service\EnvFile;
 use Hiyori\Service\Explorer;
+use Hiyori\Service\ExportConfig;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
 use Hiyori\Service\Ml\LabelStore;
@@ -664,86 +665,6 @@ function scheduleView(Telemetry $telemetry): array
 }
 
 // ===== Export / publish API (per-entry JSON + Hiyori IDs) =====
-function exportStateFile(): string
-{
-    $class = 'Hiyori\\Service\\ExportConfig';
-    if (class_exists($class) && method_exists($class, 'statePath')) {
-        try {
-            $path = $class::statePath();
-            if (is_string($path) && $path !== '') {
-                return $path;
-            }
-        } catch (\Throwable $e) {
-            // fall back to the conventional path
-        }
-    }
-
-    return dirname(__DIR__) . '/storage/state/export.json';
-}
-
-/** @return array<string, mixed>|null */
-function exportReadJsonFile(string $file): ?array
-{
-    if (!is_file($file)) {
-        return null;
-    }
-    $decoded = json_decode((string) file_get_contents($file), true);
-
-    return is_array($decoded) ? $decoded : null;
-}
-
-/**
- * Bootstrap export template (`hiyori.export.json`). Prefers the tracked path
- * published by `ExportConfig`, probing the conventional locations otherwise.
- *
- * @return array<string, mixed>|null
- */
-function exportTemplate(): ?array
-{
-    $candidates = [];
-    $class = 'Hiyori\\Service\\ExportConfig';
-    if (class_exists($class) && method_exists($class, 'trackedPath')) {
-        try {
-            $path = $class::trackedPath();
-            if (is_string($path) && $path !== '') {
-                $candidates[] = $path;
-            }
-        } catch (\Throwable $e) {
-            // fall back to the conventional paths
-        }
-    }
-    $candidates[] = dirname(__DIR__) . '/hiyori.export.json';
-    $candidates[] = dirname(__DIR__) . '/config/hiyori.export.json';
-
-    foreach (array_unique($candidates) as $file) {
-        $value = exportReadJsonFile($file);
-        if ($value !== null) {
-            return $value;
-        }
-    }
-
-    return null;
-}
-
-/** @return array<string, mixed> */
-function exportState(): array
-{
-    return exportReadJsonFile(exportStateFile()) ?? [];
-}
-
-/** @param array<string, mixed> $state */
-function exportSaveState(array $state): void
-{
-    $dir = dirname(exportStateFile());
-    if (!is_dir($dir)) {
-        mkdir($dir, 0o777, true);
-    }
-    file_put_contents(
-        exportStateFile(),
-        json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-    );
-}
-
 /**
  * Effective export config: `ExportConfig::load()` when the service is present,
  * otherwise template + state merged by hand, then any per-request override on
@@ -754,21 +675,7 @@ function exportSaveState(array $state): void
  */
 function exportEffectiveConfig(array $override = []): array
 {
-    $config = [];
-    $class = 'Hiyori\\Service\\ExportConfig';
-    if (class_exists($class) && method_exists($class, 'load')) {
-        try {
-            $loaded = $class::load(exportStateFile());
-            if (is_array($loaded)) {
-                $config = $loaded;
-            }
-        } catch (\Throwable $e) {
-            $config = [];
-        }
-    }
-    if ($config === []) {
-        $config = hiyoriExportMergeDeep(exportTemplate() ?? [], exportState());
-    }
+    $config = ExportConfig::load();
     if ($override !== []) {
         $config = hiyoriExportMergeDeep($config, $override);
     }
@@ -794,6 +701,38 @@ function exportApiConfig(array $override = []): array
 }
 
 /**
+ * The raw query string, parsed without PHP's variable-name mangling.
+ *
+ * PHP rewrites '.' to '_' in query-string keys, so `include.tags=1` arrives as
+ * `$_GET['include_tags']` — the dotted-override feature could never see it,
+ * and the guard below skipped every key it was given.
+ *
+ * @return array<string, string>
+ */
+function exportRawQuery(): array
+{
+    $raw = (string) ($_SERVER['QUERY_STRING'] ?? '');
+    if ($raw === '') {
+        return [];
+    }
+
+    $out = [];
+    foreach (explode('&', $raw) as $pair) {
+        if ($pair === '') {
+            continue;
+        }
+        $parts = explode('=', $pair, 2);
+        $key = urldecode(str_replace('+', ' ', $parts[0]));
+        if ($key === '') {
+            continue;
+        }
+        $out[$key] = urldecode(str_replace('+', ' ', $parts[1] ?? ''));
+    }
+
+    return $out;
+}
+
+/**
  * Build a per-request config override from `?config=<json>` plus dotted query
  * keys such as `include.tags=1` or `entities.manga=0`.
  *
@@ -813,55 +752,17 @@ function exportQueryOverrides(array $query): array
     }
 
     $reserved = ['token' => true, 'config' => true, 'kind' => true];
+    $pairs = [];
     foreach ($query as $key => $value) {
         if (!is_string($key) || isset($reserved[$key]) || !str_contains($key, '.')) {
             continue;
         }
-        exportSetNested($override, $key, exportCoerceQueryValue($value));
+        $pairs[] = $key . '=' . (is_scalar($value) ? (string) $value : '');
     }
 
-    return $override;
-}
-
-/** @param array<string, mixed> $target */
-function exportSetNested(array &$target, string $path, mixed $value): void
-{
-    $parts = array_values(array_filter(explode('.', $path), static fn (string $part): bool => $part !== ''));
-    if ($parts === []) {
-        return;
-    }
-    $cursor = &$target;
-    $last = count($parts) - 1;
-    foreach ($parts as $index => $part) {
-        if ($index === $last) {
-            $cursor[$part] = $value;
-
-            return;
-        }
-        if (!isset($cursor[$part]) || !is_array($cursor[$part])) {
-            $cursor[$part] = [];
-        }
-        $cursor = &$cursor[$part];
-    }
-}
-
-function exportCoerceQueryValue(mixed $value): mixed
-{
-    if (!is_string($value)) {
-        return $value;
-    }
-    $lower = strtolower($value);
-    if (in_array($lower, ['1', 'true', 'yes', 'on'], true)) {
-        return true;
-    }
-    if (in_array($lower, ['0', 'false', 'no', 'off'], true)) {
-        return false;
-    }
-    if (is_numeric($value)) {
-        return $value + 0;
-    }
-
-    return $value;
+    // The same caster the CLI's --config uses, so include.tags=no means false
+    // in both places (it used to be the truthy string "no" here).
+    return hiyoriExportMergeDeep($override, ExportConfig::overrideMap($pairs));
 }
 
 /** Accept the Publish UI's `filename_pattern` alias for the canonical `filename`. */
@@ -955,7 +856,7 @@ if ($path === '/api/export-config') {
         $body = readJsonBody();
 
         if (($body['reset'] ?? false) === true) {
-            @unlink(exportStateFile());
+            @unlink(ExportConfig::statePath());
             auditAppend('export.config', ['reset' => true]);
             sendJson(['reset' => true, 'config' => exportApiConfig(), 'state' => []]);
         }
@@ -975,8 +876,8 @@ if ($path === '/api/export-config') {
             sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
         }
 
-        $state = hiyoriExportMergeDeep(exportState(), $incoming);
-        exportSaveState($state);
+        $state = hiyoriExportMergeDeep(ExportConfig::state(), $incoming);
+        ExportConfig::save($state);
         auditAppend('export.config', ['keys' => array_keys($incoming)]);
 
         sendJson(['config' => exportApiConfig(), 'state' => $state]);
@@ -984,8 +885,8 @@ if ($path === '/api/export-config') {
 
     sendJson([
         'config' => exportApiConfig(),
-        'template' => exportTemplate(),
-        'state' => exportState(),
+        'template' => ExportConfig::template(),
+        'state' => ExportConfig::state(),
         'timestamp' => date('c'),
     ]);
 }
@@ -996,7 +897,7 @@ if ($path === '/api/export/preview') {
     if (!in_array($kind, ['anime', 'manga'], true)) {
         sendJson(['error' => 'kind must be anime or manga'], 400);
     }
-    $config = exportEffectiveConfig(exportQueryOverrides($_GET));
+    $config = exportEffectiveConfig(exportQueryOverrides(exportRawQuery()));
     try {
         $result = (new \Hiyori\Service\Exporter($client))->preview($config, $kind);
     } catch (\Throwable $e) {
@@ -1016,7 +917,7 @@ if ($path === '/api/export/preview') {
 
 if ($path === '/api/export/dry-run') {
     exportRequireService();
-    $config = exportEffectiveConfig(exportQueryOverrides($_GET));
+    $config = exportEffectiveConfig(exportQueryOverrides(exportRawQuery()));
     try {
         $result = (new \Hiyori\Service\Exporter($client))->dryRun($config);
     } catch (\Throwable $e) {
@@ -1368,6 +1269,17 @@ if ($path === '/api/action') {
  * Runs detached like the ingest actions — a combine over these collections
  * takes tens of minutes, so the request returns as soon as the process starts
  * and progress shows up in the normal job telemetry.
+ *
+ * Deliberately not the release orchestrator. `pipeline:release` owns the
+ * release *chain* (migrate → combine → gates → publish), while this route is the
+ * operator's "rebuild now, with the weights I saved" button, and the
+ * orchestrator's combine stages cannot express it: they fix the base
+ * (anilist, anilist_manga), they take no `--weights`, and they run in the
+ * foreground, so there would be no child pid to report and `combineRunning()`
+ * (which reads storage/state/combine-run.json) would never see the run.
+ * Pointing this route at the orchestrator would either drop the saved weights
+ * or change what `started`/`pid` mean, so it keeps calling `php hiyori
+ * combine` until the orchestrator grows a weighted single-collection stage.
  */
 if ($path === '/api/combine') {
     // Kept as GET because the Quality page calls it with fetch() and no method

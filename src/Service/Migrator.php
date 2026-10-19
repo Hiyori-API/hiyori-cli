@@ -1190,6 +1190,108 @@ final class Migrator
     }
 
     /**
+     * Drop an identity ref from the documents that lost it.
+     *
+     * The registry resolves duplicates by unsetting the ref on the losing
+     * REGISTRY row, but the merged document keeps the cross-source link it was
+     * built with. When one MAL series covers several AniList entries — "Monster"
+     * and "Monster Musume" both point at MAL 2467 — both documents claim that
+     * ref, the release gate fails, and the registry no longer records the
+     * conflict, so stripDuplicateRegistryIdentityKeys() has nothing to work
+     * from.
+     *
+     * The ranking is the same: the document that declares the ref, then the one
+     * the base source corroborates, then the lowest hiyori_id.
+     *
+     * @param list<string> $keys
+     *
+     * @return array{resolved: int, dry_run: bool, keys: list<array<string, mixed>>}
+     */
+    public function stripDuplicateDocumentRefs(array $keys = self::IDENTITY_REF_KEYS, bool $dryRun = false): array
+    {
+        $keys = array_values(array_map(static fn ($key): string => strtolower((string) $key), $keys));
+        $resolved = 0;
+        $entries = [];
+
+        foreach (self::KINDS as $kind => $collectionName) {
+            $coll = $this->collection($collectionName);
+            /** @var array<string, array<string, list<array{id: int, refs: array}>>> $holders */
+            $holders = [];
+            $options = [
+                'projection' => ['hiyori_id' => 1, 'slug' => 1, 'reference_ids' => 1],
+                'typeMap' => ['root' => 'array', 'document' => 'array'],
+            ];
+            foreach ($coll->find([], $options) as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $id = (int) ($row['hiyori_id'] ?? 0);
+                if ($id <= 0) {
+                    continue;
+                }
+                $refs = is_array($row['reference_ids'] ?? null) ? $row['reference_ids'] : [];
+                foreach (self::identityRefs($refs) as $key => $value) {
+                    if (!in_array($key, $keys, true)) {
+                        continue;
+                    }
+                    $holders[$key][$value][] = ['id' => $id, 'refs' => $refs];
+                }
+            }
+
+            foreach ($holders as $key => $byValue) {
+                foreach ($byValue as $value => $candidates) {
+                    if (count($candidates) < 2) {
+                        continue;
+                    }
+                    $ranked = [];
+                    foreach ($candidates as $candidate) {
+                        $ranked[] = [
+                            'hiyori_id' => $candidate['id'],
+                            'rank' => $this->referenceRank(
+                                $kind,
+                                $candidate['refs'],
+                                $key,
+                                (string) $value,
+                                $collectionName,
+                                $candidate['id'],
+                            ),
+                        ];
+                    }
+                    $decision = self::resolveDuplicateHolders($ranked);
+                    // PHP turns a numeric-string array key into an int, and
+                    // MongoDB will not match the stored string "2467" against
+                    // the int 2467 — so the value is cast back before it is used
+                    // in a query.
+                    $value = (string) $value;
+                    foreach ($decision['dropped'] as $dropId) {
+                        if (!$dryRun) {
+                            $coll->updateOne(
+                                ['hiyori_id' => $dropId, 'reference_ids.' . $key => $value],
+                                ['$unset' => ['reference_ids.' . $key => '']],
+                            );
+                            // Keep the registry row in step with its document.
+                            $this->registry()->updateOne(
+                                ['hiyori_id' => $dropId, 'refs.' . $key => $value],
+                                ['$unset' => ['refs.' . $key => '']],
+                            );
+                        }
+                        ++$resolved;
+                        $entries[] = [
+                            'kind' => $kind,
+                            'collection' => $collectionName,
+                            'source' => $key,
+                            'value' => (string) $value,
+                            'dropped' => $dropId,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return ['resolved' => $resolved, 'dry_run' => $dryRun, 'keys' => $entries];
+    }
+
+    /**
      * Group registry-shaped rows by identity key, kind and value.
      *
      * Pure so duplicate detection can be exercised without a database; note
@@ -1428,19 +1530,33 @@ final class Migrator
                     'typeMap' => ['root' => 'array', 'document' => 'array'],
                 ],
             );
-        } catch (BulkWriteException $e) {
-            // A concurrent run inserted the row first (only reachable once the
-            // unique identity index exists). Re-read instead of duplicating.
-            $existing = $this->findRegistryRow($kind, $refs, $legacyId);
+        } catch (\MongoDB\Driver\Exception\Exception $e) {
+            if (!self::isDuplicateKeyError($e)) {
+                throw $e;
+            }
+
+            // A unique identity index rejected the insert. That index IS the
+            // definition of identity — one (kind, refs.<key>) value belongs to
+            // exactly one row — so the row already holding one of our values is
+            // this same work, and the right outcome is to move that row onto the
+            // corrected refs, not to fail and not to publish a document with no
+            // id.
+            //
+            // This is what a rebuild produces: the base's own id is stable, but
+            // the cross-source id it was merged with was wrong and is now
+            // right. matchKnownId() vetoes that (a row that disagrees on any
+            // shared identity key cannot be the same work), so the lookup finds
+            // nothing and the insert trips the index.
+            $existing = $this->findRegistryRowByIdentityValue($kind, $refs);
             if ($existing === null) {
                 throw new \RuntimeException(sprintf(
-                    'allocate_hiyori_ids: concurrent registry insert for kind %s refs %s is not readable afterwards',
+                    'allocate_hiyori_ids: registry insert for kind %s refs %s violated a unique identity index and no row holds those values',
                     $kind,
                     json_encode($refs),
                 ), 0, $e);
             }
 
-            return $this->reuseRegistryRow($existing, $slug, $used);
+            return $this->reuseRegistryRow($existing, $slug, $used, $refs);
         }
 
         if (!is_array($row)) {
@@ -1462,7 +1578,80 @@ final class Migrator
      *
      * @return array{hiyori_id: int, slug: string, created: bool}
      */
-    private function reuseRegistryRow(array $row, string $slug, array $used): array
+    /** A driver error that is a duplicate-key violation. */
+    private static function isDuplicateKeyError(\Throwable $e): bool
+    {
+        if ($e instanceof BulkWriteException) {
+            return $e->getCode() === 11000;
+        }
+        if ($e instanceof CommandException) {
+            return $e->getCode() === 11000;
+        }
+
+        return false;
+    }
+
+    /**
+     * The registry row holding any of the given identity values.
+     *
+     * The unique identity indexes make this the authoritative answer to "is this
+     * work already registered": a value that is already taken names exactly one
+     * row, and that row is this work. The lowest hiyori_id wins so the choice
+     * is deterministic.
+     *
+     * @param array<string, string> $refs
+     */
+    private function findRegistryRowByIdentityValue(string $kind, array $refs): ?array
+    {
+        $or = [];
+        foreach (self::identityRefs($refs) as $key => $value) {
+            $or[] = ['refs.' . $key => $value];
+        }
+        if ($or === []) {
+            return null;
+        }
+
+        $options = ['sort' => ['hiyori_id' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']];
+        foreach ($this->registry()->find(['kind' => $kind, '$or' => $or], $options) as $row) {
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Move a registry row onto the refs a corrected merge produced.
+     *
+     * A key whose value is held by ANOTHER row is not ours and is left alone —
+     * that is the duplicate the dedupe tooling resolves, not something to
+     * overwrite here.
+     *
+     * @param array<string, string> $refs
+     */
+    private function updateRegistryRefs(string $kind, int $hiyoriId, array $refs): void
+    {
+        foreach (self::identityRefs($refs) as $key => $value) {
+            $other = $this->registry()->findOne(
+                [
+                    'kind' => $kind,
+                    'refs.' . $key => $value,
+                    'hiyori_id' => ['$ne' => $hiyoriId],
+                ],
+                ['projection' => ['hiyori_id' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']],
+            );
+            if ($other !== null) {
+                continue; // another work already owns this value
+            }
+            $this->registry()->updateOne(
+                ['hiyori_id' => $hiyoriId],
+                ['$set' => ['refs.' . $key => $value]],
+            );
+        }
+    }
+
+    private function reuseRegistryRow(array $row, string $slug, array $used, array $refs = []): array
     {
         $id = (int) ($row['hiyori_id'] ?? 0);
         $existingSlug = (string) ($row['slug'] ?? '');
@@ -1471,6 +1660,10 @@ final class Migrator
             // the registry stays the single source of truth for slugs.
             $existingSlug = self::uniqueSlug(self::normalizeSlug($slug), $used);
             $this->registry()->updateOne(['hiyori_id' => $id], ['$set' => ['slug' => $existingSlug]]);
+        }
+
+        if ($refs !== []) {
+            $this->updateRegistryRefs((string) ($row['kind'] ?? ''), $id, $refs);
         }
 
         return ['hiyori_id' => $id, 'slug' => $existingSlug, 'created' => false];

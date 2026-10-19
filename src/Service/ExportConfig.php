@@ -85,7 +85,7 @@ final class ExportConfig
      */
     public static function load(?string $stateFile = null, ?string $trackedFile = null): array
     {
-        $config = self::merge([], self::readJson($trackedFile ?? self::trackedPath()));
+        $config = self::merge([], $trackedFile !== null ? self::readJson($trackedFile) : (self::template() ?? []));
         $config = self::merge($config, self::readJson($stateFile ?? self::statePath()));
 
         return self::resolve($config);
@@ -278,6 +278,132 @@ final class ExportConfig
     }
 
     /**
+     * Read a JSON file, or null when it is missing or unreadable.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function readJsonFile(string $path): ?array
+    {
+        if (!is_file($path)) {
+            return null;
+        }
+        $raw = @file_get_contents($path);
+        if ($raw === false || trim($raw) === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * The bootstrap export template, or null when there is none.
+     *
+     * The canonical location is the tracked file; the other two are the
+     * conventional layouts a checkout might use.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function template(): ?array
+    {
+        foreach ([
+            self::trackedPath(),
+            self::rootDir() . '/hiyori.export.json',
+            self::rootDir() . '/config/hiyori.export.json',
+        ] as $candidate) {
+            $decoded = self::readJsonFile($candidate);
+            if ($decoded !== null) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /** The persisted per-server state, or an empty map. */
+    public static function state(): array
+    {
+        return self::readJsonFile(self::statePath()) ?? [];
+    }
+
+    /**
+     * Persist the export state.
+     *
+     * Written atomically: the dashboard can rewrite this file while a CLI
+     * export reads it, and a half-written file would be read as "no state".
+     *
+     * @param array<string, mixed> $state
+     */
+    public static function save(array $state, ?string $stateFile = null): void
+    {
+        $file = $stateFile ?? self::statePath();
+        $dir = dirname($file);
+        if (!is_dir($dir) && !@mkdir($dir, 0o775, true) && !is_dir($dir)) {
+            throw new \RuntimeException('export config: cannot create state directory ' . $dir);
+        }
+
+        $json = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new \RuntimeException('export config: cannot encode the state');
+        }
+
+        $tmp = $file . '.tmp';
+        if (false === @file_put_contents($tmp, $json)) {
+            throw new \RuntimeException('export config: cannot write ' . $tmp);
+        }
+        if (!@rename($tmp, $file)) {
+            @unlink($tmp);
+
+            throw new \RuntimeException('export config: cannot replace ' . $file);
+        }
+    }
+
+    /**
+     * Build an override map from dotted `path=value` pairs.
+     *
+     * The values go through the same {@see cast()} the CLI's `--config` uses,
+     * so `include.tags=yes` means the same thing in both places.
+     *
+     * @param iterable<string> $pairs
+     *
+     * @return array<string, mixed>
+     */
+    public static function overrideMap(iterable $pairs): array
+    {
+        /** @var array<string, mixed> $override */
+        $override = [];
+        foreach ($pairs as $pair) {
+            if (!is_string($pair) || !str_contains($pair, '=')) {
+                continue;
+            }
+            [$path, $raw] = explode('=', $pair, 2);
+            $path = trim($path);
+            if ($path === '') {
+                continue;
+            }
+
+            $value = self::cast($raw, $path);
+            $segments = explode('.', $path);
+            $cursor = &$override;
+            $last = count($segments) - 1;
+            foreach ($segments as $i => $segment) {
+                if ($i === $last) {
+                    $cursor[$segment] = $value;
+
+                    break;
+                }
+                if (!isset($cursor[$segment]) || !is_array($cursor[$segment])) {
+                    $cursor[$segment] = [];
+                }
+                $cursor = &$cursor[$segment];
+            }
+            unset($cursor);
+        }
+
+        return $override;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function readJson(string $path): array
@@ -294,19 +420,29 @@ final class ExportConfig
         return is_array($decoded) ? $decoded : [];
     }
 
-    private static function cast(string $raw, string $path): mixed
+    /**
+     * Coerce a raw config value.
+     *
+     * The HTTP layer used to have its own version of this and the two had
+     * drifted: it understood `yes`/`on`/`no`/`off` but not `null`, and it did
+     * not turn `fields` into a list. One caster now serves both, so
+     * `include.tags=no` means false everywhere instead of the truthy string
+     * "no" the CLI used to store.
+     */
+    public static function cast(string $raw, string $path = ''): mixed
     {
         $trimmed = trim($raw);
         if ($path === 'fields') {
             return array_values(array_filter(array_map('trim', explode(',', $trimmed)), static fn (string $v): bool => $v !== ''));
         }
-        if ($trimmed === 'true') {
+        $lower = strtolower($trimmed);
+        if (in_array($lower, ['true', 'yes', 'on'], true)) {
             return true;
         }
-        if ($trimmed === 'false') {
+        if (in_array($lower, ['false', 'no', 'off'], true)) {
             return false;
         }
-        if ($trimmed === 'null') {
+        if ($lower === 'null') {
             return null;
         }
         if (is_numeric($trimmed)) {

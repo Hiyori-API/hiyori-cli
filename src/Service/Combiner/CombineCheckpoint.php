@@ -27,6 +27,7 @@ use RuntimeException;
  *       "base": "anilist_manga",
  *       "target_collection": "organized_manga",
  *       "strategy": "metadata_fuzzy",
+ *       "build_id": "20260119T101112Z-4711-9f2c1ab4",
  *       "last_id": "6acd3c16cb9cb7a099012952",
  *       "last_id_kind": "objectid",
  *       "examined": 5000,
@@ -86,6 +87,12 @@ final class CombineCheckpoint
      * from zero, exactly as before checkpointing existed. With `$resume` the
      * stored counters and `last_id` are kept, but only after the stored run is
      * proven to be the same base, strategy and target.
+     *
+     * The run also gets a `build_id`: the marker every document it writes
+     * carries, and the key the end-of-run sweep deletes by. A resumed run
+     * keeps the build id of the run it continues, so the documents written
+     * before the crash are still recognised as this run's own work and are
+     * not mistaken for stale ones.
      */
     public static function begin(
         string $strategy,
@@ -102,6 +109,11 @@ final class CombineCheckpoint
                 'strategy' => $strategy,
                 'base' => $base,
                 'target_collection' => $targetCollection,
+                'build_id' => CombineBuild::newId(),
+                // Telemetry merges, so a flag left by an earlier run has to be
+                // cleared explicitly: this run starts from scratch and its
+                // documents are all marked.
+                'build_resumed_without_id' => false,
                 'last_id' => null,
                 'last_id_kind' => null,
                 'examined' => 0,
@@ -127,6 +139,20 @@ final class CombineCheckpoint
             }
             $state['stage'] = self::STAGE_RUNNING;
             $telemetry->update(self::KEY, ['stage' => self::STAGE_RUNNING]);
+
+            // A checkpoint written before builds were stamped has no build id
+            // to continue. Give the resumed run one, but remember that it did
+            // not come from the stored run: the documents the crashed run
+            // wrote carry no marker, so a sweep cannot tell them apart from
+            // stale ones and must not be run against them.
+            if (!isset($state['build_id']) || !is_string($state['build_id']) || $state['build_id'] === '') {
+                $state['build_id'] = CombineBuild::newId();
+                $state['build_resumed_without_id'] = true;
+                $telemetry->update(self::KEY, [
+                    'build_id' => $state['build_id'],
+                    'build_resumed_without_id' => true,
+                ]);
+            }
         }
 
         // Up-front marker: without it a crashed run is indistinguishable from
@@ -217,6 +243,32 @@ final class CombineCheckpoint
     public function state(): array
     {
         return $this->state;
+    }
+
+    /**
+     * The build id of this run.
+     *
+     * Every document the run writes carries it, and the end-of-run sweep
+     * deletes the documents that carry the base's own reference key but not
+     * this id. A resumed run keeps the id of the run it continues, so the
+     * documents written before the crash are not mistaken for stale ones.
+     */
+    public function buildId(): string
+    {
+        $id = $this->state['build_id'] ?? '';
+
+        return is_string($id) ? $id : '';
+    }
+
+    /**
+     * True when the run continued a checkpoint that carried no build id.
+     *
+     * The documents the crashed run wrote are then unmarked, so a sweep
+     * cannot tell them apart from stale documents and must not run.
+     */
+    public function resumedWithoutBuildId(): bool
+    {
+        return ($this->state['build_resumed_without_id'] ?? false) === true;
     }
 
     /**

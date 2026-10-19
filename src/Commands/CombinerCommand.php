@@ -5,10 +5,12 @@ namespace Hiyori\Commands;
 use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
+use Hiyori\Service\Combiner\CombineSweeper;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\ExportConfig;
 use Hiyori\Service\Exporter;
 use Hiyori\Service\Migrator;
+use Hiyori\Service\SourceConfigurationFactory;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\LockableTrait;
@@ -60,6 +62,7 @@ final class CombinerCommand extends Command
             ->addOption('into', null, InputOption::VALUE_OPTIONAL, 'Collection to merge into (e.g. organized_manga). Defaults to organized.', 'organized')
             ->addOption('min-coverage', null, InputOption::VALUE_REQUIRED, \sprintf('Fail when fewer than this percent of base rows end up as a document (integer 0-100, default %d). 0 disables the percentage comparison; a run that examines no base rows fails either way', self::DEFAULT_MIN_COVERAGE))
             ->addOption('passthrough', null, InputOption::VALUE_NEGATABLE, 'Keep base entries that matched nothing as their own single-source records. Required for an id-stable rebuild of `organized`; off by default so benchmark runs measure merging alone')
+            ->addOption('sweep', null, InputOption::VALUE_NEGATABLE, 'Reconcile the target with this run: delete the documents that carry the base\'s own reference key but were not produced by this run (default: on). Use --no-sweep to leave them in place')
             ->addOption('rejection-buffer', null, InputOption::VALUE_NEGATABLE, 'Write borderline title-floor rejections to the rejection buffer (pair_rejections) for later review')
             ->addOption('rejection-buffer-floor', null, InputOption::VALUE_OPTIONAL, 'Metadata score that makes a title-floor rejection borderline (default: the combine threshold)')
             ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
@@ -149,6 +152,18 @@ final class CombinerCommand extends Command
             $config['rejection_buffer_floor'] = (float) $input->getOption('rejection-buffer-floor');
         }
 
+        // The sweep is on by default: a run that only upserts leaves the
+        // documents of base entries that vanished upstream published forever.
+        // `--no-sweep` turns it off for a run that must be purely additive
+        // (a benchmark into a shared collection, or a run an operator wants
+        // to inspect before anything is deleted). A `--config` key can do the
+        // same, but the flag always wins.
+        $sweep = $input->getOption('sweep');
+        if ($sweep === null) {
+            $sweep = (bool) ($config['sweep'] ?? true);
+        }
+        $config['sweep'] = (bool) $sweep;
+
         // Warn before, not after: a run without passthrough drops every base
         // entry that matched nothing. On a merged collection that already holds
         // single-source records that is silent coverage loss, and the registry
@@ -162,6 +177,11 @@ final class CombinerCommand extends Command
                     $target,
                     $existing,
                 ));
+            }
+            if ($config['sweep']) {
+                $output->writeln(
+                    '<comment>Note:</comment> the sweep removes the documents this run did not produce, so the previous documents of the dropped entries go too (--no-sweep keeps them).',
+                );
             }
         }
 
@@ -191,13 +211,15 @@ final class CombinerCommand extends Command
 
                 return Command::FAILURE;
             }
+            $resumedBuildId = (string) ($checkpoint['build_id'] ?? '');
             $output->writeln(sprintf(
-                '<info>Resuming</info> %s into %s from last_id %s (examined %s, written %s).',
+                '<info>Resuming</info> %s into %s from last_id %s (examined %s, written %s, build %s).',
                 $base,
                 $target,
                 (string) ($checkpoint['last_id'] ?? 'start'),
                 number_format((int) ($checkpoint['examined'] ?? 0)),
                 number_format((int) ($checkpoint['written'] ?? 0)),
+                $resumedBuildId !== '' ? $resumedBuildId : 'unmarked',
             ));
         }
         // Explicit, so a stray `resume` key in --config cannot start a partial
@@ -249,11 +271,127 @@ final class CombinerCommand extends Command
             $output->writeln('<comment>Coverage gate disabled (--min-coverage=0).</comment>');
         }
 
+        // The run passed the gate, so it is a faithful picture of the base and
+        // the target can be reconciled with it. Only now — a failed, crashed
+        // or interrupted run must never delete the documents it did not get
+        // to.
+        $swept = $this->sweepStaleDocuments($config, $input, $output, $reported);
+        if ($swept === null) {
+            $this->release();
+
+            return Command::FAILURE;
+        }
+
         $this->exportIfRequested($input, $output);
 
         $this->release();
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Delete the documents in the target that this run did not produce.
+     *
+     * The deletion is scoped to the base's own reference key: a document that
+     * carries it but was not written by this build is stale, and a document
+     * that only carries another base's key is none of this run's business.
+     *
+     * @param array<string, mixed> $config
+     *
+     * @return int|null the number of documents deleted, or null when the sweep failed
+     */
+    private function sweepStaleDocuments(
+        array $config,
+        InputInterface $input,
+        OutputInterface $output,
+        CombineStats $reported,
+    ): ?int {
+        if (!($config['sweep'] ?? true)) {
+            $output->writeln('<comment>Sweep disabled (--no-sweep): the documents this run did not produce were left in the target.</comment>');
+
+            return 0;
+        }
+
+        if ($reported->written() === 0) {
+            $output->writeln('<comment>Sweep skipped: the run produced no document, so it is not a trustworthy basis for deleting anything.</comment>');
+
+            return 0;
+        }
+
+        $state = CombineCheckpoint::peek();
+        if (($state['build_resumed_without_id'] ?? false) === true) {
+            $output->writeln('<comment>Sweep skipped: the run continued a checkpoint written before builds were stamped, so the documents of the crashed run cannot be told apart from stale ones.</comment>');
+
+            return 0;
+        }
+
+        $buildId = (string) ($state['build_id'] ?? '');
+        if ($buildId === '') {
+            $output->writeln('<comment>Sweep skipped: the run left no build marker, so there is nothing to reconcile against.</comment>');
+
+            return 0;
+        }
+
+        $base = (string) $input->getArgument('base');
+        $shorthand = $this->baseShorthand($base, $reported->base);
+        if ($shorthand === '') {
+            $output->writeln('<comment>Sweep skipped: the reference key of the base is unknown, so the sweep cannot be scoped to it.</comment>');
+
+            return 0;
+        }
+
+        $target = (string) $input->getOption('into');
+        try {
+            $deleted = CombineSweeper::sweep(
+                $this->hiyori->getDatabase()->getCollection($target),
+                $shorthand,
+                $buildId,
+            );
+        } catch (\Throwable $e) {
+            $output->writeln(sprintf('<error>Sweep failed: %s</error>', $e->getMessage()));
+
+            return null;
+        }
+
+        $output->writeln(sprintf(
+            'Sweep: <info>%s</info> stale document(s) removed from %s (base key %s, build %s).',
+            number_format($deleted),
+            $target,
+            $shorthand,
+            $buildId,
+        ));
+
+        return $deleted;
+    }
+
+    /**
+     * The reference shorthand of the base a run used.
+     *
+     * The sweep deletes documents by the base's own reference key, so the key
+     * has to be the one the run actually wrote under. It is looked up by
+     * table name first (that is what the run reports) and by source name
+     * second.
+     */
+    private function baseShorthand(string $baseName, string $baseTable): string
+    {
+        try {
+            $sources = SourceConfigurationFactory::create()->getSources();
+        } catch (\Throwable) {
+            return '';
+        }
+
+        foreach ($sources as $name => $configuration) {
+            if ($configuration->getTable() === $baseTable) {
+                return $configuration->getShorthand();
+            }
+        }
+        foreach ($sources as $name => $configuration) {
+            if ($name === $baseName) {
+                return $configuration->getShorthand();
+            }
+        }
+
+        return '';
     }
 
     /**

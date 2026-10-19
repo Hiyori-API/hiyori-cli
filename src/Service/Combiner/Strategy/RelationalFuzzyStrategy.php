@@ -3,6 +3,7 @@
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineBuild;
 use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\ConsoleFactory;
@@ -32,6 +33,10 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'skipped_cross_kind_sources' => 0,
             'examined' => 0,
@@ -121,6 +126,7 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
                                 // Fallback: continue without hiyori_id
                                 $extra = [];
                             }
+                            $extra = array_merge($extra, CombineBuild::stamp($baseShorthand, $buildId));
 
                             $db->mergeIntoOrganized(
                                 $mergedEntry,

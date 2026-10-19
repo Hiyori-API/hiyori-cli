@@ -49,7 +49,7 @@ final class CombinerCommandCoverageTest extends TestCase
         return new Migrator(
             new Database(SerializerBuilder::create()->build()),
             'hiyori_test_coverage',
-            [1 => 'applied', 2 => 'applied', 3 => 'applied', 4 => 'applied'],
+            [1 => 'applied', 2 => 'applied', 3 => 'applied', 4 => 'applied', 5 => 'applied'],
         );
     }
 

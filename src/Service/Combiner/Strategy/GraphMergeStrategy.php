@@ -52,6 +52,10 @@ final class GraphMergeStrategy extends CombinerStrategy
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        // Every document this run writes carries the build id, so the sweep at
+        // the end of the run can tell this run's documents from the stale ones
+        // it did not write (see CombineSweeper).
+        $buildId = $checkpoint->buildId();
         $counters = $checkpoint->counters([
             'examined' => 0,
             'merged' => 0,
@@ -99,7 +103,7 @@ final class GraphMergeStrategy extends CombinerStrategy
                 }
             }
 
-            if ($model !== null && self::persistAccumulated($db, $source, $model, $baseId, $collection, $members[0]['score'])) {
+            if ($model !== null && self::persistAccumulated($db, $source, $model, $baseId, $collection, $members[0]['score'], $buildId)) {
                 $counters['merged']++;
                 $clusterSize = count($members) + 1;
                 $counters['cluster_sizes'][$clusterSize] = ((int) ($counters['cluster_sizes'][$clusterSize] ?? 0)) + 1;

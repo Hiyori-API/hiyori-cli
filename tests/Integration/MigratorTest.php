@@ -77,7 +77,15 @@ final class MigratorTest extends TestCase
         $this->assertContains('content_model_version', $embeddingNames);
 
         $log = $client->selectDatabase(self::DB)->selectCollection('_migrations')->countDocuments();
-        $this->assertSame(4, $log);
+        $this->assertSame(5, $log);
+
+        // v5 gives the SOURCE collections the candidate-filter index, so the
+        // combiner's lookup is an index scan rather than a collection scan.
+        $sourceIndexes = [];
+        foreach ($client->selectDatabase(self::DB)->selectCollection('anilist')->listIndexes() as $i) {
+            $sourceIndexes[] = $i->getName();
+        }
+        $this->assertContains('cand_filter_type_status_year', $sourceIndexes);
 
         $client->selectDatabase(self::DB)->drop();
     }
