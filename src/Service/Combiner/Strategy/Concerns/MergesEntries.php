@@ -48,12 +48,17 @@ trait MergesEntries
     }
 
     /**
-     * Registry kind for a target collection.
+     * Registry kind for a collection.
      *
      * Any collection whose name says manga holds manga ids. The exact
      * `=== 'organized_manga'` test this replaces handed *anime* ids to a manga
      * staging or benchmark collection, which created registry rows of the wrong
      * kind (and `hyori-id verify` then rejects the document).
+     *
+     * The kind of a record is decided by the BASE it came from, not by the
+     * name of the collection it is written into: a benchmark writes manga into
+     * bench_<strategy>, whose name says nothing, and asking the collection
+     * produced ANIME registry rows for manga documents.
      */
     protected static function targetKind(string $collection): string
     {
@@ -90,7 +95,7 @@ trait MergesEntries
 
         $baseShorthand = $source->get()->getShorthand();
         $refs = method_exists($merged, 'getReferenceIds') ? $merged->getReferenceIds() : [];
-        $kind = self::targetKind($collection);
+        $kind = self::targetKind($source->get()->getTable());
         $slug = Exporter::slugify((string) $merged->getTitle());
         $extra = $score === null ? [] : ['confidence' => $score];
         try {

@@ -324,7 +324,10 @@ five strategies, merge-only so the numbers stay comparable with the old table.
 | `relational_mapping` | **14,233** | ~60 m | — | **0** | **0** | **0** | **11,975** | 2,258 |
 
 \* Measured before the allocator fix described below, which is what produced
-those duplicates: the counts are the bug, not the strategy.
+those duplicates: the counts are the bug, not the strategy. A re-run of
+`metadata_fuzzy` with the fixed allocator produced 5,498 documents with **zero**
+duplicate `hiyori_id`s and zero duplicate `al_manga`s, and the two manga that
+had shared k_manga 119 now hold 105423 and 108911.
 
 Four things this says:
 

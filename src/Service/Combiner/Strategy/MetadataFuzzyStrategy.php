@@ -275,7 +275,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                         $mergedEntry = Helper::mergeEntries($tableName, $entryArray, $bestMatch);
 
                         // Ensure stable hiyori_id: reuse if refs already known, else allocate new.
-                        $kind = self::targetKind($collection);
+                        $kind = self::targetKind($source->get()->getTable());
                         $slug = \Hiyori\Service\Exporter::slugify((string) $mergedEntry->getTitle());
                         $refs = $mergedEntry->getReferenceIds();
                         try {

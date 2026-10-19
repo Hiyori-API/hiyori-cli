@@ -179,7 +179,7 @@ final class MetadataMlStrategy extends CombinerStrategy
 
                 $entryArray['reference_ids'][$baseShorthand] = $baseId;
                 $mergedEntry = Helper::mergeEntries($tableName, $entryArray, $bestMatch);
-                $kind = self::targetKind($collection);
+                $kind = self::targetKind($source->get()->getTable());
                 $slug = Exporter::slugify((string) $mergedEntry->getTitle());
                 $refs = $mergedEntry->getReferenceIds();
 
