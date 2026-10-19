@@ -165,6 +165,65 @@ Three facts explain most of the findings:
   values kept in `_repair_reference_ids_backup`. See
   `docs/manga-identity-repair.md`.
 
+### Performance — where the hours actually went
+
+The combiner's candidate lookup was the bottleneck, not the scorer.
+
+`MetadataFuzzyStrategy::candidates()` queries `{type, status, year}` (then
+relaxes it), limit 100, no sort. `explain` on the live server:
+
+```
+before:  docsExamined 7113   keysExamined 0      9 ms   (COLLSCAN)
+after:   docsExamined  100   keysExamined 100    0 ms   (IXSCAN)
+```
+
+Migration 1 gave `organized` and `organized_manga` that index; the **source**
+collections only ever got `reference_ids.*`, so every candidate lookup scanned.
+Migration 5 adds it to all six. Measured on the live manga rebuild:
+**3.2 → 7.8 rows/s (2.4x)** with no change to what it merges.
+
+The second half of the cost was asking the wrong collections. A manga base
+iterates every source but itself, so it queried three anime collections (15k,
+22.5k and 29k documents) four times per base row, and the type anchor veto
+threw every candidate away afterwards — roughly 60 % of the candidate
+retrieval. All six source-looping strategies now skip cross-kind candidates
+(`same_kind_candidates: false` restores the old behaviour).
+
+### Open-weight local embedding models
+
+The embedding path exists (`services/ml/embed.py`, JSONL over pipes) but the
+Python sidecar was **never installed** — no `.venv-ml`, no torch, no
+sentence-transformers — so `semantic_rerank` has been running the deterministic
+n-gram fallback. That is what cost 500 MB RSS and 0.806 F1 in the 2026-10-16
+benchmark; the embedding path has never actually been measured.
+
+Candidates with permissive licences and ONNX exports (so Node can run them via
+`@huggingface/transformers` and `onnxruntime-node`, with no server and no
+Python):
+
+| model | licence | params | ONNX | notes |
+|---|---|---:|---|---|
+| `Cloudflare/clef` | Apache-2.0 | — | no (GGUF exists) | most-liked on HF (2,221); needs the Python sidecar or llama.cpp |
+| `Cloudflare/clef-flash` | Apache-2.0 | — | no | the fast variant of the above |
+| `Alibaba-NLP/gte-modernbert-base` | Apache-2.0 | 149M | bnb4, fp16 | ModernBERT: ~2x faster than BERT, strong MTEB |
+| `intfloat/multilingual-e5-small` | MIT | 118M | O4, int8-avx512 | safest multilingual, smallest |
+| `nomic-ai/nomic-embed-text-v1.5` | Apache-2.0 | 137M | int8, fp16 | 8192 context |
+| `jinaai/jina-embeddings-v2-small-en` | Apache-2.0 | 184M | yes | Jina v2 is commercial-clean |
+| `jinaai/jina-embeddings-v3` | **CC-BY-NC-4.0** | 570M | — | **non-commercial — unusable here** |
+
+Two constraints worth stating plainly:
+
+* **Vector search is not available to us.** The live server answers
+  `$search stage is only allowed on MongoDB Atlas`; we run MongoDB 7.0.43
+  self-hosted. ANN retrieval would mean an Atlas dependency or a version
+  upgrade plus re-embedding 126k documents.
+* **Embeddings are an accuracy play, not a speed play.** They improve matching
+  beyond string overlap; they do not touch retrieval, which is where the cost
+  was. The per-pair cost can be lowered by caching each source document's
+  vector once and comparing with a dot product, which `EmbeddingService`
+  already does via `storage/ml/embeddings.json` — but that only pays off after
+  a one-time embedding pass.
+
 ---
 
 ## 3. Open findings, by priority
