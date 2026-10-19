@@ -15,6 +15,7 @@ require_once __DIR__ . '/http-guard.php';
 
 use Hiyori\Service\AlertNotifier;
 use Hiyori\Service\Database;
+use Hiyori\Service\EnvFile;
 use Hiyori\Service\Explorer;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
@@ -41,14 +42,15 @@ $client = new MongoClient($mongoUrl, [
     'connectTimeoutMS' => 3000,
 ]);
 $database = new Database(SerializerBuilder::create()->build());
-$rateLimiter = new RateLimiter(
-    (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100),
-    (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60),
-);
+// Limits resolve through RateLimiter::effectiveLimits() (env, then the
+// dashboard override in ui.json); the constructor applies it, so no second
+// copy of the precedence rule lives in this file.
+$rateLimiter = new RateLimiter();
 $health = new HealthCheck($client, $rateLimiter);
 $metrics = new MetricsCollector();
 $telemetry = new Telemetry();
 $validator = new Validator();
+$envFile = new EnvFile();
 
 function sendJson(array $payload, int $status = 200): never
 {
@@ -293,29 +295,6 @@ function dbStats(MongoClient $client, ?array $counts = null): array
     ];
 
     return $out;
-}
-
-/**
- * Effective rate limits. Dashboard overrides (storage/state/ui.json → limits)
- * win over the RATE_LIMIT_* env vars, and Bootstrap.php applies the same
- * precedence when an ingest process starts.
- *
- * @return array{max: int, window: int, source: string}
- */
-function rateLimits(): array
-{
-    $max = (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100);
-    $window = (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60);
-    $source = isset($_ENV['RATE_LIMIT_MAX']) || isset($_ENV['RATE_LIMIT_WINDOW']) ? 'env' : 'default';
-
-    $override = uiSettings()['limits'] ?? null;
-    if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
-        $max = (int) $override['max'];
-        $window = (int) $override['window'];
-        $source = 'override';
-    }
-
-    return ['max' => $max, 'window' => $window, 'source' => $source];
 }
 
 function backupInfo(): array
@@ -1206,9 +1185,9 @@ if ($path === '/api/limits') {
         $settings['limits'] = ['max' => $max, 'window' => $window, 'updated_at' => date('c')];
         saveUiSettings($settings);
         auditAppend('limits.update', ['max' => $max, 'window' => $window]);
-        sendJson(['limits' => rateLimits(), 'applied' => 'next ingest start']);
+        sendJson(['limits' => RateLimiter::effectiveLimits(), 'applied' => 'next ingest start']);
     }
-    sendJson(['limits' => rateLimits(), 'applied' => 'next ingest start']);
+    sendJson(['limits' => RateLimiter::effectiveLimits(), 'applied' => 'next ingest start']);
 }
 
 if ($path === '/api/backups') {
@@ -2159,12 +2138,12 @@ if ($path === '/api/settings') {
         $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
         if (isset($body['token_rotate'])) {
             $token = bin2hex(random_bytes(24));
-            updateDotEnv('DASHBOARD_TOKEN', $token);
+            $envFile->set('DASHBOARD_TOKEN', $token);
             auditAppend('settings.token_rotate');
             sendJson(['settings' => uiSettings(), 'token' => $token, 'note' => 'new token active on next request']);
         }
         if (array_key_exists('webhook', $body)) {
-            updateDotEnv('WEBHOOK_URL', (string) $body['webhook']);
+            $envFile->set('WEBHOOK_URL', (string) $body['webhook']);
             $merged = array_merge(uiSettings(), array_diff_key($body, ['webhook' => true]));
             saveUiSettings($merged);
             auditAppend('settings.webhook');
@@ -2212,117 +2191,7 @@ if ($path === '/api/settings') {
     ]);
 }
 
-// ===== Environment helpers (.env read/write + sensitivity) =====
-function envFile(): string
-{
-    return dirname(__DIR__) . '/.env';
-}
-
-function listEnvVars(): array
-{
-    $file = envFile();
-    if (!is_file($file)) {
-        return [];
-    }
-    $out = [];
-    foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-        $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
-            continue;
-        }
-        [$key, $value] = explode('=', $line, 2);
-        $out[trim($key)] = $value;
-    }
-
-    return $out;
-}
-
-function isSensitiveKey(string $key): bool
-{
-    if ((bool) preg_match('/(TOKEN|SECRET|PASSWORD|CLIENT_SECRET)/i', $key)) {
-        return true;
-    }
-    $ui = uiSettings();
-    foreach ((array) ($ui['env_sensitive_patterns'] ?? []) as $pattern) {
-        $pattern = (string) $pattern;
-        if ($pattern !== '' && @preg_match($pattern, $key)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function maskSecret(string $value): string
-{
-    if ($value === '') {
-        return '';
-    }
-    $head = array_slice(str_split($value), 0, 4);
-
-    return implode('', $head) . '••••' . (strlen($value) > 8 ? '(' . strlen($value) . ' chars)' : '');
-}
-
-function removeEnvVar(string $key): void
-{
-    $file = envFile();
-    if (!is_file($file)) {
-        return;
-    }
-    $lines = array_filter(file($file, FILE_IGNORE_NEW_LINES) ?: [], static function ($l) use ($key) {
-        $t = ltrim($l);
-        if ($t === '' || str_starts_with($t, '#')) {
-            return true; // keep blank + comment lines
-        }
-
-        return !str_starts_with($t, $key . '=');
-    });
-    @copy($file, $file . '.bak');
-    file_put_contents($file, implode("\n", array_values($lines)) . "\n");
-}
-
-function envRaw(): string
-{
-    $file = envFile();
-
-    return is_file($file) ? (string) file_get_contents($file) : '';
-}
-
-function writeEnvRaw(string $raw): void
-{
-    $file = envFile();
-    $dir = dirname($file);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0o777, true);
-    }
-    @copy($file, $file . '.bak');
-    file_put_contents($file, rtrim($raw) . "\n");
-}
-
-function updateDotEnv(string $key, ?string $value): bool
-{
-    $envFile = envFile();
-    if (!is_file($envFile)) {
-        return false;
-    }
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES) ?: [];
-    $found = false;
-    foreach ($lines as $i => $line) {
-        if (preg_match('/^\s*' . preg_quote($key, '/') . '=/', $line)) {
-            $lines[$i] = $key . '=' . ($value ?? '');
-            $found = true;
-            break;
-        }
-    }
-    if (!$found) {
-        $lines[] = $key . '=' . ($value ?? '');
-    }
-    @copy($envFile, $envFile . '.bak');
-    file_put_contents($envFile, implode("\n", $lines) . "\n");
-
-    return true;
-}
-
+// .env read/write now lives in Hiyori\Service\EnvFile ($envFile).
 
 /** 403 unless the request came from this dashboard. */
 function requireSameOrigin(): void
@@ -2334,19 +2203,19 @@ function requireSameOrigin(): void
 
 if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     requireSameOrigin();
-    $vars = listEnvVars();
+    $vars = $envFile->all();
     $reveal = (string) ($_GET['reveal'] ?? '');
     if (($_GET['raw'] ?? '') === '1') {
-        sendJson(['raw' => envRaw(), 'source' => '.env']);
+        sendJson(['raw' => $envFile->raw(), 'source' => '.env']);
     }
     $rows = [];
     foreach ($vars as $key => $value) {
-        $sensitive = isSensitiveKey($key);
+        $sensitive = $envFile->isSensitiveKey($key);
         $rows[] = [
             'key' => $key,
             'present' => $value !== '',
             'sensitive' => $sensitive,
-            'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value),
+            'masked' => $value === '' ? '' : ($sensitive ? $envFile->mask((string) $value) : (string) $value),
             'value' => ($key === $reveal && $reveal !== '') ? (string) $value : null,
         ];
     }
@@ -2358,13 +2227,13 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
 
     if (isset($body['raw'])) {
-        writeEnvRaw((string) $body['raw']);
+        $envFile->replace((string) $body['raw']);
         auditAppend('env.bulk', ['chars' => strlen((string) $body['raw'])]);
-        $vars = listEnvVars();
+        $vars = $envFile->all();
         $out = [];
         foreach ($vars as $key => $value) {
-            $sensitive = isSensitiveKey($key);
-            $out[] = ['key' => $key, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
+            $sensitive = $envFile->isSensitiveKey($key);
+            $out[] = ['key' => $key, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? $envFile->mask((string) $value) : (string) $value)];
         }
         sendJson(['raw_updated' => true, 'env' => $out]);
     }
@@ -2381,22 +2250,23 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         sendJson(['error' => 'invalid env key'], 400);
     }
     if (array_key_exists('value', $body) && $body['value'] === null) {
-        removeEnvVar($key);
+        $envFile->remove($key);
         auditAppend('env.remove', ['key' => $key]);
     } else {
         $value = (string) ($body['value'] ?? '');
-        if (str_contains($value, "\n") || str_contains($value, "\r")) {
-            sendJson(['error' => 'value must be a single line'], 400);
+        try {
+            $envFile->set($key, $value);
+        } catch (\InvalidArgumentException $e) {
+            sendJson(['error' => $e->getMessage()], 400);
         }
-        updateDotEnv($key, $value);
         auditAppend('env.update', ['key' => $key]);
     }
-    $vars = listEnvVars();
-    sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($vars) {
-        $sensitive = isSensitiveKey($k);
+    $vars = $envFile->all();
+    sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($envFile, $vars) {
+        $sensitive = $envFile->isSensitiveKey($k);
         $value = $vars[$k] ?? '';
 
-        return ['key' => $k, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? maskSecret((string) $value) : (string) $value)];
+        return ['key' => $k, 'present' => $value !== '', 'sensitive' => $sensitive, 'masked' => $value === '' ? '' : ($sensitive ? $envFile->mask((string) $value) : (string) $value)];
     }, array_keys($vars))]);
 }
 

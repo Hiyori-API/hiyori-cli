@@ -19,9 +19,13 @@ final class RateLimiter
 
     private string $stateDir;
 
+    private int $maxRequests;
+
+    private int $timeWindow;
+
     public function __construct(
-        private int $maxRequests = 100,
-        private int $timeWindow = 60,
+        ?int $maxRequests = null,
+        ?int $timeWindow = null,
         private float $circuitBreakerThreshold = 0.5,
         private int $circuitBreakerTimeout = 60,
         private int $circuitBreakerMinFailures = 10,
@@ -31,17 +35,12 @@ final class RateLimiter
         $this->logger = $logger ?? self::defaultLogger();
         $this->stateDir = $stateDir ?? dirname(__DIR__, 2) . '/storage/state';
 
-        // Honor overrides saved from the dashboard Management page (storage/state/ui.json).
-        $overridesFile = $this->stateDir . '/ui.json';
-        if (is_file($overridesFile)) {
-            $ui = json_decode((string) file_get_contents($overridesFile), true) ?: [];
-            if (isset($ui['limits']['max'])) {
-                $this->maxRequests = max(1, (int) $ui['limits']['max']);
-            }
-            if (isset($ui['limits']['window'])) {
-                $this->timeWindow = max(1, (int) $ui['limits']['window']);
-            }
-        }
+        // Limits resolve through the single precedence owner below: the
+        // RATE_LIMIT_* env vars, then a dashboard override in ui.json. Passing
+        // explicit values (tests) uses them as the base instead.
+        $limits = self::effectiveLimits($this->stateDir, $maxRequests, $timeWindow);
+        $this->maxRequests = $limits['max'];
+        $this->timeWindow = $limits['window'];
 
         // Breaker state outlives the process: an ingest opens a breaker, then
         // exits, and the dashboard's HealthCheck runs in a different process.
@@ -70,6 +69,46 @@ final class RateLimiter
         }
 
         return $logger;
+    }
+
+    /**
+     * The single owner of the rate-limit precedence rule.
+     *
+     * A dashboard override saved in storage/state/ui.json (`limits`) wins over
+     * the RATE_LIMIT_* env vars, but only when it carries BOTH `max` and
+     * `window` and both are > 0: a half-written override is ignored instead of
+     * being applied field by field. `source` reports where the winner came from
+     * so the dashboard can show it.
+     *
+     * Callers may pass base values (the constructor does, so tests and explicit
+     * wiring keep their arguments) which are used unless an override applies.
+     *
+     * @return array{max: int, window: int, source: string}
+     */
+    public static function effectiveLimits(?string $stateDir = null, ?int $maxRequests = null, ?int $timeWindow = null): array
+    {
+        if ($maxRequests === null || $timeWindow === null) {
+            $maxRequests ??= (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100);
+            $timeWindow ??= (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60);
+            $source = isset($_ENV['RATE_LIMIT_MAX']) || isset($_ENV['RATE_LIMIT_WINDOW']) ? 'env' : 'default';
+        } else {
+            $source = 'argument';
+        }
+
+        $overridesFile = ($stateDir ?? dirname(__DIR__, 2) . '/storage/state') . '/ui.json';
+        if (is_file($overridesFile)) {
+            $ui = json_decode((string) file_get_contents($overridesFile), true);
+            $override = is_array($ui) ? ($ui['limits'] ?? null) : null;
+            if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
+                return [
+                    'max' => (int) $override['max'],
+                    'window' => (int) $override['window'],
+                    'source' => 'override',
+                ];
+            }
+        }
+
+        return ['max' => $maxRequests, 'window' => $timeWindow, 'source' => $source];
     }
 
     /** Whether this limiter has observed traffic (or a persisted breaker) for a key. */

@@ -3,6 +3,7 @@
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\ConsoleFactory;
 use Hiyori\Service\Database;
@@ -22,34 +23,41 @@ final class RelationalMappingStrategy extends CombinerStrategy
     ): CombineStats {
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $tableName = $source->get()->getTable();
+        $resume = (bool) ($strategy->getConfig('resume') ?? false);
+
+        // Keyset pagination + a checkpoint per batch replaces the single
+        // long-lived cursor that a server can kill mid-run.
+        $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        $counters = $checkpoint->counters([
+            'examined' => 0,
+            // `merged` is the coverage counter: base entries that produced a
+            // document. `total_merged` counts writes, and one entry can write
+            // once per matching source, so the two are not interchangeable.
+            'merged' => 0,
+            'passthrough' => 0,
+            'unresolved_base_id' => 0,
+            'total_merged' => 0,
+        ]);
+
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
         $total = $baseCollection->countDocuments();
-        // A plain server cursor is killed after ~10 min idle, which is how the
-        // manga rebuild died at 45 % with "cursor id ... not found". Keep it
-        // alive explicitly: a full base takes hours.
-        $cursor = $baseCollection->find([], ['noCursorTimeout' => true, 'batchSize' => 500]);
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1);
         $progressBar->setFormat($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%');
         $progressBar->start();
+        if ((int) $counters['examined'] > 0) {
+            $progressBar->setProgress(min((int) $counters['examined'], $total));
+        }
 
-        $totalMerged = 0;
-        // Coverage counters (see CombineStats). `$totalMerged` counts writes,
-        // and one entry can write once per matching source, so coverage needs
-        // its own per-entry counter.
-        $examined = 0;
-        $coveredEntries = 0;
-        $unresolvedBaseId = 0;
-        foreach ($cursor as $id => $entry) {
-            $examined++;
-            $entryArray = Helper::convertMongoResultToArray($entry);
+        foreach (self::baseEntryBatches($db, $tableName, $checkpoint, $counters) as $entryArray) {
+            $counters['examined']++;
             $baseShorthand = $source->get()->getShorthand();
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
             if ($baseId === '') {
-                $unresolvedBaseId++;
+                $counters['unresolved_base_id']++;
             }
             $covered = false;
             foreach ($availableSources as $currentSource) {
@@ -100,32 +108,33 @@ final class RelationalMappingStrategy extends CombinerStrategy
                         $extra,
                     );
 
-                    $totalMerged++;
+                    $counters['total_merged']++;
                     $covered = true;
                 }
             }
             if ($covered) {
-                $coveredEntries++;
+                $counters['merged']++;
             }
             $progressBar->advance();
         }
         $progressBar->finish();
 
-        $console->io()->info('Merge complete. Total Merged: ' . $totalMerged);
+        $console->io()->info('Merge complete. Total Merged: ' . $counters['total_merged']);
         (new \Hiyori\Service\Telemetry())->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $source->get()->getTable(),
-            'merges' => $totalMerged,
+            'merges' => $counters['total_merged'],
             'completed_at' => date('c'),
         ]);
+        $checkpoint->complete();
 
         return CombineStats::forRun(
             self::NAME,
             $tableName,
-            $examined,
-            $coveredEntries,
-            0,
-            $unresolvedBaseId,
+            (int) $counters['examined'],
+            (int) $counters['merged'],
+            (int) $counters['passthrough'],
+            (int) $counters['unresolved_base_id'],
         );
     }
 }

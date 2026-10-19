@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
@@ -50,6 +51,32 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * Tags are intentionally near-zero: different sources use disjoint tag sets.
      * Sum does not need to be 100; weights are normalized at runtime.
      */
+    /**
+     * Weights for manga.
+     *
+     * Manga have no episodes and no seasons — every manga entry carries
+     * `episodes: null` and `season: null`, so the anime weights scored those
+     * two fields as a match on BOTH sides and handed 42.6 of the 100 points to
+     * any two manga from the same year, whatever their titles said. Manga do
+     * have `chapters` and `volumes`, and all three manga sources populate
+     * them, so those take the same two slots: chapters is the direct analogue
+     * of episodes (how long the work is) and volumes carries the second
+     * length signal that season provided for anime.
+     *
+     * The magnitudes are the anime ones. Re-calibrate with `hiyori weightage`
+     * once there are labelled manga pairs.
+     */
+    public const MANGA_WEIGHTS = [
+        'title' => 26.4,
+        'synonyms' => 0,
+        'type' => 5.7,
+        'chapters' => 26.2,
+        'status' => 0.6,
+        'volumes' => 16.4,
+        'year' => 23.2,
+        'tags' => 1.5,
+    ];
+
     public const DEFAULT_WEIGHTS = [
         // Optimized via `hiyori weightage` (discrimination-gap) on 600 matched
         // MAL<->AniList pairs; benchmark-validated (10,770 organized vs 6,873 fuzzy).
@@ -63,13 +90,23 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         'tags' => 1.5,
     ];
 
+    /**
+     * The weight set for a base collection.
+     *
+     * A manga base must be compared on the fields manga actually have.
+     */
+    public static function weightsForKind(string $baseTable): array
+    {
+        return str_contains($baseTable, 'manga') ? self::MANGA_WEIGHTS : self::DEFAULT_WEIGHTS;
+    }
+
     public static function process(
         Database $db,
         ConsoleFactory $console,
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source
     ): CombineStats {
-        $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::DEFAULT_WEIGHTS);
+        $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::weightsForKind($source->get()->getTable()));
         $threshold = self::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
@@ -89,48 +126,63 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         $tableName = $source->get()->getTable();
+        $resume = (bool) ($strategy->getConfig('resume') ?? false);
+
+        // Keyset pagination + a checkpoint per batch replaces the single
+        // long-lived cursor that a server can kill mid-run ("cursor id ...
+        // not found"). Progress is persisted after every batch so a crash can
+        // be resumed instead of restarting the whole base.
+        $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        $counters = $checkpoint->counters([
+            'examined' => 0,
+            // `merged` counts distinct documents written. `total_merged` counts
+            // matched sources, and an entry that matches both myanimelist and
+            // kitsu upserts the same document twice, so the two numbers are not
+            // interchangeable.
+            'merged' => 0,
+            'passthrough' => 0,
+            'unresolved_base_id' => 0,
+            'total_merged' => 0,
+            'candidates_examined' => 0,
+            'rejected_anchor' => 0,
+            'rejected_title' => 0,
+            'buffered' => 0,
+            'merged_sources' => [],
+            'score_n' => 0,
+            'score_sum' => 0.0,
+            'score_min' => null,
+            'score_max' => null,
+            'score_p0_70' => 0,
+            'score_p70_80' => 0,
+            'score_p80_90' => 0,
+            'score_p90_100' => 0,
+        ]);
+
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
         $total = $baseCollection->countDocuments();
-        // A plain server cursor is killed after ~10 min idle, which is how the
-        // manga rebuild died at 45 % with "cursor id ... not found". Keep it
-        // alive explicitly: a full base takes hours.
-        $cursor = $baseCollection->find([], ['noCursorTimeout' => true, 'batchSize' => 500]);
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
         $progressBar->setFormat((string) ($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%'));
         $progressBar->start();
+        if ((int) $counters['examined'] > 0) {
+            $progressBar->setProgress(min((int) $counters['examined'], $total));
+        }
 
         $scores = [];
-        $totalMerged = 0;
-        $totalPassthrough = 0;
-        // Distinct documents written. `$totalMerged` counts matched sources, and
-        // an entry that matches both myanimelist and kitsu upserts the same
-        // document twice, so the two numbers are not interchangeable.
-        $mergedDocs = 0;
-        $mergedSources = [];
-        $candidatesExamined = 0;
-        $rejectedAnchor = 0;
-        $rejectedTitle = 0;
-        $bufferedRejections = 0;
-        // Coverage counters (see CombineStats): base rows iterated, and base
-        // rows that cannot be keyed because their own reference id is missing.
-        $examined = 0;
-        $unresolvedBaseId = 0;
         $telemetry = new \Hiyori\Service\Telemetry();
 
-        foreach ($cursor as $id => $entry) {
-            $examined++;
-            $entryArray = Helper::convertMongoResultToArray($entry);
+        foreach (self::baseEntryBatches($db, $tableName, $checkpoint, $counters) as $entryArray) {
+            $counters['examined']++;
             $baseShorthand = $source->get()->getShorthand();
             // Entries without their own identifier (e.g. reference-less manga
             // rows) cannot key an organized document; they are skipped rather
             // than collapsed onto an empty upsert key.
             $baseId = Helper::resolveReferenceId($entryArray, $baseShorthand);
             if ($baseId === '') {
-                $unresolvedBaseId++;
+                $counters['unresolved_base_id']++;
             }
             $bestForEntry = 0.0;
 
@@ -156,22 +208,32 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $baseShorthand,
                     $currentSource->getShorthand(),
                 );
-                $candidatesExamined += $match['examined'];
-                $rejectedAnchor += $match['rejected_anchor'];
-                $rejectedTitle += $match['rejected_title'];
-                $bufferedRejections += $match['buffered'];
+                $counters['candidates_examined'] += $match['examined'];
+                $counters['rejected_anchor'] += $match['rejected_anchor'];
+                $counters['rejected_title'] += $match['rejected_title'];
+                $counters['buffered'] += $match['buffered'];
                 $bestMatch = $match['best'];
 
                 if ($bestMatch !== null) {
                     $score = (float) $bestMatch['_score'];
                     unset($bestMatch['_score']);
                     $scores[] = $score;
+                    self::trackScore($counters, 'score', $score);
+                    if ($score < 70) {
+                        $counters['score_p0_70']++;
+                    } elseif ($score < 80) {
+                        $counters['score_p70_80']++;
+                    } elseif ($score < 90) {
+                        $counters['score_p80_90']++;
+                    } else {
+                        $counters['score_p90_100']++;
+                    }
                     // The upsert key is the entry's own reference, so the first
                     // matched source writes this document and later sources
                     // rewrite it: only the first one is a new document.
                     $firstMatchForEntry = $bestForEntry === 0.0;
                     $bestForEntry = max($bestForEntry, $score);
-                    $mergedSources[$currentSource->getTable()] = ($mergedSources[$currentSource->getTable()] ?? 0) + 1;
+                    $counters['merged_sources'][$currentSource->getTable()] = ((int) ($counters['merged_sources'][$currentSource->getTable()] ?? 0)) + 1;
 
                     if ($baseId !== '') {
                         // Stamp the mangafied shorthand so the organized doc's
@@ -199,9 +261,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                             $collection,
                             $extra,
                         );
-                        $totalMerged++;
+                        $counters['total_merged']++;
                         if ($firstMatchForEntry) {
-                            $mergedDocs++;
+                            $counters['merged']++;
                         }
                     }
                 }
@@ -211,7 +273,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && $bestForEntry === 0.0 && $baseId !== '') {
                 if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
-                    $totalPassthrough++;
+                    $counters['passthrough']++;
                 }
             }
 
@@ -219,13 +281,13 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
         $progressBar->finish();
 
-        $console->io()->info('Metadata Fuzzy merge complete. Total Merged: ' . $totalMerged . ' (threshold: ' . round($threshold, 1) . '%)');
+        $console->io()->info('Metadata Fuzzy merge complete. Total Merged: ' . $counters['total_merged'] . ' (threshold: ' . round($threshold, 1) . '%)');
         if ($passthrough) {
             $console->io()->text(sprintf(
                 'Documents: %d (%d merged, %d single-source kept)',
-                $mergedDocs + $totalPassthrough,
-                $mergedDocs,
-                $totalPassthrough,
+                $counters['merged'] + $counters['passthrough'],
+                $counters['merged'],
+                $counters['passthrough'],
             ));
         }
 
@@ -258,7 +320,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $low = count(array_filter($scores, fn ($s) => $s < 80.0));
             $console->io()->text(sprintf('Merges below 80%%: %d (%.1f%%)', $low, $low / $n * 100));
             $bySource = [];
-            foreach ($mergedSources as $src => $n) {
+            foreach ($counters['merged_sources'] as $src => $n) {
                 $bySource[] = "$src=$n";
             }
             $console->io()->text('Merges by source: ' . implode(', ', $bySource));
@@ -267,57 +329,54 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $source->get()->getTable(),
-            'merges' => $totalMerged,
-            'passthrough' => $totalPassthrough,
-            'documents' => $mergedDocs + $totalPassthrough,
+            'merges' => $counters['total_merged'],
+            'passthrough' => $counters['passthrough'],
+            'documents' => $counters['merged'] + $counters['passthrough'],
             'threshold' => round($threshold, 1),
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
-            'rejected_title' => $rejectedTitle,
-            'buffered' => $bufferedRejections,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
+            'rejected_title' => $counters['rejected_title'],
+            'buffered' => $counters['buffered'],
             'title_floor' => $titleFloor,
-            'merged_sources' => $mergedSources,
+            'merged_sources' => $counters['merged_sources'],
             'anchor_rejection' => $anchorRejection,
             'anchor_year_tolerance' => $anchorYearTolerance,
-            'scores' => $scores !== [] ? [
-                'avg' => round(array_sum($scores) / count($scores), 1),
-                'min' => round(min($scores), 1),
-                'max' => round(max($scores), 1),
-            ] : null,
+            'scores' => self::scoreSummary($counters, 'score'),
             // Four bins that partition every scored match, so they always sum
-            // to count($scores) (== `merges` for entries that resolve a
-            // reference id). `threshold` is configurable down to >0, so a
-            // threshold below 70 produces merged pairs that land below the old
-            // first band; without `p0_70` those were dropped and the dashboard
-            // divided the three surviving bins by their own (too small) sum.
-            // The 70/80/90 band names are part of the API contract
-            // (web/src/lib/api.ts), so they must not be renamed.
+            // to `merges` for entries that resolve a reference id. `threshold`
+            // is configurable down to >0, so a threshold below 70 produces
+            // merged pairs that land below the old first band; without `p0_70`
+            // those were dropped and the dashboard divided the three surviving
+            // bins by their own (too small) sum. The 70/80/90 band names are
+            // part of the API contract (web/src/lib/api.ts), so they must not
+            // be renamed.
             'score_histogram' => [
-                'p0_70' => count(array_filter($scores, fn ($s) => $s < 70)),
-                'p70_80' => count(array_filter($scores, fn ($s) => $s >= 70 && $s < 80)),
-                'p80_90' => count(array_filter($scores, fn ($s) => $s >= 80 && $s < 90)),
-                'p90_100' => count(array_filter($scores, fn ($s) => $s >= 90)),
+                'p0_70' => (int) $counters['score_p0_70'],
+                'p70_80' => (int) $counters['score_p70_80'],
+                'p80_90' => (int) $counters['score_p80_90'],
+                'p90_100' => (int) $counters['score_p90_100'],
             ],
             'completed_at' => date('c'),
         ]);
+        $checkpoint->complete();
         $telemetry->append('combine-events', [
             'strategy' => self::NAME,
             'base' => $source->get()->getTable(),
-            'merges' => $totalMerged,
+            'merges' => $counters['total_merged'],
             'threshold' => round($threshold, 1),
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
-            'rejected_title' => $rejectedTitle,
-            'buffered' => $bufferedRejections,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
+            'rejected_title' => $counters['rejected_title'],
+            'buffered' => $counters['buffered'],
         ]);
 
         return CombineStats::forRun(
             self::NAME,
             $source->get()->getTable(),
-            $examined,
-            $mergedDocs,
-            $totalPassthrough,
-            $unresolvedBaseId,
+            (int) $counters['examined'],
+            (int) $counters['merged'],
+            (int) $counters['passthrough'],
+            (int) $counters['unresolved_base_id'],
         );
     }
 
@@ -488,10 +547,13 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         if ($rejectEpisodes) {
-            $ep1 = (int) ($e1['episodes'] ?? 0);
-            $ep2 = (int) ($e2['episodes'] ?? 0);
-            if ($ep1 > 0 && $ep2 > 0 && $ep1 !== $ep2) {
-                return true;
+            // Manga have no episodes; their length signal is chapters.
+            foreach (['episodes', 'chapters'] as $field) {
+                $ep1 = (int) ($e1[$field] ?? 0);
+                $ep2 = (int) ($e2[$field] ?? 0);
+                if ($ep1 > 0 && $ep2 > 0 && $ep1 !== $ep2) {
+                    return true;
+                }
             }
         }
 
@@ -596,16 +658,38 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         $score = 0.0;
+        $applicableWeight = 0.0;
         foreach ($weights as $field => $weight) {
             if ($weight <= 0) {
                 continue;
             }
-            $fieldScore = self::fieldSimilarity($e1, $e2, $field);
-            // Normalize by total weight so result is on 0-100 scale.
-            $score += ($fieldScore * $weight) / $totalWeight * 100;
+            // A field that is absent on BOTH sides is not evidence that the
+            // entries are alike — it is missing evidence, and it must be
+            // excluded from the score rather than counted as a match.
+            //
+            // fieldSimilarity() answers 1.0 for two nulls, which was free
+            // points for every manga: `episodes` (26.2) and `season` (16.4) are
+            // null on every manga, so 42.6 of the 100 came for nothing and any
+            // two manga from the same year cleared the 70 threshold whatever
+            // their titles said. "Omorashi Riko-chan" merged with "Kurokami" at
+            // 96 % on that basis alone.
+            $v1 = $e1[$field] ?? null;
+            $v2 = $e2[$field] ?? null;
+            if ($v1 === null && $v2 === null) {
+                continue;
+            }
+
+            $applicableWeight += $weight;
+            $score += self::fieldSimilarity($e1, $e2, $field) * $weight;
         }
 
-        return $score;
+        if ($applicableWeight <= 0) {
+            return 0.0;
+        }
+
+        // Normalize by the weight that actually applied, so the result is on a
+        // 0-100 scale for the fields that carried information.
+        return $score / $applicableWeight * 100;
     }
 
     public static function fieldSimilarity(array $e1, array $e2, string $field): float
@@ -629,6 +713,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                 return self::tagsSimilarity((array) $v1, (array) $v2);
             case 'episodes':
                 return (int) $v1 === (int) $v2 ? 1.0 : 0.0;
+            case 'chapters':
+            case 'volumes':
+                return self::countSimilarity((int) $v1, (int) $v2);
             case 'year':
                 return self::yearSimilarity($v1, $v2);
             default:
@@ -641,6 +728,25 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                 // Fuzzy fallback for enum-ish fields (e.g. 'tv' vs 'tv_short')
                 return max(self::jaroWinkler($s1, $s2), self::tokenJaccard($s1, $s2));
         }
+    }
+
+    /**
+     * Graded comparison of two counts (chapters, volumes).
+     *
+     * Exact equality scores 1.0 and a near miss still scores highly, because
+     * two sources rarely agree on the last chapter of a series. A count of zero
+     * means "unknown" and scores 0 against anything.
+     */
+    public static function countSimilarity(int $a, int $b): float
+    {
+        if ($a <= 0 || $b <= 0) {
+            return 0.0;
+        }
+        if ($a === $b) {
+            return 1.0;
+        }
+
+        return max(0.0, 1.0 - (abs($a - $b) / max($a, $b)));
     }
 
     /**

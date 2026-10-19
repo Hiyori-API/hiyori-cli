@@ -3,6 +3,7 @@
 namespace Hiyori\Commands;
 
 use Hiyori\Hiyori;
+use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
 use Hiyori\Service\ExportConfig;
@@ -62,6 +63,7 @@ final class CombinerCommand extends Command
             ->addOption('rejection-buffer', null, InputOption::VALUE_NEGATABLE, 'Write borderline title-floor rejections to the rejection buffer (pair_rejections) for later review')
             ->addOption('rejection-buffer-floor', null, InputOption::VALUE_OPTIONAL, 'Metadata score that makes a title-floor rejection borderline (default: the combine threshold)')
             ->addOption('export', null, InputOption::VALUE_OPTIONAL, 'After a successful combine, run the exporter with this profile (per-entry-json, bulk-jsonl, tables-csv) or none. Default: config combiner.auto_export')
+            ->addOption('resume', null, InputOption::VALUE_NONE, 'Continue a crashed run from storage/state/combine-checkpoint.json instead of starting over. Refuses unless the stored base, strategy and target match this invocation')
             ->addOption('skip-migrations', null, InputOption::VALUE_NONE, 'Bypass the pending-migration gate (not recommended)');
     }
 
@@ -163,10 +165,48 @@ final class CombinerCommand extends Command
             }
         }
 
+        // `--resume` continues a crashed run instead of starting the whole base
+        // over. It is only safe when the stored checkpoint belongs to the same
+        // run, so refuse (with the reason) rather than silently merging two
+        // different bases into one collection.
+        $resume = (bool) $input->getOption('resume');
+        if ($resume) {
+            $checkpoint = CombineCheckpoint::peek();
+            if ($checkpoint === []) {
+                $output->writeln(sprintf('<error>%s</error>', CombineCheckpoint::describeMissing()));
+                $this->release();
+
+                return Command::FAILURE;
+            }
+            if (($checkpoint['stage'] ?? '') === CombineCheckpoint::STAGE_DONE) {
+                $output->writeln(sprintf('<error>%s</error>', CombineCheckpoint::describeDone($checkpoint)));
+                $this->release();
+
+                return Command::FAILURE;
+            }
+            $mismatch = CombineCheckpoint::mismatch($checkpoint, $strategy, (string) $base, $target);
+            if ($mismatch !== null) {
+                $output->writeln(sprintf('<error>%s</error>', $mismatch));
+                $this->release();
+
+                return Command::FAILURE;
+            }
+            $output->writeln(sprintf(
+                '<info>Resuming</info> %s into %s from last_id %s (examined %s, written %s).',
+                $base,
+                $target,
+                (string) ($checkpoint['last_id'] ?? 'start'),
+                number_format((int) ($checkpoint['examined'] ?? 0)),
+                number_format((int) ($checkpoint['written'] ?? 0)),
+            ));
+        }
+        // Explicit, so a stray `resume` key in --config cannot start a partial
+        // run without the checks above.
+        $config['resume'] = $resume;
+
         // Without this there is no way to tell a 40 %-loss run from a healthy
         // one, which is the bug this closes.
         $reported = $this->hiyori->combine($base, $strategy, $config);
-
         if (!$reported instanceof CombineStats) {
             $output->writeln('<error>The combiner returned no coverage statistics, so this run cannot be verified as successful.</error>');
             $this->release();

@@ -19,24 +19,15 @@ $app->setAutoExit(true);
  */
 $container = new \Symfony\Component\DependencyInjection\ContainerBuilder();
 
-// Rate limits: a dashboard override (storage/state/ui.json → limits) wins over
-// the RATE_LIMIT_* env vars, so the Management page's "Save" really applies to
-// the next ingest process. Mirrors rateLimits() in public/index.php.
-$rateMax = (int) ($_ENV['RATE_LIMIT_MAX'] ?? 100);
-$rateWindow = (int) ($_ENV['RATE_LIMIT_WINDOW'] ?? 60);
-$uiStateFile = dirname(__DIR__) . '/storage/state/ui.json';
-if (is_file($uiStateFile)) {
-    $uiState = json_decode((string) file_get_contents($uiStateFile), true);
-    $override = is_array($uiState) ? ($uiState['limits'] ?? null) : null;
-    if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
-        $rateMax = (int) $override['max'];
-        $rateWindow = (int) $override['window'];
-    }
-}
+// Rate limits resolve through RateLimiter::effectiveLimits(), the single owner
+// of the precedence rule (RATE_LIMIT_* env vars, then a dashboard override in
+// storage/state/ui.json), so the Management page's "Save" applies to the next
+// ingest process and cannot diverge from the service.
+$limits = \Hiyori\Service\RateLimiter::effectiveLimits();
 
 // Set parameters
-$container->setParameter('rate_limit.max_requests', $rateMax);
-$container->setParameter('rate_limit.time_window', $rateWindow);
+$container->setParameter('rate_limit.max_requests', $limits['max']);
+$container->setParameter('rate_limit.time_window', $limits['window']);
 
 // Register Serializer as a service using a static method
 class SerializerFactory
@@ -81,10 +72,10 @@ $container->autowire(\Hiyori\Service\HealthCheck::class)
             'serverSelectionTimeoutMS' => 3000,
             'connectTimeoutMS' => 3000,
         ]),
-        '$rateLimiter' => new \Hiyori\Service\RateLimiter(
-            $rateMax,
-            $rateWindow,
-        ),
+        // Share the container's RateLimiter so circuit-breaker state is not
+        // split between two instances: the ingester opened a breaker the health
+        // check could never observe.
+        '$rateLimiter' => new \Symfony\Component\DependencyInjection\Reference(\Hiyori\Service\RateLimiter::class),
     ]);
 $container->autowire(\Hiyori\Service\Ingestion\Ingestion::class);
 $container->autowire(\Hiyori\Service\Combiner\Combiner::class);
@@ -110,6 +101,9 @@ $app->addCommands([
     new \Hiyori\Commands\WeightageCommand($hiyori),
     new \Hiyori\Commands\SweeperCommand($hiyori),
     new \Hiyori\Commands\RepairReferencesCommand($hiyori),
+    // The release chain, in one place: stage order, preconditions and a
+    // single run record, instead of three divergent subsets in CI and scripts.
+    new \Hiyori\Commands\PipelineCommand($hiyori, $app),
     new \Hiyori\Commands\ExportCommand($hiyori),
     new \Hiyori\Commands\HealthCommand($hiyori),
     new \Hiyori\Commands\MetricsCommand($hiyori),

@@ -158,10 +158,12 @@ final class MetadataFuzzyStrategyTest extends TestCase
 
     public function testTitleGuardRejectsUnrelatedCandidateEvenWhenMetadataAgrees(): void
     {
-        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
-        // Same type/year/episodes as the base but an unrelated title: without
-        // the guard this would score ~72 (>70) and merge.
-        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+        // Every comparable field agrees, so the weighted score clears the
+        // threshold and the TITLE GUARD is what has to reject the candidate.
+        // (A field that is null on both sides no longer counts as a match, so
+        // the fixture has to supply season and tags to keep that premise.)
+        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'season' => 'Fall', 'status' => 'finished', 'tags' => ['action']];
+        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'season' => 'Fall', 'status' => 'finished', 'tags' => ['action']];
 
         $weights = MetadataFuzzyStrategy::DEFAULT_WEIGHTS;
         $this->assertGreaterThanOrEqual(70.0, MetadataFuzzyStrategy::calculateScore($entry, $candidate, $weights));
@@ -173,8 +175,8 @@ final class MetadataFuzzyStrategyTest extends TestCase
 
     public function testTitleGuardDisabledLetsLegacyBehaviourThrough(): void
     {
-        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
-        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'status' => 'finished'];
+        $entry = ['title' => 'Sonic X Season 2', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'season' => 'Fall', 'status' => 'finished', 'tags' => ['action']];
+        $candidate = ['title' => 'Mai-Otome', 'type' => 'tv', 'year' => 2005, 'episodes' => 26, 'season' => 'Fall', 'status' => 'finished', 'tags' => ['action']];
 
         $match = MetadataFuzzyStrategy::match($entry, [$candidate], MetadataFuzzyStrategy::DEFAULT_WEIGHTS, 70.0, true, 1, false, 0.0);
         $this->assertNotNull($match['best']);
@@ -227,6 +229,106 @@ final class MetadataFuzzyStrategyTest extends TestCase
         $this->assertGreaterThan(
             MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
             MetadataFuzzyStrategy::titleSimilarity('One Piece', 'One Piece Film: Red', [], []),
+        );
+    }
+
+    /**
+     * A field that is absent on both sides is missing evidence, not a match.
+     *
+     * fieldSimilarity() answers 1.0 for two nulls, which handed every manga
+     * 42.6 free points (episodes 26.2 + season 16.4 are null for all of them),
+     * so any two manga from the same year cleared the threshold on metadata
+     * alone — "Omorashi Riko-chan" merged with "Kurokami" at 96 %.
+     */
+    public function testFieldsMissingOnBothSidesDoNotCountAsMatches(): void
+    {
+        $weights = MetadataFuzzyStrategy::DEFAULT_WEIGHTS;
+        $manga = static fn (string $title): array => [
+            'title' => $title,
+            'type' => 'manga',
+            'status' => 'finished',
+            'year' => 2004,
+            'episodes' => null,
+            'season' => null,
+            'tags' => [],
+        ];
+
+        $score = MetadataFuzzyStrategy::calculateScore(
+            $manga('Omorashi Riko-chan'),
+            $manga('Kurokami'),
+            $weights,
+        );
+
+        $this->assertLessThan(70, $score, 'unrelated manga from the same year must not clear the threshold');
+    }
+
+    public function testIdenticalEntriesStillScoreOneHundred(): void
+    {
+        $weights = MetadataFuzzyStrategy::DEFAULT_WEIGHTS;
+        $entry = [
+            'title' => 'Berserk',
+            'type' => 'manga',
+            'status' => 'finished',
+            'year' => 1989,
+            'episodes' => null,
+            'season' => null,
+            'tags' => ['action'],
+        ];
+
+        $this->assertSame(100.0, MetadataFuzzyStrategy::calculateScore($entry, $entry, $weights));
+    }
+
+    public function testAnimeScoringIsUnaffectedByTheChange(): void
+    {
+        $weights = MetadataFuzzyStrategy::DEFAULT_WEIGHTS;
+        $anime = static fn (string $title): array => [
+            'title' => $title,
+            'type' => 'tv',
+            'status' => 'finished',
+            'year' => 1998,
+            'episodes' => 26,
+            'season' => 'Fall',
+            'tags' => ['space'],
+        ];
+
+        $this->assertSame(100.0, MetadataFuzzyStrategy::calculateScore($anime('Cowboy Bebop'), $anime('Cowboy Bebop'), $weights));
+    }
+
+    /**
+     * Manga are compared on the fields manga have.
+     *
+     * Manga have no episodes and no seasons, so the anime weights handed 42.6
+     * of the 100 points to any two manga from the same year. All three manga
+     * sources populate chapters and volumes, so those take the same slots.
+     */
+    public function testMangaWeightsUseChaptersAndVolumes(): void
+    {
+        $weights = MetadataFuzzyStrategy::weightsForKind('anilist_manga');
+
+        $this->assertArrayHasKey('chapters', $weights);
+        $this->assertArrayHasKey('volumes', $weights);
+        $this->assertArrayNotHasKey('episodes', $weights);
+        $this->assertArrayNotHasKey('season', $weights);
+        $this->assertSame(MetadataFuzzyStrategy::MANGA_WEIGHTS, $weights);
+        $this->assertSame(MetadataFuzzyStrategy::DEFAULT_WEIGHTS, MetadataFuzzyStrategy::weightsForKind('anilist'));
+    }
+
+    public function testMangaScoreSeparatesWorksOfDifferentLength(): void
+    {
+        $weights = MetadataFuzzyStrategy::MANGA_WEIGHTS;
+        $manga = static fn (int $chapters, int $volumes): array => [
+            'title' => 'Some Title',
+            'type' => 'manga',
+            'status' => 'finished',
+            'year' => 2004,
+            'chapters' => $chapters,
+            'volumes' => $volumes,
+            'tags' => [],
+        ];
+
+        $this->assertLessThan(
+            70,
+            MetadataFuzzyStrategy::calculateScore($manga(100, 5), $manga(12, 1), $weights),
         );
     }
 }

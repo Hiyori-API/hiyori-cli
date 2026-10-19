@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hiyori\Service\Combiner\Strategy;
 
 use Hiyori\Helper;
+use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
@@ -35,7 +36,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         StrategyConfigurationFactory $strategy,
         SourceConfigurationFactory $source,
     ): CombineStats {
-        $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::DEFAULT_WEIGHTS);
+        $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::weightsForKind($source->get()->getTable()));
         $threshold = MetadataFuzzyStrategy::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $prefilter = (float) ($strategy->getConfig('prefilter_threshold') ?? max(0.0, $threshold - 15.0));
         $metadataWeight = max(0.0, (float) ($strategy->getConfig('metadata_weight') ?? 0.7));
@@ -45,6 +46,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $anchorYearTolerance = (int) ($strategy->getConfig('anchor_year_tolerance') ?? 1);
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
+        $resume = (bool) ($strategy->getConfig('resume') ?? false);
 
         $embeddings = new EmbeddingService(
             (int) ($strategy->getConfig('embedding_dimensions') ?? 256),
@@ -56,36 +58,42 @@ final class SemanticRerankStrategy extends CombinerStrategy
         );
 
         $tableName = $source->get()->getTable();
+
+        // Keyset pagination + a checkpoint per batch replaces the single
+        // long-lived cursor that a server can kill mid-run.
+        $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        $counters = $checkpoint->counters([
+            'examined' => 0,
+            // `persistMerge()` refuses an entry with no resolvable base id, so
+            // count those rows separately (see CombineStats).
+            'merged' => 0,
+            'passthrough' => 0,
+            'unresolved_base_id' => 0,
+            'candidates_examined' => 0,
+            'rejected_anchor' => 0,
+            'rejected_title' => 0,
+        ]);
+
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
         $total = $baseCollection->countDocuments();
-        // A plain server cursor is killed after ~10 min idle, which is how the
-        // manga rebuild died at 45 % with "cursor id ... not found". Keep it
-        // alive explicitly: a full base takes hours.
-        $cursor = $baseCollection->find([], ['noCursorTimeout' => true, 'batchSize' => 500]);
         $availableSources = $source->getSources();
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
         $progressBar->setFormat((string) ($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%'));
         $progressBar->start();
+        if ((int) $counters['examined'] > 0) {
+            $progressBar->setProgress(min((int) $counters['examined'], $total));
+        }
 
-        $totalMerged = 0;
         $scores = [];
-        $candidatesExamined = 0;
-        $rejectedAnchor = 0;
-        $rejectedTitle = 0;
-        // Coverage counters (see CombineStats). `persistMerge()` refuses an
-        // entry with no resolvable base id, so count those rows here.
-        $examined = 0;
-        $unresolvedBaseId = 0;
         $telemetry = new Telemetry();
 
-        foreach ($cursor as $entry) {
-            $examined++;
-            $entryArray = Helper::convertMongoResultToArray($entry);
+        foreach (self::baseEntryBatches($db, $tableName, $checkpoint, $counters) as $entryArray) {
+            $counters['examined']++;
             if (Helper::resolveReferenceId($entryArray, $source->get()->getShorthand()) === '') {
-                $unresolvedBaseId++;
+                $counters['unresolved_base_id']++;
             }
             $baseEmbedding = null;
 
@@ -95,15 +103,15 @@ final class SemanticRerankStrategy extends CombinerStrategy
                 }
 
                 foreach (MetadataFuzzyStrategy::candidates($db, $currentSource->getTable(), $entryArray) as $candidate) {
-                    $candidatesExamined++;
+                    $counters['candidates_examined']++;
                     if ($anchorRejection && MetadataFuzzyStrategy::isAnchorRejected($entryArray, $candidate, $anchorYearTolerance, $anchorEpisodes)) {
-                        $rejectedAnchor++;
+                        $counters['rejected_anchor']++;
 
                         continue;
                     }
 
                     if (MetadataFuzzyStrategy::isTitleRejected($entryArray, $candidate, $titleFloor)) {
-                        $rejectedTitle++;
+                        $counters['rejected_title']++;
 
                         continue;
                     }
@@ -123,7 +131,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
 
                     $scores[] = $blended;
                     if (self::persistMerge($db, $source, $entryArray, $candidate, $collection, $blended)) {
-                        $totalMerged++;
+                        $counters['merged']++;
                     }
                     break;
                 }
@@ -133,17 +141,17 @@ final class SemanticRerankStrategy extends CombinerStrategy
         $progressBar->finish();
         $embeddings->flush();
 
-        $console->io()->info('Semantic re-rank complete. Merged: ' . $totalMerged . ($embeddings->isExternal() ? ' (sidecar embeddings)' : ' (local n-gram fallback)'));
+        $console->io()->info('Semantic re-rank complete. Merged: ' . $counters['merged'] . ($embeddings->isExternal() ? ' (sidecar embeddings)' : ' (local n-gram fallback)'));
         $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
-            'merges' => $totalMerged,
+            'merges' => $counters['merged'],
             'threshold' => $threshold,
             'prefilter_threshold' => $prefilter,
             'embedding_backend' => $embeddings->isExternal() ? 'sidecar' : 'local-ngram',
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
-            'rejected_title' => $rejectedTitle,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
+            'rejected_title' => $counters['rejected_title'],
             'title_floor' => $titleFloor,
             'anchor_rejection' => $anchorRejection,
             'scores' => $scores !== [] ? [
@@ -153,22 +161,23 @@ final class SemanticRerankStrategy extends CombinerStrategy
             ] : null,
             'completed_at' => date('c'),
         ]);
+        $checkpoint->complete();
         $telemetry->append('combine-events', [
             'strategy' => self::NAME,
             'base' => $tableName,
-            'merges' => $totalMerged,
+            'merges' => $counters['merged'],
             'threshold' => $threshold,
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
         ]);
 
         return CombineStats::forRun(
             self::NAME,
             $tableName,
-            $examined,
-            $totalMerged,
+            (int) $counters['examined'],
+            (int) $counters['merged'],
             0,
-            $unresolvedBaseId,
+            (int) $counters['unresolved_base_id'],
         );
     }
 

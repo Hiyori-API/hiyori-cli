@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hiyori\Service\Combiner\Strategy;
 
+use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
 use Hiyori\Service\Combiner\Strategy\Concerns\MergesEntries;
 use Hiyori\Service\ConsoleFactory;
@@ -100,44 +101,49 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $anchorEpisodes = (bool) ($strategy->getConfig('anchor_episodes') ?? false);
         $titleFloor = (float) ($strategy->getConfig('title_floor') ?? MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR);
         $passthrough = (bool) ($strategy->getConfig('passthrough') ?? false);
+        $resume = (bool) ($strategy->getConfig('resume') ?? false);
 
         $tableName = $source->get()->getTable();
+        $baseShorthand = $source->get()->getShorthand();
+
+        // Keyset pagination + a checkpoint per batch replaces the single
+        // long-lived cursor that a server can kill mid-run.
+        $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
+        $counters = $checkpoint->counters([
+            'examined' => 0,
+            // `merged` counts distinct documents written; `total_merged` counts
+            // matched sources (an entry matching both sources upserts the same
+            // document twice), so the two are not interchangeable.
+            'merged' => 0,
+            'passthrough' => 0,
+            'unresolved_base_id' => 0,
+            'total_merged' => 0,
+            'candidates_examined' => 0,
+            'rejected_anchor' => 0,
+            'merged_sources' => [],
+        ]);
+
         /** @var Collection $baseCollection */
         $baseCollection = $db->getCollection($tableName);
         $total = $baseCollection->countDocuments();
-        // A plain server cursor is killed after ~10 min idle, which is how the
-        // manga rebuild died at 45 % with "cursor id ... not found". Keep it
-        // alive explicitly: a full base takes hours.
-        $cursor = $baseCollection->find([], ['noCursorTimeout' => true, 'batchSize' => 500]);
         $availableSources = $source->getSources();
-        $baseShorthand = $source->get()->getShorthand();
 
         $progressBar = $console->io()->createProgressBar($total);
         $progressBar->setRedrawFrequency((int) ($_ENV['PROGRESSBAR_REDRAW_FREQ'] ?? 1));
         $progressBar->setFormat((string) ($_ENV['PROGRESSBAR_FORMAT'] ?? '%current%/%max% [%bar%] %percent:3s%% | ETA:%estimated:-6s% MEM:%memory:6s%'));
         $progressBar->start();
+        if ((int) $counters['examined'] > 0) {
+            $progressBar->setProgress(min((int) $counters['examined'], $total));
+        }
 
-        $totalMerged = 0;
-        $totalPassthrough = 0;
-        // Distinct documents written. `$totalMerged` counts matched sources, and
-        // an entry that matches both myanimelist and kitsu upserts the same
-        // document twice, so the two numbers are not interchangeable.
-        $mergedDocs = 0;
         $scores = [];
-        $mergedSources = [];
-        $candidatesExamined = 0;
-        $rejectedAnchor = 0;
-        // Coverage counters (see CombineStats).
-        $examined = 0;
-        $unresolvedBaseId = 0;
         $telemetry = new Telemetry();
 
-        foreach ($cursor as $entry) {
-            $examined++;
-            $entryArray = \Hiyori\Helper::convertMongoResultToArray($entry);
+        foreach (self::baseEntryBatches($db, $tableName, $checkpoint, $counters) as $entryArray) {
+            $counters['examined']++;
             $baseId = \Hiyori\Helper::resolveReferenceId($entryArray, $baseShorthand);
             if ($baseId === '') {
-                $unresolvedBaseId++;
+                $counters['unresolved_base_id']++;
             }
             $merged = false;
 
@@ -146,7 +152,9 @@ final class FellegiSunterStrategy extends CombinerStrategy
                     continue;
                 }
 
-                $examined = 0;
+                // Separate from the base-row `examined` counter: the matcher
+                // reports its candidate count through this reference.
+                $candidateCount = 0;
                 $rejected = 0;
                 $best = self::findBestMatch(
                     $db,
@@ -160,11 +168,11 @@ final class FellegiSunterStrategy extends CombinerStrategy
                     $anchorYearTolerance,
                     $anchorEpisodes,
                     $titleFloor,
-                    $examined,
+                    $candidateCount,
                     $rejected,
                 );
-                $candidatesExamined += $examined;
-                $rejectedAnchor += $rejected;
+                $counters['candidates_examined'] += $candidateCount;
+                $counters['rejected_anchor'] += $rejected;
                 if ($best === null) {
                     continue;
                 }
@@ -172,23 +180,23 @@ final class FellegiSunterStrategy extends CombinerStrategy
                 $score = (float) $best['_score'];
                 unset($best['_score']);
                 $scores[] = $score;
-                $mergedSources[$currentSource->getTable()] = ($mergedSources[$currentSource->getTable()] ?? 0) + 1;
+                $counters['merged_sources'][$currentSource->getTable()] = ((int) ($counters['merged_sources'][$currentSource->getTable()] ?? 0)) + 1;
 
                 if (self::persistMerge($db, $source, $entryArray, $best, $collection, $score)) {
-                    $totalMerged++;
+                    $counters['total_merged']++;
                     $merged = true;
                 }
             }
 
             if ($merged) {
-                $mergedDocs++;
+                $counters['merged']++;
             }
 
             // Nothing matched: keep the entry itself (see persistPassthrough)
             // so the run cannot drop a base entry and orphan its registry id.
             if ($passthrough && !$merged && $baseId !== '') {
                 if (self::persistPassthrough($db, $source, $entryArray, $collection)) {
-                    $totalPassthrough++;
+                    $counters['passthrough']++;
                 }
             }
 
@@ -196,21 +204,21 @@ final class FellegiSunterStrategy extends CombinerStrategy
         }
         $progressBar->finish();
 
-        $console->io()->info('Fellegi–Sunter merge complete. Merged: ' . $totalMerged);
+        $console->io()->info('Fellegi–Sunter merge complete. Merged: ' . $counters['total_merged']);
         if ($passthrough) {
             $console->io()->text(sprintf(
                 'Documents: %d (%d merged, %d single-source kept)',
-                $mergedDocs + $totalPassthrough,
-                $mergedDocs,
-                $totalPassthrough,
+                $counters['merged'] + $counters['passthrough'],
+                $counters['merged'],
+                $counters['passthrough'],
             ));
         }
         $telemetry->update('combine-latest', [
             'strategy' => self::NAME,
             'base' => $tableName,
-            'merges' => $totalMerged,
-            'passthrough' => $totalPassthrough,
-            'documents' => $mergedDocs + $totalPassthrough,
+            'merges' => $counters['total_merged'],
+            'passthrough' => $counters['passthrough'],
+            'documents' => $counters['merged'] + $counters['passthrough'],
             'threshold' => $threshold,
             'agreement_cutoff' => $cutoff,
             // Provenance: a run must record whether it scored with the shipped
@@ -219,33 +227,34 @@ final class FellegiSunterStrategy extends CombinerStrategy
             'mu_source' => $calibrated !== null ? 'calibrated' : 'defaults',
             'm' => $m,
             'u' => $u,
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
             'anchor_rejection' => $anchorRejection,
             'scores' => $scores !== [] ? [
                 'avg' => round(array_sum($scores) / count($scores), 1),
                 'min' => round(min($scores), 1),
                 'max' => round(max($scores), 1),
             ] : null,
-            'merged_sources' => $mergedSources,
+            'merged_sources' => $counters['merged_sources'],
             'completed_at' => date('c'),
         ]);
+        $checkpoint->complete();
         $telemetry->append('combine-events', [
             'strategy' => self::NAME,
             'base' => $tableName,
-            'merges' => $totalMerged,
+            'merges' => $counters['total_merged'],
             'threshold' => $threshold,
-            'candidates_examined' => $candidatesExamined,
-            'rejected_anchor' => $rejectedAnchor,
+            'candidates_examined' => $counters['candidates_examined'],
+            'rejected_anchor' => $counters['rejected_anchor'],
         ]);
 
         return CombineStats::forRun(
             self::NAME,
             $tableName,
-            $examined,
-            $mergedDocs,
-            $totalPassthrough,
-            $unresolvedBaseId,
+            (int) $counters['examined'],
+            (int) $counters['merged'],
+            (int) $counters['passthrough'],
+            (int) $counters['unresolved_base_id'],
         );
     }
 
