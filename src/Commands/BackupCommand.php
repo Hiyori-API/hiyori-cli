@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hiyori\Commands;
 
+use Hiyori\Service\Backup;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -34,8 +35,12 @@ final class BackupCommand extends Command
         $gzip = $input->getOption('gzip');
 
         $timestamp = date('Ymd-His');
+        // The archive directory and the default archive name belong to the
+        // Backup service, which is also what the dashboard lists — the command
+        // and the dashboard must agree on where a backup lives.
+        $backups = new Backup();
         $outputPath = $input->getOption('output')
-            ?? __DIR__ . '/../../storage/backups/hiyori-' . $timestamp . ($gzip ? '.gz' : '');
+            ?? $backups->defaultArchivePath($timestamp, (bool) $gzip);
 
         $backupDir = dirname($outputPath);
         if (!is_dir($backupDir)) {
@@ -84,6 +89,7 @@ final class BackupCommand extends Command
 
         $size = file_exists($outputPath) ? round(filesize($outputPath) / 1024 / 1024, 2) : 0;
         $io->success("Backup complete: $outputPath ($size MB)");
+        $io->text('Archives on disk: ' . count($backups->archives()));
 
         return Command::SUCCESS;
     }

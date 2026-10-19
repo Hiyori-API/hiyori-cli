@@ -213,8 +213,97 @@ final class Telemetry
      */
     public static function isPaused(string $source): bool
     {
-        $t = new self();
-        $file = $t->stateDir() . '/control-' . $source . '.json';
+        return self::pausedIn((new self())->stateDir(), $source);
+    }
+
+    /**
+     * The control state of a source, as the dashboard renders it.
+     *
+     * @return array{paused: bool}
+     */
+    public function control(string $source): array
+    {
+        return ['paused' => self::pausedIn($this->dir, $source)];
+    }
+
+    /**
+     * Append one entry to the audit log (`audit.jsonl`).
+     *
+     * The audit log is the dashboard's record of who changed what: settings
+     * writes, exports, restores, backups, Explorer edits. It is written
+     * under the same lock as every other state file, so two concurrent
+     * requests cannot interleave half a line.
+     *
+     * @param array<string, mixed> $detail
+     */
+    public function audit(string $action, array $detail = [], ?string $ip = null): void
+    {
+        if (!$this->ensureDir()) {
+            return;
+        }
+
+        $file = $this->dir . '/audit.jsonl';
+        $line = json_encode([
+            'ts' => date('c'),
+            'action' => $action,
+            'ip' => $ip ?? ($_SERVER['REMOTE_ADDR'] ?? ''),
+            'detail' => $detail,
+        ], JSON_UNESCAPED_SLASHES);
+        if (false === $line) {
+            $this->logFailure('encode', $file);
+
+            return;
+        }
+
+        $this->withLock($file, function () use ($file, $line): void {
+            error_clear_last();
+            if (false === @file_put_contents($file, $line . "\n", FILE_APPEND)) {
+                $this->logFailure('append', $file);
+            }
+        });
+    }
+
+    /**
+     * Parse the last $n JSON lines of a JSONL log.
+     *
+     * `total` counts every non-empty line in the file, so callers can be honest
+     * about truncation ("newest 500 of 2,377") instead of implying the tail is all.
+     *
+     * @return array{total: int, events: list<array<string, mixed>>}
+     */
+    public function tailLinesMeta(string $name, int $n): array
+    {
+        $file = $this->dir . '/' . $name . '.jsonl';
+        if (!is_file($file)) {
+            return ['total' => 0, 'events' => []];
+        }
+        $lines = file($file, FILE_IGNORE_NEW_LINES) ?: [];
+        $cut = count($lines) - $n;
+        $total = 0;
+        $events = [];
+        foreach ($lines as $i => $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            ++$total;
+            if ($i < $cut) {
+                continue;
+            }
+            $decoded = json_decode($line, true);
+            if (is_array($decoded)) {
+                $events[] = $decoded;
+            }
+        }
+
+        return ['total' => $total, 'events' => $events];
+    }
+
+    /**
+     * Whether the control file of a source says it is paused.
+     */
+    private static function pausedIn(string $dir, string $source): bool
+    {
+        $file = $dir . '/control-' . $source . '.json';
         if (!is_file($file)) {
             return false;
         }

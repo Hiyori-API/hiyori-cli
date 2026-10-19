@@ -81,4 +81,76 @@ final class TelemetryTest extends TestCase
         $this->assertSame(30, $state['eta_seconds']);
         $this->assertArrayHasKey('history', $state);
     }
+
+    // ---------------------------------------------------------------------
+    // The audit log, the JSONL tails and the control files — the three
+    // things the dashboard reads that used to be free functions in the
+    // front controller.
+    // ---------------------------------------------------------------------
+
+    public function testAuditAppendsOneLinePerCall(): void
+    {
+        $this->telemetry->audit('settings.update', ['keys' => ['theme']]);
+        $this->telemetry->audit('env.update', ['key' => 'WEBHOOK_URL']);
+
+        $lines = file($this->tmp . '/audit.jsonl', FILE_IGNORE_NEW_LINES) ?: [];
+        $this->assertCount(2, $lines);
+
+        $first = json_decode($lines[0], true);
+        $this->assertIsArray($first);
+        $this->assertSame('settings.update', $first['action']);
+        $this->assertSame(['keys' => ['theme']], $first['detail']);
+        $this->assertArrayHasKey('ts', $first);
+        $this->assertArrayHasKey('ip', $first);
+    }
+
+    public function testAuditRecordsTheGivenIp(): void
+    {
+        $this->telemetry->audit('restore', ['ok' => true], '203.0.113.7');
+
+        $line = json_decode((string) file_get_contents($this->tmp . '/audit.jsonl'), true);
+        $this->assertIsArray($line);
+        $this->assertSame('203.0.113.7', $line['ip']);
+    }
+
+    public function testAuditCreatesTheStateDirectory(): void
+    {
+        $nested = $this->tmp . '/nested';
+        (new Telemetry($nested))->audit('settings.update');
+
+        $this->assertDirectoryExists($nested);
+    }
+
+    public function testTailLinesMetaCountsEveryLineButReturnsOnlyTheTail(): void
+    {
+        file_put_contents($this->tmp . '/validation-log.jsonl', implode("\n", [
+            (string) json_encode(['ts' => '1', 'source' => 'a']),
+            (string) json_encode(['ts' => '2', 'source' => 'b']),
+            (string) json_encode(['ts' => '3', 'source' => 'c']),
+        ]));
+
+        $meta = $this->telemetry->tailLinesMeta('validation-log', 2);
+
+        $this->assertSame(3, $meta['total']);
+        $this->assertCount(2, $meta['events']);
+        $this->assertSame('b', $meta['events'][0]['source']);
+        $this->assertSame('c', $meta['events'][1]['source']);
+    }
+
+    public function testTailLinesMetaIsEmptyForAMissingLog(): void
+    {
+        $this->assertSame(['total' => 0, 'events' => []], $this->telemetry->tailLinesMeta('nope', 10));
+    }
+
+    public function testControlReadsTheControlFile(): void
+    {
+        file_put_contents($this->tmp . '/control-anilist.json', (string) json_encode(['paused' => true]));
+
+        $this->assertSame(['paused' => true], $this->telemetry->control('anilist'));
+    }
+
+    public function testControlIsNotPausedWithoutAControlFile(): void
+    {
+        $this->assertSame(['paused' => false], $this->telemetry->control('anilist'));
+    }
 }

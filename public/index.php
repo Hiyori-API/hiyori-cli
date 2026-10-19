@@ -13,16 +13,25 @@ require __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/export-helpers.php';
 require_once __DIR__ . '/http-guard.php';
 
-use Hiyori\Service\AlertNotifier;
+use Hiyori\Service\AlertEngine;
+use Hiyori\Service\Backup;
+use Hiyori\Service\Benchmark;
+use Hiyori\Service\CombineRun;
+use Hiyori\Service\Coverage;
 use Hiyori\Service\Database;
 use Hiyori\Service\EnvFile;
 use Hiyori\Service\Explorer;
+use Hiyori\Service\ExplorerQuery;
 use Hiyori\Service\ExportConfig;
 use Hiyori\Service\HealthCheck;
 use Hiyori\Service\MetricsCollector;
 use Hiyori\Service\Ml\LabelStore;
 use Hiyori\Service\Ml\RejectionStore;
+use Hiyori\Service\ProcessRunner;
 use Hiyori\Service\RateLimiter;
+use Hiyori\Service\Schedule;
+use Hiyori\Service\SettingsStore;
+use Hiyori\Service\Stats;
 use Hiyori\Service\Telemetry;
 use Hiyori\Service\Validator;
 use JMS\Serializer\SerializerBuilder;
@@ -52,6 +61,15 @@ $metrics = new MetricsCollector();
 $telemetry = new Telemetry();
 $validator = new Validator();
 $envFile = new EnvFile();
+$stats = new Stats($client);
+$backup = new Backup();
+$coverageService = new Coverage($client);
+$benchmark = new Benchmark($telemetry);
+$alertEngine = new AlertEngine($telemetry);
+$schedule = new Schedule($telemetry);
+$settingsStore = new SettingsStore();
+$explorerQuery = new ExplorerQuery($client);
+$combineRun = new CombineRun();
 
 function sendJson(array $payload, int $status = 200): never
 {
@@ -268,402 +286,6 @@ if ($path === '/metrics') {
     exit;
 }
 
-function collectionCounts(MongoClient $client): array
-{
-    $out = [];
-    $namespace = $client->selectDatabase('hiyori');
-    foreach ($namespace->listCollections() as $collection) {
-        $name = $collection->getName();
-        $out[$name] = $namespace->selectCollection($name)->countDocuments();
-    }
-
-    return $out;
-}
-
-function dbStats(MongoClient $client, ?array $counts = null): array
-{
-    $db = $client->selectDatabase('hiyori');
-    $stats = $db->command(['dbstats' => 1])->toArray()[0] ?? [];
-    // Reuse the caller's counts when it already listed them — this endpoint and
-    // /api/status would otherwise walk every collection twice.
-    $counts ??= collectionCounts($client);
-    $out = [
-        'dataSize' => (int) ($stats['dataSize'] ?? 0),
-        'indexSize' => (int) ($stats['indexSize'] ?? 0),
-        'storageSize' => (int) ($stats['storageSize'] ?? 0),
-        'collections' => $counts,
-        'totalDocuments' => array_sum($counts),
-    ];
-
-    return $out;
-}
-
-function backupInfo(): array
-{
-    $dir = dirname(__DIR__) . '/storage/backups';
-    // Any .gz in the backups dir is restorable, not just the `hiyori-<ts>.gz`
-    // ones this app writes — manual archives (e.g. pre-rebuild snapshots) are
-    // valid backups too and must show up in the list.
-    $files = glob($dir . '/*.gz') ?: [];
-    $last = null;
-    foreach ($files as $f) {
-        $mtime = filemtime($f);
-        if ($last === null || $mtime > $last['mtime']) {
-            $last = ['file' => basename($f), 'mtime' => $mtime, 'size' => filesize($f)];
-        }
-    }
-
-    return ['exists' => $last !== null, 'last' => $last, 'count' => count($files)];
-}
-
-/**
- * Run a command to completion and report its real outcome.
- *
- * The backup/restore routes fired `... >/dev/null 2>&1 &` through `@exec`, so
- * the child's exit status was thrown away: a failed mongodump still answered
- * `started: true`, and a failed `mongorestore --drop` left the database dropped
- * and empty while the UI toasted success. Running to completion is what makes
- * the exit code real.
- *
- * @return array{exit_code: int, output: string} output is the tail of
- *                                               stdout+stderr (bounded so a
- *                                               chatty run cannot bloat the
- *                                               JSON response or the audit log)
- */
-function runShellCommand(string $command): array
-{
-    if (!function_exists('exec')) {
-        return ['exit_code' => 127, 'output' => 'exec() is disabled'];
-    }
-    $lines = [];
-    $code = 127;
-    @exec($command . ' 2>&1', $lines, $code);
-    $tail = array_slice(array_map(static fn ($line): string => substr((string) $line, 0, 500), $lines), -10);
-
-    return ['exit_code' => (int) $code, 'output' => implode("\n", $tail)];
-}
-
-function controls(string $source): array
-{
-    $dir = dirname(__DIR__) . '/storage/state';
-    $file = $dir . '/control-' . $source . '.json';
-
-    return ['paused' => is_file($file) ? (bool) (json_decode((string) file_get_contents($file), true)['paused'] ?? false) : false];
-}
-
-/**
- * Per-collection reference coverage.
- *
- * @param array<string, int>|null $totals Optional map of collection → doc count
- *                                        (from collectionCounts()) to avoid
- *                                        re-counting every collection.
- */
-function coverage(MongoClient $client, ?array $totals = null): array
-{
-    $db = $client->selectDatabase('hiyori');
-    $shorthands = ['al', 'mal', 'k', 'adb', 'ann', 'b', 'cr', 'fm', 'nf', 'sb', 't', 'ttv', 'tvt', 'tx', 'wpen', 'wpja', 'yt', 'ap'];
-    $totals ??= collectionCounts($client);
-
-    // A doc counts for shorthand <sh> when the *key* is present in its
-    // reference_ids map — what `{reference_ids.<sh>: {$exists: true}}` means.
-    //
-    // Doing that in one pass instead of 22 countDocuments() per collection:
-    // normalise reference_ids to a key/value list, unwind, then count distinct
-    // (doc, key) pairs. The normalisation matters because some ingesters write
-    // `reference_ids: []` (an empty array) rather than `{}` for "no refs", and a
-    // dotted path through an array resolves to [] rather than 'missing', so a
-    // bare $type check would wrongly count every such document.
-    $keyPairs = [
-        '$cond' => [
-            ['$eq' => [['$type' => '$reference_ids'], 'object']],
-            ['$objectToArray' => '$reference_ids'],
-            ['$cond' => [
-                ['$eq' => [['$type' => '$reference_ids'], 'array']],
-                ['$reduce' => [
-                    'input' => '$reference_ids',
-                    'initialValue' => [],
-                    'in' => ['$concatArrays' => ['$$value', ['$cond' => [['$eq' => [['$type' => '$$this'], 'object']], ['$objectToArray' => '$$this'], []]]]],
-                ]],
-                [],
-            ]],
-        ],
-    ];
-    $pipeline = [
-        // $setUnion collapses duplicate keys within a document, so a doc that
-        // lists the same reference twice is still counted once.
-        ['$set' => ['_keys' => ['$setUnion' => [
-            ['$map' => ['input' => $keyPairs, 'as' => 'p', 'in' => '$$p.k']],
-            [],
-        ]]]],
-        ['$unwind' => ['path' => '$_keys', 'preserveNullAndEmptyArrays' => false]],
-        ['$group' => ['_id' => '$_keys', 'n' => ['$sum' => 1]]],
-    ];
-
-    $out = [];
-    foreach ($db->listCollections() as $col) {
-        $name = $col->getName();
-        $row = ['total' => (int) ($totals[$name] ?? 0)];
-        foreach ($shorthands as $sh) {
-            $row[$sh] = 0;
-        }
-        try {
-            foreach ($db->selectCollection($name)->aggregate($pipeline) as $r) {
-                $k = (string) $r['_id'];
-                if (array_key_exists($k, $row)) {
-                    $row[$k] = (int) $r['n'];
-                }
-            }
-        } catch (\Throwable $e) {
-            // Views and non-document collections report zeros instead of a 500.
-        }
-        // Missingness for the 3 main refs, derived from the same pass.
-        foreach (['al', 'mal', 'k'] as $sh) {
-            $row['missing_' . $sh] = max(0, $row['total'] - $row[$sh]);
-        }
-        $out[$name] = $row;
-    }
-
-    return $out;
-}
-
-/**
- * Resolve a merged record's reference shorthands to the titles each source
- * actually holds, so a reviewer can judge a merge without leaving the page.
- *
- * Only shorthands with a local source collection are resolved; an unknown one
- * (e.g. `t` for trakt) still comes back as a row with a null title, so the
- * reviewer sees that the record references a source the dashboard cannot show.
- *
- * @param array<string, mixed> $refs shorthand => source id
- *
- * @return list<array{shorthand: string, id: string, title: ?string, year: ?int, type: ?string}>
- */
-function sampleSourceTitles(MongoClient $client, array $refs): array
-{
-    static $tables = null;
-    if ($tables === null) {
-        $tables = [];
-        /** @var array<string, array{table: string, shorthand: string}> $configs */
-        $configs = require dirname(__DIR__) . '/src/Config/Sources.php';
-        foreach ($configs as $config) {
-            $tables[$config['shorthand']] = $config['table'];
-        }
-    }
-
-    $db = $client->selectDatabase('hiyori');
-    $rows = [];
-    foreach ($refs as $shorthand => $id) {
-        $shorthand = (string) $shorthand;
-        $id = is_scalar($id) ? (string) $id : '';
-        $row = ['shorthand' => $shorthand, 'id' => $id, 'title' => null, 'year' => null, 'type' => null];
-
-        $table = $tables[$shorthand] ?? null;
-        if ($table !== null && $id !== '') {
-            $doc = $db->selectCollection($table)->findOne(
-                ['reference_ids.' . $shorthand => $id],
-                ['projection' => ['title' => 1, 'year' => 1, 'type' => 1]],
-            );
-            if ($doc !== null) {
-                $doc = json_decode(json_encode($doc), true);
-                $title = $doc['title'] ?? null;
-                if (is_array($title)) {
-                    $title = $title['romaji'] ?? $title['english'] ?? reset($title);
-                }
-                $row['title'] = is_scalar($title) ? (string) $title : null;
-                $row['year'] = isset($doc['year']) ? (int) $doc['year'] : null;
-                $row['type'] = isset($doc['type']) && is_scalar($doc['type']) ? (string) $doc['type'] : null;
-            }
-        }
-        $rows[] = $row;
-    }
-
-    return $rows;
-}
-
-function readBenchmarkLog(string $file): array
-{
-    $rows = [];
-    $walls = [];
-    if (!is_file($file)) {
-        return $rows;
-    }
-    foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-        $line = trim($line);
-        if (preg_match('/^wall(?:_[a-z_]+)?:\s*([\d.]+)s/', $line, $m)) {
-            $walls[] = (float) $m[1];
-        }
-        if (!str_starts_with($line, '{')) {
-            continue;
-        }
-        $decoded = json_decode($line, true);
-        if (is_array($decoded) && isset($decoded['strategy'])) {
-            $decoded['wall'] = array_shift($walls) ?? 0.0;
-            $rows[] = $decoded;
-        }
-    }
-
-    return $rows;
-}
-
-function benchmarkData(Telemetry $telemetry): array
-{
-    $file = dirname(__DIR__) . '/storage/logs/strategy-benchmark-anime.log';
-
-    // Only rows a benchmark run actually wrote are returned. This used to merge
-    // a hardcoded seed table over the log, which fabricated `merges` for every
-    // strategy (the log stores `total`, so the seeded values always won) — the
-    // dashboard showed numbers no run had produced. `wall` is the "wall: 123s"
-    // marker the benchmark script prints just before each strategy's JSON row.
-    $out = [];
-    foreach (readBenchmarkLog($file) as $row) {
-        $out[] = [
-            'strategy' => (string) ($row['strategy'] ?? ''),
-            'wall_s' => (int) round((float) ($row['wall'] ?? 0)),
-            'merges' => (int) ($row['total'] ?? 0),
-            'dups' => (int) ($row['duplicate_keys'] ?? 0),
-        ];
-    }
-
-    return [
-        'recorded' => $out,
-        'source' => $out === [] ? null : 'storage/logs/' . basename($file),
-        'recorded_at' => $out === [] ? null : date('c', (int) filemtime($file)),
-        'latest' => $telemetry->read('combine-latest'),
-        'ml' => mlBenchmarkReport(),
-    ];
-}
-
-/**
- * Read the latest offline ML benchmark report (`combine:benchmark`), if any.
- *
- * Exposes the threshold suggestion (best F1 row: threshold, predicted merges,
- * precision/recall/F1) and the shipping gate so the dashboard can show a
- * recommended threshold without re-running the sweep.
- */
-function mlBenchmarkReport(): ?array
-{
-    $path = dirname(__DIR__) . '/storage/state/combine-benchmark.json';
-    if (!is_file($path)) {
-        return null;
-    }
-    $report = json_decode((string) @file_get_contents($path), true);
-    if (!is_array($report)) {
-        return null;
-    }
-
-    $best = [];
-    foreach (($report['scorers'] ?? []) as $name => $scorer) {
-        if (is_array($scorer) && isset($scorer['best']) && is_array($scorer['best'])) {
-            $best[(string) $name] = $scorer['best'];
-        }
-    }
-
-    return [
-        'created_at' => $report['created_at'] ?? null,
-        'input' => $report['input'] ?? null,
-        'rows' => $report['rows'] ?? null,
-        'ml_model_version' => $report['ml_model_version'] ?? null,
-        'gate' => $report['gate'] ?? null,
-        'best' => $best,
-    ];
-}
-
-function outageDebounce(Telemetry $telemetry, bool $unreachable): bool
-{
-    // Only raise the "unreachable" alert after a couple of consecutive failed
-    // probes and only while the outage is recent — a single rate-limit blip
-    // (429) or one poll timeout must not flash the banner.
-    $state = $telemetry->read('api-outage');
-    $count = (int) ($state['count'] ?? 0);
-    if ($unreachable) {
-        $count++;
-        $telemetry->update('api-outage', ['count' => $count, 'last_failed' => time()]);
-    } else {
-        $prev = (int) ($state['degraded_count'] ?? 0);
-        $deg = $prev >= 3 ? 0 : $prev;
-        $telemetry->update('api-outage', [
-            'count' => 0,
-            'last_failed' => null,
-            'degraded_count' => max(0, $count === 0 ? $deg : $deg),
-        ]);
-    }
-
-    return $count >= 2 && (time() - (int) ($state['last_failed'] ?? 0)) < 120;
-}
-
-/**
- * @param array<string, mixed> $health Result of HealthCheck::check(). Passed in
- *                                     rather than probed here so /api/status
- *                                     runs the external health check once.
- */
-function alerts(array $health, Telemetry $telemetry): array
-{
-    $out = [];
-    $h = $health;
-    $rl = $h['checks']['rate_limiter']['limiters'] ?? [];
-    foreach ($rl as $src => $s) {
-        if (($s['circuit_state'] ?? 'closed') === 'open') {
-            $out[] = ['level' => 'critical', 'type' => 'circuit_open', 'source' => $src, 'msg' => "Circuit breaker open for $src"];
-        }
-        if ((int) ($s['tokens_available'] ?? 999) < 5) {
-            $out[] = ['level' => 'warn', 'type' => 'low_tokens', 'source' => $src, 'msg' => "Rate limit nearly exhausted for $src"];
-        }
-    }
-
-    // "Unreachable" now means the probe got no HTTP response at all (transport
-    // error / 5s timeout). 429 rate-limits are reachable and ignored here.
-    $apis = $h['checks']['external_apis'] ?? [];
-    $reachable = $apis['all_reachable'] ?? ($apis['healthy'] ?? true);
-    if (!$reachable && outageDebounce($telemetry, true)) {
-        $out[] = ['level' => 'critical', 'type' => 'api_down', 'source' => '*', 'msg' => 'One or more external APIs unreachable'];
-    } elseif ($reachable) {
-        outageDebounce($telemetry, false);
-    }
-
-    // Degraded (429 etc.) feedback — soft warning, only when sustained.
-    if (($apis['healthy'] ?? true) === false && ($apis['all_reachable'] ?? true)) {
-        $hits = [];
-        foreach ($apis['endpoints'] ?? [] as $name => $ep) {
-            if (($ep['healthy'] ?? true) === false) {
-                $hits[] = $name . ($ep['note'] === 'rate_limited' ? ' (429)' : '');
-            }
-        }
-        if ($hits !== []) {
-            $st = $telemetry->read('api-outage');
-            $dec = (int) ($st['degraded_count'] ?? 0) + 1;
-            $telemetry->update('api-outage', array_merge($st, ['degraded_count' => $dec]));
-            if ($dec >= 3) {
-                $out[] = ['level' => 'warn', 'type' => 'api_degraded', 'source' => '*', 'msg' => 'External APIs degraded: ' . implode(', ', $hits)];
-            }
-        }
-    }
-
-    // Multi-channel delivery (webhook / telegram / e-mail), throttled once per
-    // hour per channel+alert identity in the alerts-sent telemetry store.
-    if ($out !== []) {
-        AlertNotifier::deliver($out, $telemetry);
-    }
-
-    return $out;
-}
-
-function scheduleView(Telemetry $telemetry): array
-{
-    $s = $telemetry->read('schedule');
-    $envSources = isset($_ENV['SCHEDULE_SOURCES']) && $_ENV['SCHEDULE_SOURCES'] !== '' ? $_ENV['SCHEDULE_SOURCES'] : 'anilist,kitsu,myanimelist';
-    $sources = $s['sources'] ?? $envSources;
-    $envInterval = isset($_ENV['SCHEDULE_INTERVAL']) && $_ENV['SCHEDULE_INTERVAL'] !== '' ? (int) $_ENV['SCHEDULE_INTERVAL'] : 86400;
-    $interval = (int) ($s['interval'] ?? $envInterval);
-    $last = (int) ($s['last_run'] ?? 0);
-
-    return [
-        'sources' => is_array($sources) ? implode(',', $sources) : (string) $sources,
-        'interval_hours' => $interval / 3600,
-        'next_in' => $last ? max(0, $last + $interval - time()) : null,
-        'method' => $s['method'] ?? 'systemd-timer (see schedule --install)',
-    ];
-}
-
 // ===== Export / publish API (per-entry JSON + Hiyori IDs) =====
 /**
  * Effective export config: `ExportConfig::load()` when the service is present,
@@ -824,19 +446,6 @@ function exportRequireService(): void
     }
 }
 
-function exportCombineRunning(): bool
-{
-    if (!function_exists('exec')) {
-        return false;
-    }
-    $out = [];
-    $code = 1;
-    // The `[p]hp` bracket trick stops pgrep matching its own command line.
-    @exec('pgrep -f ' . escapeshellarg('[p]hp hiyori combine') . ' 2>/dev/null', $out, $code);
-
-    return $code === 0 && $out !== [];
-}
-
 /** @param array<string, mixed> $written */
 function exportFileCount(mixed $files, array $written): int
 {
@@ -857,7 +466,7 @@ if ($path === '/api/export-config') {
 
         if (($body['reset'] ?? false) === true) {
             @unlink(ExportConfig::statePath());
-            auditAppend('export.config', ['reset' => true]);
+            $telemetry->audit('export.config', ['reset' => true]);
             sendJson(['reset' => true, 'config' => exportApiConfig(), 'state' => []]);
         }
 
@@ -878,7 +487,7 @@ if ($path === '/api/export-config') {
 
         $state = hiyoriExportMergeDeep(ExportConfig::state(), $incoming);
         ExportConfig::save($state);
-        auditAppend('export.config', ['keys' => array_keys($incoming)]);
+        $telemetry->audit('export.config', ['keys' => array_keys($incoming)]);
 
         sendJson(['config' => exportApiConfig(), 'state' => $state]);
     }
@@ -947,7 +556,7 @@ if ($path === '/api/export/run') {
     }
     requireSameOrigin();
     exportRequireService();
-    if (exportCombineRunning()) {
+    if ($combineRun->processRunning()) {
         sendJson([
             'error' => 'combine in progress',
             'detail' => 'refusing to write a publish dump while `php hiyori combine` is running',
@@ -975,7 +584,7 @@ if ($path === '/api/export/run') {
     try {
         $result = (new \Hiyori\Service\Exporter($client))->write($config);
     } catch (\Throwable $e) {
-        auditAppend('export.run', ['ok' => false, 'error' => $e->getMessage()]);
+        $telemetry->audit('export.run', ['ok' => false, 'error' => $e->getMessage()]);
         sendJson(['error' => 'export run failed', 'detail' => $e->getMessage()], 500);
     }
 
@@ -985,7 +594,7 @@ if ($path === '/api/export/run') {
     $out = $result;
     $written = $out['written'];
     $changelog = $out['changelog'];
-    auditAppend('export.run', [
+    $telemetry->audit('export.run', [
         'dir' => $out['dir'],
         'files' => exportFileCount($out['files'], $written),
         'rows' => $out['rows'],
@@ -1031,7 +640,7 @@ if (preg_match('#^/api/(entries|anime|manga)/(\d+)$#', $path, $m) === 1) {
 }
 
 if ($path === '/api/counts') {
-    sendJson(['counts' => collectionCounts($client), 'timestamp' => date('c')]);
+    sendJson(['counts' => $stats->collectionCounts(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/jobs') {
@@ -1051,12 +660,12 @@ if ($path === '/api/failures') {
     // (Management) and lists them with a source filter (Logs), so return the
     // full parsed event (ts/source/title/errors) rather than a count. `total`
     // lets the UI say "newest 500 of N" instead of implying this is the lot.
-    $meta = tailLinesMeta(dirname(__DIR__) . '/storage/state/validation-log.jsonl', 500);
+    $meta = $telemetry->tailLinesMeta('validation-log', 500);
     sendJson(['failures' => array_reverse($meta['events']), 'total' => $meta['total'], 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/audit') {
-    $meta = tailLinesMeta(dirname(__DIR__) . '/storage/state/audit.jsonl', 200);
+    $meta = $telemetry->tailLinesMeta('audit', 200);
     sendJson(['audit' => array_reverse($meta['events']), 'total' => $meta['total'], 'timestamp' => date('c')]);
 }
 
@@ -1082,17 +691,17 @@ if ($path === '/api/limits') {
         if ($max < 1 || $max > 100000 || $window < 1 || $window > 86400) {
             sendJson(['error' => 'max must be 1..100000 and window 1..86400 seconds'], 400);
         }
-        $settings = uiSettings();
+        $settings = $settingsStore->settings();
         $settings['limits'] = ['max' => $max, 'window' => $window, 'updated_at' => date('c')];
-        saveUiSettings($settings);
-        auditAppend('limits.update', ['max' => $max, 'window' => $window]);
+        $settingsStore->save($settings);
+        $telemetry->audit('limits.update', ['max' => $max, 'window' => $window]);
         sendJson(['limits' => RateLimiter::effectiveLimits(), 'applied' => 'next ingest start']);
     }
     sendJson(['limits' => RateLimiter::effectiveLimits(), 'applied' => 'next ingest start']);
 }
 
 if ($path === '/api/backups') {
-    sendJson(['backups' => backupsList(), 'timestamp' => date('c')]);
+    sendJson(['backups' => $backup->archives(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/restore') {
@@ -1104,7 +713,7 @@ if ($path === '/api/restore') {
     requireSameOrigin();
     $body = readJsonBody();
     $file = basename((string) ($body['file'] ?? ''));
-    $archive = dirname(__DIR__) . '/storage/backups/' . $file;
+    $archive = $backup->directory() . '/' . $file;
     // Only archives that the dashboard itself lists may be restored, so a typo
     // or a crafted path can never point restore at an arbitrary file.
     if ($file === '' || !preg_match('/^[A-Za-z0-9._-]+\.gz$/', $file) || !is_file($archive)) {
@@ -1115,11 +724,10 @@ if ($path === '/api/restore') {
     // mongorestore binary, corrupt archive, wrong URI) left the DB dropped and
     // empty with a success toast. A restore of this dataset takes tens of
     // seconds; blocking one worker for that is the honest trade.
-    $result = runShellCommand(sprintf(
-        'cd %s && php hiyori restore %s --drop',
-        escapeshellarg(dirname(__DIR__)),
-        escapeshellarg($archive),
-    ));
+    $result = ProcessRunner::run(
+        [PHP_BINARY, dirname(__DIR__) . '/hiyori', 'restore', $archive, '--drop'],
+        dirname(__DIR__),
+    );
     $ok = $result['exit_code'] === 0;
     $telemetry->update('restore-last', [
         'ok' => $ok,
@@ -1128,7 +736,7 @@ if ($path === '/api/restore') {
         'error' => $ok ? null : $result['output'],
         'updated_at' => date('c'),
     ]);
-    auditAppend('restore', ['file' => $file, 'ok' => $ok, 'exit_code' => $result['exit_code'], 'error' => $ok ? null : $result['output']]);
+    $telemetry->audit('restore', ['file' => $file, 'ok' => $ok, 'exit_code' => $result['exit_code'], 'error' => $ok ? null : $result['output']]);
 
     if (!$ok) {
         sendJson([
@@ -1144,7 +752,7 @@ if ($path === '/api/restore') {
 }
 
 if ($path === '/api/db') {
-    sendJson(['db' => dbStats($client), 'timestamp' => date('c')]);
+    sendJson(['db' => $stats->dbStats(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/backup') {
@@ -1153,18 +761,18 @@ if ($path === '/api/backup') {
         // it with no method) — the origin check is what closes the cross-site
         // `<img src="/api/backup?run=1">` hole.
         requireSameOrigin();
-        $out = dirname(__DIR__) . '/storage/backups/hiyori-' . date('Ymd-His') . '.gz';
-        if (!is_dir(dirname($out))) {
-            mkdir(dirname($out), 0o777, true);
-        }
+        $out = $backup->defaultArchivePath(date('Ymd-His'), true);
+        $backup->ensureDirectory();
         // Synchronous so the exit code is mongodump's, not the shell's: the old
         // `... >/dev/null 2>&1 &` + `@exec` reported success whatever happened.
         // A dump of this dataset is seconds, not minutes.
-        $result = runShellCommand(sprintf(
-            'mongodump --uri=%s --db=hiyori --gzip --archive=%s',
-            escapeshellarg($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'),
-            escapeshellarg($out),
-        ));
+        $result = ProcessRunner::run([
+            'mongodump',
+            '--uri=' . ($_ENV['MONGODB_URL'] ?? 'mongodb://localhost:27017'),
+            '--db=hiyori',
+            '--gzip',
+            '--archive=' . $out,
+        ]);
         $ok = $result['exit_code'] === 0 && is_file($out) && filesize($out) > 0;
         if (!$ok) {
             // A truncated archive must not show up in the restorable list.
@@ -1177,7 +785,7 @@ if ($path === '/api/backup') {
             'error' => $ok ? null : $result['output'],
             'updated_at' => date('c'),
         ]);
-        auditAppend('backup.run', [
+        $telemetry->audit('backup.run', [
             'ok' => $ok,
             'exit_code' => $result['exit_code'],
             'archive' => basename($out),
@@ -1191,13 +799,13 @@ if ($path === '/api/backup') {
                 'exit_code' => $result['exit_code'],
                 'archive' => basename($out),
                 'error' => 'backup failed (exit ' . $result['exit_code'] . '): ' . ($result['output'] !== '' ? $result['output'] : 'mongodump produced no archive'),
-                'backup' => backupInfo(),
+                'backup' => $backup->info(),
             ], 500);
         }
 
-        sendJson(['started' => true, 'ok' => true, 'completed' => true, 'exit_code' => 0, 'archive' => basename($out), 'backup' => backupInfo()]);
+        sendJson(['started' => true, 'ok' => true, 'completed' => true, 'exit_code' => 0, 'archive' => basename($out), 'backup' => $backup->info()]);
     }
-    sendJson(['backup' => backupInfo(), 'timestamp' => date('c')]);
+    sendJson(['backup' => $backup->info(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/action') {
@@ -1222,7 +830,7 @@ if ($path === '/api/action') {
     if (in_array($cmd2, ['retry', 'start'], true)) {
         $exe = sprintf('cd %s && php hiyori ingest %s --delay 1 >/dev/null 2>&1 &', escapeshellarg(dirname(__DIR__)), escapeshellarg($sourceName));
         @exec($exe);
-        auditAppend('job.' . $cmd2, ['job' => $job]);
+        $telemetry->audit('job.' . $cmd2, ['job' => $job]);
         sendJson(['job' => $job, 'cmd' => $cmd2, 'scheduled' => true]);
     }
     if ($cmd2 === 'runnow') {
@@ -1234,27 +842,28 @@ if ($path === '/api/action') {
                 @exec($exe);
             }
         }
-        auditAppend('schedule.runnow', ['sources' => (string) $srcs]);
+        $telemetry->audit('schedule.runnow', ['sources' => (string) $srcs]);
         sendJson(['job' => $job, 'cmd' => 'runnow', 'scheduled' => true]);
     }
     // The worker reads `control-<source>.json` (Telemetry::isPaused), and the
-    // status payload reads the same name via controls() — which strips the
-    // `ingest-` prefix. This handler was the only writer using the prefixed job
-    // name, so pause wrote control-ingest-<source>.json while the worker waited
-    // on control-<source>.json and never saw it. Normalise to the source name.
+    // status payload reads the same name via Telemetry::control() — which
+    // strips the `ingest-` prefix. This handler was the only writer using the
+    // prefixed job name, so pause wrote control-ingest-<source>.json while the
+    // worker waited on control-<source>.json and never saw it. Normalise to
+    // the source name.
     $stateDir = dirname(__DIR__) . '/storage/state';
     if (!is_dir($stateDir)) {
         // A fresh checkout has no storage/state yet; the write below warned
-        // until auditAppend() recreated the directory a line later.
+        // until $telemetry->audit() recreated the directory a line later.
         mkdir($stateDir, 0o777, true);
     }
     file_put_contents(
         $stateDir . '/control-' . $sourceName . '.json',
         json_encode(['paused' => $cmd2 === 'pause', 'updated_at' => date('c')]),
     );
-    auditAppend('job.' . $cmd2, ['job' => $job]);
+    $telemetry->audit('job.' . $cmd2, ['job' => $job]);
 
-    sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => controls($sourceName)]);
+    sendJson(['job' => $job, 'cmd' => $cmd2, 'control' => $telemetry->control($sourceName)]);
 }
 
 /**
@@ -1275,8 +884,9 @@ if ($path === '/api/action') {
  * operator's "rebuild now, with the weights I saved" button, and the
  * orchestrator's combine stages cannot express it: they fix the base
  * (anilist, anilist_manga), they take no `--weights`, and they run in the
- * foreground, so there would be no child pid to report and `combineRunning()`
- * (which reads storage/state/combine-run.json) would never see the run.
+ * foreground, so there would be no child pid to report and
+ * `CombineRun::running()` (which reads storage/state/combine-run.json) would
+ * never see the run.
  * Pointing this route at the orchestrator would either drop the saved weights
  * or change what `started`/`pid` mean, so it keeps calling `php hiyori
  * combine` until the orchestrator grows a weighted single-collection stage.
@@ -1293,7 +903,7 @@ if ($path === '/api/combine') {
         sendJson(['error' => 'base and strategy must be lowercase identifiers'], 400);
     }
 
-    $weights = uiSettings()['prefs']['weights'] ?? null;
+    $weights = $settingsStore->settings()['prefs']['weights'] ?? null;
     $args = sprintf('combine %s --strategy %s', escapeshellarg($base), escapeshellarg($strategy));
     if (is_array($weights) && $weights !== []) {
         $args .= ' --weights ' . escapeshellarg((string) json_encode($weights));
@@ -1301,29 +911,26 @@ if ($path === '/api/combine') {
     // Passthrough is required on every release path; mirrors the CLI contract.
     $args .= ' --passthrough';
 
-    // `echo $!` gives us the child pid so combineRunning() can tell a live run
-    // from a marker left behind by one that died.
+    // `echo $!` gives us the child pid so CombineRun::running() can tell a live
+    // run from a marker left behind by one that died.
     $exe = sprintf('cd %s && php hiyori %s >/dev/null 2>&1 & echo $!', escapeshellarg(dirname(__DIR__)), $args);
     $pid = (int) trim((string) @shell_exec($exe));
-    @file_put_contents(
-        dirname(__DIR__) . '/storage/state/combine-run.json',
-        json_encode(['pid' => $pid, 'started_at' => date('c'), 'base' => $base, 'strategy' => $strategy]),
-    );
-    auditAppend('combine.start', ['base' => $base, 'strategy' => $strategy, 'pid' => $pid, 'weights' => $weights]);
+    $combineRun->markStarted($pid, $base, $strategy);
+    $telemetry->audit('combine.start', ['base' => $base, 'strategy' => $strategy, 'pid' => $pid, 'weights' => $weights]);
 
     sendJson(['started' => true, 'base' => $base, 'strategy' => $strategy, 'pid' => $pid, 'weights' => $weights]);
 }
 
 if ($path === '/api/coverage') {
-    sendJson(['coverage' => coverage($client), 'timestamp' => date('c')]);
+    sendJson(['coverage' => $coverageService->matrix(), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/benchmark') {
-    sendJson(benchmarkData($telemetry));
+    sendJson($benchmark->anime());
 }
 
 if ($path === '/api/alerts') {
-    sendJson(['alerts' => alerts(ttlCache('health', 60, static fn () => $health->check()), $telemetry), 'timestamp' => date('c')]);
+    sendJson(['alerts' => $alertEngine->derive(ttlCache('health', 60, static fn () => $health->check())), 'timestamp' => date('c')]);
 }
 
 if ($path === '/api/sample') {
@@ -1348,7 +955,7 @@ if ($path === '/api/sample') {
     $refs = is_array($sample['reference_ids'] ?? null) ? $sample['reference_ids'] : [];
     sendJson([
         'sample' => $sample,
-        'refs' => sampleSourceTitles($client, $refs),
+        'refs' => $coverageService->sourceTitles($refs),
         'min' => $min,
         'field' => $field,
     ]);
@@ -1427,7 +1034,7 @@ if ($path === '/api/status') {
     $controlsMap = [];
     foreach (array_keys($telemetry->allState()) as $k) {
         if (str_starts_with($k, 'ingest-')) {
-            $controlsMap[$k] = controls(substr($k, 7));
+            $controlsMap[$k] = $telemetry->control(substr($k, 7));
         }
     }
 
@@ -1437,26 +1044,26 @@ if ($path === '/api/status') {
     // ~0.8 s of this endpoint's ~0.9 s) and every open tab polls it every 3 s,
     // so it is cached the same way — the cached rows (and the `total` they were
     // derived from) can lag the live $counts by up to 30 s.
-    $counts = collectionCounts($client);
+    $counts = $stats->collectionCounts();
     $healthResult = ttlCache('health', 60, static fn () => $health->check());
-    $coverage = ttlCache('coverage', 30, static fn () => coverage($client, $counts));
+    $coverage = ttlCache('coverage', 30, static fn () => $coverageService->matrix($counts));
 
     sendJson([
         'timestamp' => date('c'),
         'counts' => $counts,
-        'db' => dbStats($client, $counts),
+        'db' => $stats->dbStats($counts),
         'jobs' => $telemetry->allState(),
         'controls' => $controlsMap,
-        'backup' => backupInfo(),
+        'backup' => $backup->info(),
         'cache' => $telemetry->read('cache'),
         'coverage' => $coverage,
-        'alerts' => alerts($healthResult, $telemetry),
+        'alerts' => $alertEngine->derive($healthResult),
         'slow' => $telemetry->tail('slow-requests', 30),
-        'schedule' => scheduleView($telemetry),
+        'schedule' => $schedule->view(),
         'health' => $healthResult,
         'validation' => $telemetry->tail('validation-log', 40),
         'combine' => $telemetry->read('combine-latest'),
-        'combine_running' => combineRunning(),
+        'combine_running' => $combineRun->running(),
     ]);
 }
 
@@ -1484,276 +1091,14 @@ if ($path === '/api/events') {
 }
 
 // ===== Dashboard endpoints =====
-/**
- * Whether a combine started from the dashboard is still running.
- *
- * There is no per-run telemetry for combine (unlike ingest, which writes a
- * state file), so the start endpoint stamps a marker with the process id and
- * this checks the process is still alive. A stale marker — the process died,
- * the box rebooted — clears itself rather than leaving the Rebuild button
- * disabled forever.
- */
-function combineRunning(): bool
-{
-    $file = dirname(__DIR__) . '/storage/state/combine-run.json';
-    if (!is_file($file)) {
-        return false;
-    }
-    $state = json_decode((string) @file_get_contents($file), true);
-    $pid = (int) ($state['pid'] ?? 0);
-    if ($pid > 0 && function_exists('posix_kill') && @posix_kill($pid, 0)) {
-        return true;
-    }
-    @unlink($file);
-
-    return false;
-}
-
-function uiSettings(): array
-{
-    $dir = dirname(__DIR__) . '/storage/state';
-    $file = $dir . '/ui.json';
-    $settings = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
-
-    // Defaults. `_counters`/`_migrations` are internal bookkeeping, not dataset
-    // documents, so they start hidden — otherwise the Dataset donut shows
-    // meaningless 1-doc and 4-doc slices. Settings → Collections can unhide them.
-    $settings['prefs'] = ($settings['prefs'] ?? []) + [
-        'realtime' => true,
-        'hiddenCollections' => ['_counters', '_migrations'],
-    ];
-
-    return $settings;
-}
-
-function saveUiSettings(array $s): void
-{
-    $dir = dirname(__DIR__) . '/storage/state';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0o777, true);
-    }
-    file_put_contents($dir . '/ui.json', json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-}
-
-function auditAppend(string $action, array $detail = []): void
-{
-    $dir = dirname(__DIR__) . '/storage/state';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0o777, true);
-    }
-    file_put_contents($dir . '/audit.jsonl', json_encode([
-        'ts' => date('c'),
-        'action' => $action,
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
-        'detail' => $detail,
-    ], JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
-}
-
-/**
- * Parse the last $n JSON lines of a JSONL file.
- *
- * `total` counts every non-empty line in the file, so callers can be honest
- * about truncation ("newest 500 of 2,377") instead of implying the tail is all.
- *
- * @return array{total: int, events: list<array<string, mixed>>}
- */
-function tailLinesMeta(string $file, int $n): array
-{
-    if (!is_file($file)) {
-        return ['total' => 0, 'events' => []];
-    }
-    $lines = file($file, FILE_IGNORE_NEW_LINES) ?: [];
-    $cut = count($lines) - $n;
-    $total = 0;
-    $events = [];
-    foreach ($lines as $i => $line) {
-        if (trim($line) === '') {
-            continue;
-        }
-        ++$total;
-        if ($i < $cut) {
-            continue;
-        }
-        $decoded = json_decode($line, true);
-        if (is_array($decoded)) {
-            $events[] = $decoded;
-        }
-    }
-
-    return ['total' => $total, 'events' => $events];
-}
-
-function tailLines(string $file, int $n): array
-{
-    if (!is_file($file)) {
-        return [];
-    }
-    $lines = file($file, FILE_IGNORE_NEW_LINES) ?: [];
-    $tail = array_slice($lines, max(0, count($lines) - $n));
-    $out = [];
-    foreach ($tail as $l) {
-        $decoded = json_decode($l, true);
-        if (is_array($decoded)) {
-            $out[] = $decoded;
-        }
-    }
-
-    return $out;
-}
-
-function backupsList(): array
-{
-    $dir = dirname(__DIR__) . '/storage/backups';
-    // Any .gz in the backups dir is restorable, not just the `hiyori-<ts>.gz`
-    // ones this app writes — manual archives (e.g. pre-rebuild snapshots) are
-    // valid backups too and must show up in the list.
-    $files = glob($dir . '/*.gz') ?: [];
-    usort($files, static fn ($a, $b) => filemtime($b) - filemtime($a));
-
-    return array_map(static fn ($f) => ['file' => basename($f), 'mtime' => filemtime($f), 'size' => filesize($f)], $files);
-}
-
-function histogram(MongoClient $client, string $collection = 'organized', ?string $field = null): array
-{
-    $db = $client->selectDatabase('hiyori');
-    $bins = [];
-    $fields = $field !== null ? [$field] : ['score', 'confidence'];
-    foreach ($fields as $field) {
-        try {
-            $pipeline = [
-                ['$match' => [$field => ['$exists' => true]]],
-                ['$group' => ['_id' => ['$floor' => ['$multiply' => [['$divide' => ['$' . $field, 10]], 1.0]]], 'n' => ['$sum' => 1]]],
-            ];
-            foreach ($db->selectCollection($collection)->aggregate($pipeline)->toArray() as $r) {
-                $bin = (int) ($r['_id'] ?? -1);
-                if ($bin >= 0 && $bin <= 10) {
-                    $bins[min(9, $bin) * 10] = (int) ($bins[min(9, $bin) * 10] ?? 0) + (int) ($r['n'] ?? 0);
-                }
-            }
-        } catch (\Throwable $e) {
-            // fall through to next field
-        }
-    }
-
-    $out = [];
-    for ($i = 0; $i < 10; $i++) {
-        $out[$i * 10] = $bins[$i * 10] ?? 0;
-    }
-
-    return $out;
-}
-
-function exploreCollection(MongoClient $client, string $collection): \MongoDB\Collection
-{
-    return $client->selectDatabase('hiyori')->selectCollection($collection);
-}
 
 function readJsonBody(): array
 {
     return json_decode((string) file_get_contents('php://input'), true) ?: [];
 }
 
-function facetValues(\MongoDB\Collection $coll, string $field, array $mongoFilter): array
-{
-    $out = [];
-    try {
-        foreach ($coll->aggregate(Explorer::facetPipeline($field, $mongoFilter)) as $r) {
-            $v = $r['_id'] ?? null;
-            if ($v === null || $v === '') {
-                continue;
-            }
-            $out[] = ['v' => (string) $v, 'n' => (int) ($r['n'] ?? 0)];
-        }
-    } catch (\Throwable $e) {
-        // field may not exist on this collection — return an empty facet
-    }
-
-    return $out;
-}
-
-function explore(MongoClient $client, array $q): array
-{
-    $collection = Explorer::collectionName((string) ($q['collection'] ?? 'anilist'));
-    if ($collection === '') {
-        return ['error' => 'bad collection'];
-    }
-    $page = max(1, (int) ($q['page'] ?? 1));
-    $per = min(100, max(1, (int) ($q['per'] ?? 25)));
-    $sort = (string) ($q['sort'] ?? '');
-    $dir = (strtolower((string) ($q['dir'] ?? 'asc')) === 'desc') ? -1 : 1;
-
-    // ?regex=1 → keep the search term as a raw PCRE pattern (frontend regex
-    // toggle); invalid/oversized patterns fall back to escaped-literal matching.
-    $regex = (($q['regex'] ?? '') === '1');
-
-    $coll = exploreCollection($client, $collection);
-    $mongoFilter = Explorer::buildFilter($q, $regex);
-
-    $total = $coll->countDocuments($mongoFilter);
-    $opts = ['skip' => ($page - 1) * $per, 'limit' => $per];
-    if ($sort !== '' && Explorer::fieldPath($sort) !== '') {
-        $opts['sort'] = [$sort => $dir];
-    }
-    $rows = [];
-    foreach ($coll->find($mongoFilter, $opts) as $doc) {
-        $rows[] = json_decode(json_encode($doc), true);
-    }
-    $fields = $rows !== [] ? array_keys($rows[0]) : [];
-
-    $out = [
-        'collection' => $collection,
-        'regex' => $regex,
-        'page' => $page,
-        'per' => $per,
-        'total' => $total,
-        'docs' => $rows,
-        'fields' => $fields,
-    ];
-
-    // Optional distinct-value facets: ?facets=format,status → one aggregation
-    // per field, top 12 string values, empty values skipped.
-    $facetsParam = trim((string) ($q['facets'] ?? ''));
-    if ($facetsParam !== '') {
-        $facets = [];
-        foreach (array_unique(array_filter(array_map('trim', explode(',', $facetsParam)))) as $f) {
-            if (Explorer::fieldPath($f) === '') {
-                continue;
-            }
-            $facets[$f] = facetValues($coll, $f, $mongoFilter);
-        }
-        $out['facets'] = $facets;
-    }
-
-    return $out;
-}
-
-function metaMissingCounts(\MongoDB\Collection $coll, array $fields): array
-{
-    $fields = array_values(array_filter(array_slice($fields, 0, 24), static fn ($f): bool => Explorer::fieldPath((string) $f) !== ''));
-    if ($fields === []) {
-        return [];
-    }
-    $group = ['_id' => null];
-    foreach ($fields as $f) {
-        $group['n_' . str_replace('.', '__', $f)] = [
-            '$sum' => ['$cond' => [['$eq' => [['$ifNull' => ['$' . $f, null]], null]], 1, 0]],
-        ];
-    }
-    $row = $coll->aggregate([['$group' => $group]])->toArray()[0] ?? null;
-    if ($row === null) {
-        return [];
-    }
-    $missing = [];
-    foreach ($fields as $f) {
-        $key = 'n_' . str_replace('.', '__', $f);
-        $missing[$f] = (int) ($row[$key] ?? 0);
-    }
-
-    return $missing;
-}
-
 if ($path === '/api/explore') {
-    sendJson(explore($client, $_GET));
+    sendJson($explorerQuery->explore($_GET));
 }
 
 // Restored regression: 10-bin score/confidence histogram (bin width 10 over
@@ -1768,7 +1113,7 @@ if ($path === '/api/histogram') {
         sendJson(['error' => 'field must be one of score, confidence, ml_score'], 400);
     }
     sendJson([
-        'histogram' => histogram($client, $collection, $field !== '' ? $field : null),
+        'histogram' => $explorerQuery->histogram($collection, $field !== '' ? $field : null),
         'field' => $field !== '' ? $field : 'score+confidence',
         'bins' => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90],
         'collection' => $collection,
@@ -1791,7 +1136,7 @@ if ($path === '/api/explore/update') {
     if ($field === '_id') {
         sendJson(['error' => 'field cannot be _id'], 400);
     }
-    $coll = exploreCollection($client, $collection);
+    $coll = $explorerQuery->collection($collection);
     $filter = ['_id' => Explorer::docIdValue($id)];
     if (array_key_exists('value', $body) && $body['value'] === null) {
         $res = $coll->updateOne($filter, ['$unset' => [$field => '']]);
@@ -1802,7 +1147,7 @@ if ($path === '/api/explore/update') {
         }
         $res = $coll->updateOne($filter, ['$set' => [$field => $value]]);
     }
-    auditAppend('explore.update', ['collection' => $collection, 'id' => $id, 'field' => $field, 'matched' => $res->getMatchedCount()]);
+    $telemetry->audit('explore.update', ['collection' => $collection, 'id' => $id, 'field' => $field, 'matched' => $res->getMatchedCount()]);
     sendJson([
         'collection' => $collection,
         'id' => $id,
@@ -1828,7 +1173,7 @@ if ($path === '/api/explore/bulk') {
     if ($ids === [] || count($ids) > Explorer::MAX_IMPORT_ROWS) {
         sendJson(['error' => 'ids required (1..10000)'], 400);
     }
-    $coll = exploreCollection($client, $collection);
+    $coll = $explorerQuery->collection($collection);
     $idFilter = ['_id' => ['$in' => array_map([Explorer::class, 'docIdValue'], $ids)]];
 
     if ($action === 'set') {
@@ -1845,7 +1190,7 @@ if ($path === '/api/explore/bulk') {
             }
             $res = $coll->updateMany($idFilter, ['$set' => [$key => $value]]);
         }
-        auditAppend('explore.bulk.set', ['collection' => $collection, 'ids' => count($ids), 'key' => $key]);
+        $telemetry->audit('explore.bulk.set', ['collection' => $collection, 'ids' => count($ids), 'key' => $key]);
         sendJson([
             'action' => $action,
             'collection' => $collection,
@@ -1867,12 +1212,12 @@ if ($path === '/api/explore/bulk') {
         $snapshot[] = $arr;
     }
     if ($snapshot !== []) {
-        exploreCollection($client, 'explore_undo_' . $collection)->insertMany($snapshot, ['ordered' => false]);
+        $explorerQuery->collection('explore_undo_' . $collection)->insertMany($snapshot, ['ordered' => false]);
     }
 
     if ($action === 'delete') {
         $res = $coll->deleteMany($idFilter);
-        auditAppend('explore.bulk.delete', ['collection' => $collection, 'ids' => count($ids), 'deleted' => $res->getDeletedCount(), 'batch' => $batch]);
+        $telemetry->audit('explore.bulk.delete', ['collection' => $collection, 'ids' => count($ids), 'deleted' => $res->getDeletedCount(), 'batch' => $batch]);
         sendJson([
             'action' => $action,
             'collection' => $collection,
@@ -1885,7 +1230,7 @@ if ($path === '/api/explore/bulk') {
 
     // delete_soft: keep a copy flagged in place, don't remove the docs.
     $res = $coll->updateMany($idFilter, ['$set' => ['_deletedAt' => $batch]]);
-    auditAppend('explore.bulk.delete_soft', ['collection' => $collection, 'ids' => count($ids), 'flagged' => $res->getMatchedCount(), 'batch' => $batch]);
+    $telemetry->audit('explore.bulk.delete_soft', ['collection' => $collection, 'ids' => count($ids), 'flagged' => $res->getMatchedCount(), 'batch' => $batch]);
     sendJson([
         'action' => $action,
         'collection' => $collection,
@@ -1903,7 +1248,7 @@ if ($path === '/api/explore/undo') {
         if ($collection === '') {
             sendJson(['error' => 'bad collection'], 400);
         }
-        $undo = exploreCollection($client, 'explore_undo_' . $collection);
+        $undo = $explorerQuery->collection('explore_undo_' . $collection);
         $batches = [];
         foreach ($undo->aggregate([
             ['$group' => ['_id' => '$_batch', 'count' => ['$sum' => 1], 'time' => ['$max' => '$_deletedAt']]],
@@ -1933,7 +1278,7 @@ if ($path === '/api/explore/undo') {
     if ($collection === '') {
         sendJson(['error' => 'bad collection'], 400);
     }
-    $undo = exploreCollection($client, 'explore_undo_' . $collection);
+    $undo = $explorerQuery->collection('explore_undo_' . $collection);
     $batch = isset($body['batch']) ? (int) $body['batch'] : 0;
     if ($batch > 0) {
         $filter = ['_batch' => $batch];
@@ -1966,10 +1311,10 @@ if ($path === '/api/explore/undo') {
             ['upsert' => true],
         ]];
     }
-    $res = exploreCollection($client, $collection)->bulkWrite($ops, ['ordered' => false]);
+    $res = $explorerQuery->collection($collection)->bulkWrite($ops, ['ordered' => false]);
     $restored = $res->getUpsertedCount() + $res->getModifiedCount();
     $removed = $undo->deleteMany(['_batch' => $batch])->getDeletedCount();
-    auditAppend('explore.undo', ['collection' => $collection, 'batch' => $batch, 'restored' => $restored]);
+    $telemetry->audit('explore.undo', ['collection' => $collection, 'batch' => $batch, 'restored' => $restored]);
     sendJson([
         'collection' => $collection,
         'batch' => $batch,
@@ -1995,7 +1340,7 @@ if ($path === '/api/explore/import') {
     if ($rows === []) {
         sendJson(['error' => 'no data rows in csv'], 400);
     }
-    $coll = exploreCollection($client, $collection);
+    $coll = $explorerQuery->collection($collection);
     $ops = [];
     $skipped = 0;
     foreach ($rows as $row) {
@@ -2015,7 +1360,7 @@ if ($path === '/api/explore/import') {
         sendJson(['error' => 'no upsertable rows (keyField missing or empty)'], 400);
     }
     $res = $coll->bulkWrite($ops, ['ordered' => false]);
-    auditAppend('explore.import', ['collection' => $collection, 'keyField' => $keyField, 'rows' => count($ops), 'upserted' => $res->getUpsertedCount(), 'modified' => $res->getModifiedCount()]);
+    $telemetry->audit('explore.import', ['collection' => $collection, 'keyField' => $keyField, 'rows' => count($ops), 'upserted' => $res->getUpsertedCount(), 'modified' => $res->getModifiedCount()]);
     sendJson([
         'collection' => $collection,
         'imported' => $res->getUpsertedCount(),
@@ -2038,7 +1383,7 @@ if ($path === '/api/meta') {
         $cols[$name] = [
             'count' => $coll->countDocuments(),
             'fields' => array_slice($fields, 0, 24),
-            'missing' => metaMissingCounts($coll, $fields),
+            'missing' => $explorerQuery->metaMissingCounts($coll, $fields),
         ];
     }
     sendJson(['collections' => $cols, 'timestamp' => date('c')]);
@@ -2051,14 +1396,14 @@ if ($path === '/api/settings') {
         if (isset($body['token_rotate'])) {
             $token = bin2hex(random_bytes(24));
             $envFile->set('DASHBOARD_TOKEN', $token);
-            auditAppend('settings.token_rotate');
-            sendJson(['settings' => uiSettings(), 'token' => $token, 'note' => 'new token active on next request']);
+            $telemetry->audit('settings.token_rotate');
+            sendJson(['settings' => $settingsStore->settings(), 'token' => $token, 'note' => 'new token active on next request']);
         }
         if (array_key_exists('webhook', $body)) {
             $envFile->set('WEBHOOK_URL', (string) $body['webhook']);
-            $merged = array_merge(uiSettings(), array_diff_key($body, ['webhook' => true]));
-            saveUiSettings($merged);
-            auditAppend('settings.webhook');
+            $merged = array_merge($settingsStore->settings(), array_diff_key($body, ['webhook' => true]));
+            $settingsStore->save($merged);
+            $telemetry->audit('settings.webhook');
             sendJson(['settings' => $merged, 'webhook' => (string) $body['webhook']]);
         }
         if (isset($body['webhook_test']) && $body['webhook_test']) {
@@ -2074,25 +1419,25 @@ if ($path === '/api/settings') {
                     'timeout' => 5,
                 ],
             ]));
-            auditAppend('settings.webhook_test', ['sent' => $ok !== false]);
+            $telemetry->audit('settings.webhook_test', ['sent' => $ok !== false]);
             sendJson(['test' => $ok !== false ? 'sent' : 'failed']);
         }
         if (isset($body['reset']) && $body['reset']) {
             @unlink(dirname(__DIR__) . '/storage/state/ui.json');
-            auditAppend('settings.reset');
+            $telemetry->audit('settings.reset');
             sendJson(['settings' => [], 'reset' => true]);
         }
-        $merged = array_merge(uiSettings(), $body);
+        $merged = array_merge($settingsStore->settings(), $body);
         if (isset($body['prefs']) && is_array($body['prefs'])) {
-            $prevPrefs = (array) (uiSettings()['prefs'] ?? []);
+            $prevPrefs = (array) ($settingsStore->settings()['prefs'] ?? []);
             $merged['prefs'] = array_merge($prevPrefs, $body['prefs']);
         }
-        saveUiSettings($merged);
-        auditAppend('settings.update', ['keys' => array_keys($body)]);
+        $settingsStore->save($merged);
+        $telemetry->audit('settings.update', ['keys' => array_keys($body)]);
         sendJson(['settings' => $merged]);
     }
     sendJson([
-        'settings' => uiSettings(),
+        'settings' => $settingsStore->settings(),
         'env' => [
             'token_present' => isset($_ENV['DASHBOARD_TOKEN']) && $_ENV['DASHBOARD_TOKEN'] !== '',
             'webhook' => $_ENV['WEBHOOK_URL'] ?? '',
@@ -2140,7 +1485,7 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($body['raw'])) {
         $envFile->replace((string) $body['raw']);
-        auditAppend('env.bulk', ['chars' => strlen((string) $body['raw'])]);
+        $telemetry->audit('env.bulk', ['chars' => strlen((string) $body['raw'])]);
         $vars = $envFile->all();
         $out = [];
         foreach ($vars as $key => $value) {
@@ -2152,8 +1497,8 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($body['patterns'])) {
         $patterns = array_values(array_filter(array_map('strval', (array) $body['patterns'])));
-        saveUiSettings(array_merge(uiSettings(), ['env_sensitive_patterns' => $patterns]));
-        auditAppend('env.patterns', ['count' => count($patterns)]);
+        $settingsStore->save(array_merge($settingsStore->settings(), ['env_sensitive_patterns' => $patterns]));
+        $telemetry->audit('env.patterns', ['count' => count($patterns)]);
         sendJson(['patterns' => $patterns]);
     }
 
@@ -2163,7 +1508,7 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (array_key_exists('value', $body) && $body['value'] === null) {
         $envFile->remove($key);
-        auditAppend('env.remove', ['key' => $key]);
+        $telemetry->audit('env.remove', ['key' => $key]);
     } else {
         $value = (string) ($body['value'] ?? '');
         try {
@@ -2171,7 +1516,7 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\InvalidArgumentException $e) {
             sendJson(['error' => $e->getMessage()], 400);
         }
-        auditAppend('env.update', ['key' => $key]);
+        $telemetry->audit('env.update', ['key' => $key]);
     }
     $vars = $envFile->all();
     sendJson(['updated' => $key, 'env' => array_map(static function ($k) use ($envFile, $vars) {
@@ -2184,7 +1529,7 @@ if ($path === '/api/env' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Serve backup archives as downloads (they live under storage/backups).
 if (str_starts_with($path, '/storage/backups/')) {
-    $file = containedFile(substr($path, strlen('/storage/backups/')), dirname(__DIR__) . '/storage/backups');
+    $file = containedFile(substr($path, strlen('/storage/backups/')), $backup->directory());
     if ($file !== null) {
         header('Content-Type: application/gzip');
         header('Content-Disposition: attachment; filename="' . basename($file) . '"');
@@ -2196,22 +1541,7 @@ if (str_starts_with($path, '/storage/backups/')) {
 }
 
 if ($path === '/api/benchmark-manga') {
-    $rows = readBenchmarkLog(dirname(__DIR__) . '/storage/logs/strategy-benchmark-manga.log');
-    $out = [];
-    foreach ($rows as $row) {
-        $strategy = (string) ($row['strategy'] ?? '');
-        $total = (int) ($row['total'] ?? 0);
-        $wall = (float) ($row['wall_s'] ?? $row['wall'] ?? 0);
-        $out[] = [
-            'strategy' => $strategy,
-            'wall_s' => (int) $wall,
-            'merges' => $total,
-            'organized' => $total,
-            'dups' => (int) ($row['duplicate_keys'] ?? 0),
-            'speed' => $wall > 0 ? round($total / $wall, 2) : 0,
-        ];
-    }
-    sendJson(['benchmark' => $out, 'source' => 'strategy-benchmark-manga.log', 'timestamp' => date('c')]);
+    sendJson($benchmark->manga() + ['timestamp' => date('c')]);
 }
 
 sendJson(['error' => 'not found', 'path' => $path], 404);

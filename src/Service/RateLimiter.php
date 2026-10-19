@@ -80,6 +80,9 @@ final class RateLimiter
      * being applied field by field. `source` reports where the winner came from
      * so the dashboard can show it.
      *
+     * The override itself is read through {@see SettingsStore}, which owns
+     * that file; the rule for when it applies stays here, in one place.
+     *
      * Callers may pass base values (the constructor does, so tests and explicit
      * wiring keep their arguments) which are used unless an override applies.
      *
@@ -96,16 +99,13 @@ final class RateLimiter
         }
 
         $overridesFile = ($stateDir ?? dirname(__DIR__, 2) . '/storage/state') . '/ui.json';
-        if (is_file($overridesFile)) {
-            $ui = json_decode((string) file_get_contents($overridesFile), true);
-            $override = is_array($ui) ? ($ui['limits'] ?? null) : null;
-            if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
-                return [
-                    'max' => (int) $override['max'],
-                    'window' => (int) $override['window'],
-                    'source' => 'override',
-                ];
-            }
+        $override = (new SettingsStore($overridesFile))->limitOverride();
+        if (is_array($override) && (int) ($override['max'] ?? 0) > 0 && (int) ($override['window'] ?? 0) > 0) {
+            return [
+                'max' => (int) $override['max'],
+                'window' => (int) $override['window'],
+                'source' => 'override',
+            ];
         }
 
         return ['max' => $maxRequests, 'window' => $timeWindow, 'source' => $source];

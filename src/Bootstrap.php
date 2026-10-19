@@ -22,7 +22,9 @@ $container = new \Symfony\Component\DependencyInjection\ContainerBuilder();
 // Rate limits resolve through RateLimiter::effectiveLimits(), the single owner
 // of the precedence rule (RATE_LIMIT_* env vars, then a dashboard override in
 // storage/state/ui.json), so the Management page's "Save" applies to the next
-// ingest process and cannot diverge from the service.
+// ingest process and cannot diverge from the service. The override file itself
+// belongs to Hiyori\Service\SettingsStore, which is where the limiter reads
+// it from — nobody parses ui.json on their own any more.
 $limits = \Hiyori\Service\RateLimiter::effectiveLimits();
 
 // Set parameters

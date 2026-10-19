@@ -14,7 +14,7 @@ final class EnvFile
 {
     private string $file;
 
-    private string $settingsFile;
+    private SettingsStore $settings;
 
     /**
      * @param string|null $file         path to the `.env` file
@@ -24,7 +24,9 @@ final class EnvFile
     {
         $root = dirname(__DIR__, 2);
         $this->file = $file ?? $root . '/.env';
-        $this->settingsFile = $settingsFile ?? $root . '/storage/state/ui.json';
+        // The settings file has an owner now, so it is read through it rather
+        // than parsed a second time here.
+        $this->settings = new SettingsStore($settingsFile ?? $root . '/' . SettingsStore::FILE);
     }
 
     /**
@@ -180,16 +182,9 @@ final class EnvFile
      */
     private function sensitivePatterns(): array
     {
-        if (!is_file($this->settingsFile)) {
-            return [];
-        }
+        $settings = $this->settings->read();
 
-        $ui = json_decode((string) file_get_contents($this->settingsFile), true);
-        if (!is_array($ui)) {
-            return [];
-        }
-
-        return array_values(array_filter(array_map('strval', (array) ($ui['env_sensitive_patterns'] ?? []))));
+        return array_values(array_filter(array_map('strval', (array) ($settings['env_sensitive_patterns'] ?? []))));
     }
 
     /**
