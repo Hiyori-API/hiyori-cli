@@ -192,7 +192,7 @@ final class MetadataMlStrategy extends CombinerStrategy
                     'ml_decided_at' => gmdate('c'),
                 ];
                 try {
-                    $extra['hiyori_id'] = $db->allocateHiyoriId($kind, $refs, $slug);
+                    $extra['hiyori_id'] = $db->allocateHiyoriId($kind, $refs, $slug, '', $baseShorthand);
                 } catch (\Throwable) {
                     // Pre-v3 databases have no id registry; keep the merge without it.
                 }

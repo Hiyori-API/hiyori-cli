@@ -150,13 +150,13 @@ class Database
      * @param string $legacyId      Previous MongoDB _id (optional)
      * @return int                   The allocated hiyori_id
      */
-    public function allocateHiyoriId(string $kind, array $refs, string $slug, string $legacyId = ''): int
+    public function allocateHiyoriId(string $kind, array $refs, string $slug, string $legacyId = '', string $baseShorthand = ''): int
     {
         if ($this->migrator === null) {
             throw new \RuntimeException('Migrator not available — cannot allocate hiyori_id');
         }
 
-        return $this->migrator->allocateId($kind, $refs, $slug, $legacyId);
+        return $this->migrator->allocateId($kind, $refs, $slug, $legacyId, $baseShorthand);
     }
 
     public function mergeIntoOrganized(

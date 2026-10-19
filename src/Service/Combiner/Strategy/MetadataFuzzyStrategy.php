@@ -279,7 +279,7 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                         $slug = \Hiyori\Service\Exporter::slugify((string) $mergedEntry->getTitle());
                         $refs = $mergedEntry->getReferenceIds();
                         try {
-                            $hiyoriId = $db->allocateHiyoriId($kind, $refs, $slug);
+                            $hiyoriId = $db->allocateHiyoriId($kind, $refs, $slug, '', $baseShorthand);
                             $extra = ['confidence' => $score, 'hiyori_id' => $hiyoriId];
                         } catch (\Throwable $e) {
                             // Fallback: continue without hiyori_id (should not happen after migration v3)

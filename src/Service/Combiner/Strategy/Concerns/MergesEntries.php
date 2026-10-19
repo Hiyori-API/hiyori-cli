@@ -94,7 +94,7 @@ trait MergesEntries
         $slug = Exporter::slugify((string) $merged->getTitle());
         $extra = $score === null ? [] : ['confidence' => $score];
         try {
-            $extra['hiyori_id'] = $db->allocateHiyoriId($kind, is_array($refs) ? $refs : [], $slug);
+            $extra['hiyori_id'] = $db->allocateHiyoriId($kind, is_array($refs) ? $refs : [], $slug, '', $source->get()->getShorthand());
         } catch (\Throwable) {
             // Pre-v3 databases have no id registry; keep the merge without it.
         }

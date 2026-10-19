@@ -451,12 +451,12 @@ final class Migrator
      *
      * @param array<string, mixed> $refs source shorthand => source id
      */
-    public function allocateId(string $kind, array $refs, string $slug, string $legacyId = ''): int
+    public function allocateId(string $kind, array $refs, string $slug, string $legacyId = '', string $baseShorthand = ''): int
     {
         $this->assertKind($kind);
         $refs = self::normalizeRefs($refs);
 
-        $row = $this->allocateRegistryId($kind, $refs, $slug, $legacyId, $this->usedSlugs($kind));
+        $row = $this->allocateRegistryId($kind, $refs, $slug, $legacyId, $this->usedSlugs($kind), $baseShorthand);
 
         return $row['hiyori_id'];
     }
@@ -1491,7 +1491,7 @@ final class Migrator
      *
      * @return array{hiyori_id: int, slug: string, created: bool}
      */
-    private function allocateRegistryId(string $kind, array $refs, string $slug, string $legacyId, array $used): array
+    private function allocateRegistryId(string $kind, array $refs, string $slug, string $legacyId, array $used, string $baseShorthand = ''): array
     {
         $this->assertKind($kind);
 
@@ -1547,16 +1547,36 @@ final class Migrator
             // right. matchKnownId() vetoes that (a row that disagrees on any
             // shared identity key cannot be the same work), so the lookup finds
             // nothing and the insert trips the index.
-            $existing = $this->findRegistryRowByIdentityValue($kind, $refs);
-            if ($existing === null) {
-                throw new \RuntimeException(sprintf(
-                    'allocate_hiyori_ids: registry insert for kind %s refs %s violated a unique identity index and no row holds those values',
-                    $kind,
-                    json_encode($refs),
-                ), 0, $e);
+            // A unique identity index means one (kind, refs.key) value belongs
+            // to one row. Which row is a different question, and the answer
+            // depends on the BASE's own key:
+            //
+            //  - the row agrees on the base's key, so it is this same work and
+            //    one of its cross-source links was simply wrong before. Move
+            //    the row onto the corrected refs and keep the id.
+            //  - the row DISAGREES on the base's key, so the value belongs to a
+            //    different work entirely (two manga that share one MAL series
+            //    entry). We cannot hold that value, and we must not take the
+            //    row: doing so would give two different works the same
+            //    hiyori_id. Drop the contested value and allocate our own.
+            [$sameWork, $contested] = $this->classifyIdentityHolders($kind, $refs, $baseShorthand);
+
+            if ($sameWork !== null) {
+                return $this->reuseRegistryRow($sameWork, $slug, $used, $refs);
             }
 
-            return $this->reuseRegistryRow($existing, $slug, $used, $refs);
+            if ($contested !== []) {
+                $reduced = array_diff_key($refs, $contested);
+                if ($reduced !== $refs) {
+                    return $this->allocateRegistryId($kind, $reduced, $slug, $legacyId, $used, $baseShorthand);
+                }
+            }
+
+            throw new \RuntimeException(sprintf(
+                'allocate_hiyori_ids: registry insert for kind %s refs %s violated a unique identity index and no row holds those values',
+                $kind,
+                json_encode($refs),
+            ), 0, $e);
         }
 
         if (!is_array($row)) {
@@ -1592,33 +1612,36 @@ final class Migrator
     }
 
     /**
-     * The registry row holding any of the given identity values.
-     *
-     * The unique identity indexes make this the authoritative answer to "is this
-     * work already registered": a value that is already taken names exactly one
-     * row, and that row is this work. The lowest hiyori_id wins so the choice
-     * is deterministic.
+     * Decide whether the rows holding our identity values are this work.
      *
      * @param array<string, string> $refs
+     *
+     * @return array{0: array<string, mixed>|null, 1: array<string, string>} the same-work row (if any) and the values that belong to someone else
      */
-    private function findRegistryRowByIdentityValue(string $kind, array $refs): ?array
+    private function classifyIdentityHolders(string $kind, array $refs, string $baseShorthand): array
     {
-        $or = [];
-        foreach (self::identityRefs($refs) as $key => $value) {
-            $or[] = ['refs.' . $key => $value];
-        }
-        if ($or === []) {
-            return null;
-        }
-
+        $sameWork = null;
+        $contested = [];
         $options = ['sort' => ['hiyori_id' => 1], 'typeMap' => ['root' => 'array', 'document' => 'array']];
-        foreach ($this->registry()->find(['kind' => $kind, '$or' => $or], $options) as $row) {
-            if (is_array($row)) {
-                return $row;
+
+        foreach (self::identityRefs($refs) as $key => $value) {
+            foreach ($this->registry()->find(['kind' => $kind, 'refs.' . $key => $value], $options) as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $rowRefs = is_array($row['refs'] ?? null) ? $row['refs'] : [];
+                $ourBase = (string) ($refs[$baseShorthand] ?? '');
+                $theirBase = (string) ($rowRefs[$baseShorthand] ?? '');
+                if ($baseShorthand !== '' && $ourBase !== '' && $ourBase === $theirBase) {
+                    $sameWork = $row;
+
+                    continue;
+                }
+                $contested[$key] = $value;
             }
         }
 
-        return null;
+        return [$sameWork, $contested];
     }
 
     /**
