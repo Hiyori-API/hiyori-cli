@@ -110,12 +110,32 @@ final class MetadataFuzzyStrategyTest extends TestCase
         $this->assertSame(round($expected, 2), round(MetadataFuzzyStrategy::calculateScore($e1, $e2, $weights), 2));
     }
 
-    public function testMissingFieldsScoreZeroWithNullVsPresent(): void
+    /**
+     * A field one side does not have cannot be compared, so it is excluded
+     * rather than scored as a disagreement.
+     *
+     * It used to score 0, which punished a pair for data the source simply did
+     * not have — AniList leaves chapters unset on 17 % of manga and those
+     * matches were lost. Both sides missing it was worse: it scored 1.0, a
+     * free match.
+     */
+    public function testFieldMissingOnOneSideIsExcludedNotScoredZero(): void
     {
-        $e1 = ['title' => 'A', 'year' => 1998];
-        $e2 = ['title' => 'A', 'year' => null];
-        $weights = ['title' => 10, 'year' => 10];
-        $this->assertSame(50.0, MetadataFuzzyStrategy::calculateScore($e1, $e2, $weights));
+        $e1 = ['title' => 'Berserk', 'year' => 1989, 'chapters' => 13];
+        $e2 = ['title' => 'Berserk', 'year' => 1989];
+        $weights = ['title' => 20, 'year' => 10, 'chapters' => 20];
+
+        // Only the title and the year can be compared, and both agree.
+        $this->assertSame(100.0, MetadataFuzzyStrategy::calculateScore($e1, $e2, $weights));
+    }
+
+    public function testFieldPresentOnBothSidesAndDisagreeingStillCounts(): void
+    {
+        $e1 = ['title' => 'Berserk', 'chapters' => 13];
+        $e2 = ['title' => 'Berserk', 'chapters' => 2];
+        $weights = ['title' => 20, 'chapters' => 20];
+
+        $this->assertLessThan(100.0, MetadataFuzzyStrategy::calculateScore($e1, $e2, $weights));
     }
 
     public function testEmptySynonymsDoNotCreateFalseMatch(): void

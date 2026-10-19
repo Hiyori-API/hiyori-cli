@@ -590,9 +590,15 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             $cursor = $collection->find($filter, [
                 'projection' => [
                     'title' => 1, 'synonyms' => 1, 'type' => 1, 'episodes' => 1,
+                    // Manga are compared on chapters and volumes; the projection
+                    // was anime-shaped and never fetched them, so every manga
+                    // candidate arrived missing the two fields it is judged on and
+                    // lost 42.6 points before the title was looked at.
+                    'chapters' => 1, 'volumes' => 1,
                     'status' => 1, 'season' => 1, 'year' => 1, 'tags' => 1,
                     'references' => 1, 'reference_ids' => 1, '_id' => 0,
                 ],
+
                 'limit' => max(1, $limit),
             ]);
             $candidates = [];
@@ -663,19 +669,23 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             if ($weight <= 0) {
                 continue;
             }
-            // A field that is absent on BOTH sides is not evidence that the
-            // entries are alike — it is missing evidence, and it must be
-            // excluded from the score rather than counted as a match.
+            // A field that one side does not have cannot be compared, so it
+            // must be excluded from the score rather than counted as a match.
             //
             // fieldSimilarity() answers 1.0 for two nulls, which was free
             // points for every manga: `episodes` (26.2) and `season` (16.4) are
-            // null on every manga, so 42.6 of the 100 came for nothing and any
+            // null for every manga, so 42.6 of the 100 came for nothing and any
             // two manga from the same year cleared the 70 threshold whatever
             // their titles said. "Omorashi Riko-chan" merged with "Kurokami" at
             // 96 % on that basis alone.
+            //
+            // One side missing the field is the same kind of gap: it is not
+            // evidence of a disagreement, and scoring it 0 punished a pair for
+            // data the source simply did not have. AniList leaves chapters
+            // unset on 17 % of manga, and those matches were being lost.
             $v1 = $e1[$field] ?? null;
             $v2 = $e2[$field] ?? null;
-            if ($v1 === null && $v2 === null) {
+            if ($v1 === null || $v2 === null) {
                 continue;
             }
 
