@@ -700,14 +700,30 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             return 0.9;
         }
 
-        // Containment (one title is a substring of the other). Require enough
-        // signal on both sides so short artefacts cannot contain each other.
+        // Containment: one title contains the other as a whole word or phrase.
+        //
+        // The test must run on a form that KEEPS word boundaries. The normalised
+        // form strips every separator ("Berserk: The Prototype" becomes
+        // "berserktheprototype"), so a bare substring test scores any prefix
+        // 0.75+: "gaku" sits inside "gakuen tengoku" and "rip" inside
+        // "trippers", which merged eight unrelated 2003 manga into MAL "Gaku"
+        // at 92-96 % confidence and failed the release gate on duplicate
+        // mal_manga. Word boundaries keep "berserk" matching "berserk the
+        // prototype" while rejecting both.
         if (
             mb_strlen($t1) >= self::MIN_TITLE_FRAGMENT
             && mb_strlen($t2) >= self::MIN_TITLE_FRAGMENT
-            && (str_contains($t1, $t2) || str_contains($t2, $t1))
         ) {
-            return 0.75 + 0.15 * (min(strlen($t1), strlen($t2)) / max(strlen($t1), strlen($t2)));
+            $w1 = self::normalizeTitleWords($title1);
+            $w2 = self::normalizeTitleWords($title2);
+            if ($w1 !== '' && $w2 !== '') {
+                $needle = mb_strlen($w1) <= mb_strlen($w2) ? $w1 : $w2;
+                $haystack = $needle === $w1 ? $w2 : $w1;
+                $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($needle, '/') . '(?![\p{L}\p{N}])/u';
+                if (preg_match($pattern, $haystack) === 1) {
+                    return 0.75 + 0.15 * (min(strlen($t1), strlen($t2)) / max(strlen($t1), strlen($t2)));
+                }
+            }
         }
 
         // Token-set Jaccard
@@ -857,6 +873,21 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         }
 
         return strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '', $title)));
+    }
+
+    /**
+     * Lower-case with word separators preserved, one space between words.
+     *
+     * `normalizeTitle()` deletes separators, which is right for equality and
+     * Jaccard but destroys the word boundaries the containment test needs.
+     */
+    private static function normalizeTitleWords(?string $title): string
+    {
+        if ($title === null) {
+            return '';
+        }
+
+        return trim((string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower($title)));
     }
 
     public static function tokenJaccard(string $a, string $b): float

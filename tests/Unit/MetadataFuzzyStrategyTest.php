@@ -190,4 +190,43 @@ final class MetadataFuzzyStrategyTest extends TestCase
         $this->assertNotNull($match['best']);
         $this->assertSame(0, $match['rejected_title']);
     }
+
+    /**
+     * A short title that merely starts, or sits inside, a longer one is not a
+     * match. This used to score 0.75+ via a bare str_contains(), and it merged
+     * eight unrelated 2003 manga into MAL "Gaku" at 92-96 % confidence — which
+     * failed the release gate on duplicate mal_manga.
+     */
+    public function testShortPrefixIsNotContainment(): void
+    {
+        $this->assertLessThan(
+            MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
+            MetadataFuzzyStrategy::titleSimilarity('Gakuen Tengoku', 'Gaku', [], []),
+        );
+        $this->assertLessThan(
+            MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
+            MetadataFuzzyStrategy::titleSimilarity('Asagaya Kusarezu Gakuen', 'Gaku', [], []),
+        );
+    }
+
+    public function testInternalSubstringIsNotContainment(): void
+    {
+        // "rip" sits inside "trippers".
+        $this->assertLessThan(
+            MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
+            MetadataFuzzyStrategy::titleSimilarity('R.I.P.', 'BAD TRIPPERS', [], []),
+        );
+    }
+
+    public function testContainmentStillWorksOnWholeWords(): void
+    {
+        $this->assertGreaterThan(
+            MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
+            MetadataFuzzyStrategy::titleSimilarity('Berserk', 'Berserk: The Prototype', [], []),
+        );
+        $this->assertGreaterThan(
+            MetadataFuzzyStrategy::DEFAULT_TITLE_FLOOR,
+            MetadataFuzzyStrategy::titleSimilarity('One Piece', 'One Piece Film: Red', [], []),
+        );
+    }
 }
