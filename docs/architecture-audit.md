@@ -224,6 +224,52 @@ Two constraints worth stating plainly:
   already does via `storage/ml/embeddings.json` — but that only pays off after
   a one-time embedding pass.
 
+### The pipeline, rebuilt end to end (2026-10-20)
+
+Both combined collections were rebuilt with the fixed matcher, and the
+identities held.
+
+| | anime | manga |
+|---|---:|---:|
+| base rows | 15,017 | 28,819 |
+| coverage | **100.0 %** | **100.0 %** |
+| merged / single-source | 11,568 / 3,449 | 5,483 / 23,336 |
+| unmatched | 0 | 0 |
+| skipped (no base id) | 0 | 0 |
+| wall clock | 12 min | 62 min |
+
+**Id stability held.** The anime `hiyori_id`s are published, so the registry
+was deliberately left intact and only the documents were cleared; allocation
+reused the existing rows. 15,016 of 15,017 ids came back with the same id *and*
+the same title. The one that changed is explained below.
+
+Three defects surfaced during the rebuild and were fixed:
+
+1. **A document was published with no `hiyori_id`.** The registry row for
+   "PokéOki" held `mal: 60772` — a value from the old matcher's false merge —
+   while the corrected merge says `62209`. `matchKnownId()` vetoes a row that
+   disagrees on any shared identity key, so the lookup found nothing, the
+   allocator tried to INSERT a second row for the same `al`, and the new unique
+   index rejected it. The strategy's fallback then wrote the document with no
+   id at all. The allocator now reads the unique index as the definition of
+   identity: one `(kind, refs.key)` value belongs to exactly one row, so a row
+   already holding one of our values IS this work, and the right move is to move
+   that row onto the corrected refs. "PokéOki" got its original id 13285 back.
+2. **The release gate reads documents; the resolver only knew about the
+   registry.** Unsetting the ref on the losing *registry row* left the merged
+   *document* still claiming it — and the registry no longer recorded the
+   conflict, so the resolver had nothing to work from. There is now a
+   document-level resolve with the same ranking (declares the ref, then base
+   corroboration, then lowest id).
+3. **A numeric-string array key silently broke a Mongo query.** PHP turns
+   `"2467"` into the int `2467`, and MongoDB will not match the stored string
+   against the int, so 14 document updates matched nothing. The file already
+   warned about this; the new code casts back.
+
+Final state: release gate **PASSED**, `hiyori-id --verify` reports 0 duplicate
+registry refs, 0 duplicate document refs, 0 orphans, and every document carries
+an id and a slug.
+
 ---
 
 ## 3. Open findings, by priority
