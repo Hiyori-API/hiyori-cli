@@ -307,19 +307,73 @@ and beats the fuzzy matcher on anime, but the manga sample is too small and the
 manga length features are too weak a signal to promote it there. The manga
 holdout needs more labelled pairs before the question is worth asking again.
 
-### Which strategy, on current evidence
+### The strategy table, re-measured on the manga base
 
 The 2026-10-16 table in `docs/combiner-strategy-benchmark.md` predates every
-matcher fix, and it was measured on the anime base. The rebuilt pipeline is
-**6.9x faster** than that benchmark recorded (24.6 entries/s against 3.56), and
-the coverage semantics changed underneath it. A manga-base re-benchmark is
-running; the harness was made kind-aware for it (the identity keys and the kind
-are now derived from the base, because the old measurement hard-coded
-`al`/`mal`/`k` and would have reported zero linkage for every manga run).
+matcher fix and was measured on the anime base. The harness was made kind-aware
+(the old measurement hard-coded `al`/`mal`/`k` and would have reported zero
+linkage for every manga run) and the manga base re-benchmarked: 28,819 rows,
+five strategies, merge-only so the numbers stay comparable with the old table.
+
+| strategy | docs | wall | entries/s | dup `al_manga` | dup `mal_manga` | dup `hiyori_id` | has `k_manga` | has `mal_manga` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `metadata_fuzzy` | 5,498 | 19 m 34 s | **24.56** | 0 | 33 | 71 \* | 4,012 | 1,486 |
+| `fellegi_sunter` | 5,433 | 19 m 54 s | **24.14** | 0 | 31 | 65 \* | 3,955 | 1,478 |
+| `graph_merge` | 5,501 | 33 m 01 s | 14.55 | 0 | **82** | **82** | 4,029 | **3,217** |
+| `relational_fuzzy` | **0** | 33 s | — | 0 | 0 | 0 | 0 | 0 |
+| `relational_mapping` | **14,233** | ~60 m | — | **0** | **0** | **0** | **11,975** | 2,258 |
+
+\* Measured before the allocator fix described below, which is what produced
+those duplicates: the counts are the bug, not the strategy.
+
+Four things this says:
+
+1. **The pipeline is 6.9x faster than the old benchmark recorded** (24.56
+   entries/s against 3.56) — the candidate-filter index and the kind-scoped
+   candidate sources, not a better strategy.
+2. **`metadata_fuzzy` and `fellegi_sunter` are now indistinguishable on
+   speed** (24.56 against 24.14). The old table's 3.56-against-4.78 gap was a
+   retrieval cost the index removed, so the accuracy gap (F1 0.812 against
+   0.804) is now the only thing separating them — and `metadata_fuzzy` wins it.
+   **`metadata_fuzzy` remains the default.**
+3. **`graph_merge` links more and is wrong more.** It carries 3,217 `mal_manga`
+   links against the fuzzy scorer's 1,486, and it mints 82 duplicate
+   identities, which fails the release gate outright. It is also 35 % slower.
+4. **The relational strategies are structurally inapplicable to manga.**
+   `relational_fuzzy` merged **zero** of 28,819 rows. Manga entries carry only
+   their own source's id — `al_manga` on AniList, `k_manga` on Kitsu,
+   `mal_manga` on MyAnimeList — so there are no cross-source identity edges for
+   an exact-relational strategy to follow. That is not a slow run; it is a
+   different data shape. `relational_mapping` is the exception: it reached
+   14,233 documents (2.6x the scorers) with **zero** duplicates of any kind
+   and far the most linkage — but it took three times as long and still left
+   half the base unmerged.
+
+The accuracy sample was too thin to separate the scorers (28 consensus positives
+out of 7,347 holdout pairs), so the F1 column still comes from the older anime
+measurement. The manga holdout needs more labelled pairs before it can carry
+that weight.
 
 One note on reading the manga numbers: a manga entry links to *either* MAL or
 Kitsu, not both, so the anime table's "triple-linked" column is 0 by
 construction for manga. The meaningful figures are the per-key linkage rates.
+
+### A defect the benchmark found
+
+The merge-only run produced **71 documents sharing a `hiyori_id`**: "Ichigo
+100%" and "100-man Yen! Vegas-kun" are different manga that both link to
+k_manga 119 (one MAL series entry covering several AniList entries), and the
+allocator handed them the same id.
+
+The unique identity index is right — one `(kind, refs.key)` value belongs to
+exactly one row. The question is *which* row, and the answer depends on the
+base's own key: if the row agrees on it, it is the same work and one of its
+cross-source links was simply wrong before (move the row onto the corrected
+refs, keep the id); if it disagrees, the value belongs to a different work
+entirely and must be given up rather than taken. The base's key is now threaded
+through the allocator and used to tell the two apart. A franchise key may still
+be claimed by several rows — that is what a shared MAL series looks like — but
+the base identity and the `hiyori_id` never are.
 
 
 ### P1 — still open
