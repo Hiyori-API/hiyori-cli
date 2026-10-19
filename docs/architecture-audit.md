@@ -270,9 +270,57 @@ Final state: release gate **PASSED**, `hiyori-id --verify` reports 0 duplicate
 registry refs, 0 duplicate document refs, 0 orphans, and every document carries
 an id and a slug.
 
----
+### The ML path, made manga-capable — and the decision it produced
 
-## 3. Open findings, by priority
+The feature extractor was anime-shaped: `episodes_match` and `season_match`
+are constant for manga, so the model had no signal from the fields manga
+actually have. `chapters_match` and `volumes_match` were appended (appended,
+not inserted, so no weight index shifted), and the stored model — trained on 12
+features against 14 — now refuses to load with a message that names both
+feature lists and the retrain command. `LogisticModel::predict()` had been
+zipping the vector POSITIONALLY with a silent fallback to index 0, so a stale
+model produced plausible, meaningless numbers with no warning at all.
+
+The sidecar protocol was the other half. The model is fast — 28 ms per title
+warm — but `EmbeddingService` spawned a fresh `embed.py` per text, paying
+interpreter start + torch import + model load every time: **12.74 s per title**,
+a 450x penalty that would have made embedding the corpus a ~62 hour job. The
+sidecar already speaks one line in, one line out, so keeping it alive is a
+protocol fix rather than a model choice. Measured after: **17.7 ms per title**,
+a 719x improvement. The sidecar's stderr was also being closed unread, so one
+that could not load torch was indistinguishable from one with nothing to say —
+and the service fell back to the n-gram hasher without a word.
+
+Retrained on anime + manga pairs together (17,593 rows), the model's feature
+discrimination gaps are: containment +0.84, jaro +0.31, episodes +0.28, season
++0.15, **chapters +0.11, volumes +0.04**, and — notably — **year_similarity
+−0.01, status −0.03, type −0.05**. The metadata fields that used to carry the
+false merges now *mislead*.
+
+| holdout | metadata_ml vs metadata_fuzzy | gate (margin ≥ 0.02) |
+|---|---:|---|
+| anime (305 positives) | **+0.0202** | **PASSED** |
+| manga (28 positives) | **−0.0182** | not met |
+
+**So `metadata_fuzzy` stays the default.** The ML path is now manga-capable
+and beats the fuzzy matcher on anime, but the manga sample is too small and the
+manga length features are too weak a signal to promote it there. The manga
+holdout needs more labelled pairs before the question is worth asking again.
+
+### Which strategy, on current evidence
+
+The 2026-10-16 table in `docs/combiner-strategy-benchmark.md` predates every
+matcher fix, and it was measured on the anime base. The rebuilt pipeline is
+**6.9x faster** than that benchmark recorded (24.6 entries/s against 3.56), and
+the coverage semantics changed underneath it. A manga-base re-benchmark is
+running; the harness was made kind-aware for it (the identity keys and the kind
+are now derived from the base, because the old measurement hard-coded
+`al`/`mal`/`k` and would have reported zero linkage for every manga run).
+
+One note on reading the manga numbers: a manga entry links to *either* MAL or
+Kitsu, not both, so the anime table's "triple-linked" column is 0 by
+construction for manga. The meaningful figures are the per-key linkage rates.
+
 
 ### P1 — still open
 
