@@ -1,7 +1,12 @@
 # Level-0 ML sidecar (local, free). Create an isolated venv, then:
-#   python3 -m venv .venv-ml && . .venv-ml/bin/activate
-#   pip install -r services/ml/requirements.txt
-#   python3 services/ml/embed.py < /dev/null   # smoke test: exits 0, no output
+#   python3 -m venv .venv-ml
+#   .venv-ml/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
+#   .venv-ml/bin/pip install -r services/ml/requirements.txt
+#   .venv-ml/bin/python services/ml/embed.py < /dev/null   # smoke test: exits 0, no output
+#
+# The CPU-only torch wheel is installed first on purpose: the default PyPI
+# torch wheel pulls the CUDA runtime (~2.5 GB) even on a machine that will
+# never use a GPU. The CPU wheel is ~200 MB and is all this sidecar needs.
 #
 # Pinned for reproducible venvs; bump deliberately and re-run the smoke test.
 sentence-transformers==3.3.1

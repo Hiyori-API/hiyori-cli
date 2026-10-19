@@ -28,3 +28,6 @@ output/
 # Python sidecar bytecode
 __pycache__/
 *.pyc
+
+# Local ML sidecar virtualenv (services/ml)
+.venv-ml/

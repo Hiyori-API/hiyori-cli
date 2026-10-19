@@ -14,10 +14,38 @@ use Hiyori\Service\Combiner\Strategy\MetadataFuzzyStrategy;
  * All features are in [0, 1] so a linear model stays interpretable and the
  * vector is directly comparable across sources. See
  * `docs/ml-augmentation-design.md` §4.1.
+ *
+ * Manga support
+ * -------------
+ * The first twelve features are the original anime-shaped set. For a manga
+ * document `episodes` and `season` are always null, so `episodes_match` is
+ * constantly 0.0 and `season_match` constantly 1.0: the model got no signal
+ * at all from the fields manga actually have. The combiner's own scorer was
+ * fixed for this the same week (`MetadataFuzzyStrategy::MANGA_WEIGHTS` now
+ * scores `chapters` and `volumes` instead of `episodes` and `season`), so
+ * the ML stage now carries the same two length features: `chapters_match`
+ * and `volumes_match`.
+ *
+ * The two new features are APPENDED, never inserted: the index of every
+ * pre-existing feature is unchanged, so an old model file still lines up
+ * positionally instead of silently shifting every weight by one. That is
+ * not a compatibility guarantee, it is a courtesy — the feature vector is
+ * baked into the trained model (`storage/state/ml-model.json` stores
+ * `mean`, `std`, `weights`, `bias` and the feature list), so ANY change to
+ * this list invalidates the stored model. The mismatch is detected and
+ * reported as a hard error by `LogisticModel`; see `FEATURE_SET_VERSION`
+ * and `LogisticModel::assertFeatureSet()`.
  */
 final class FeatureExtractor
 {
-    /** Stable feature order; do not reorder without bumping the model version. */
+    /**
+     * Stable feature order; do not reorder without bumping the model version.
+     *
+     * Append only. Inserting or reordering a feature silently re-maps every
+     * weight in a stored model, because the model file stores the weights as
+     * a positional vector and the feature list is the only thing that says
+     * which weight belongs to which feature.
+     */
     public const FEATURES = [
         'exact_norm',
         'jaro',
@@ -31,7 +59,21 @@ final class FeatureExtractor
         'year_similarity',
         'tags_jaccard',
         'ref_overlap',
+        // Manga length features (appended — see the class docblock).
+        'chapters_match',
+        'volumes_match',
     ];
+
+    /**
+     * Identifies the current feature set.
+     *
+     * Bump this whenever `FEATURES` changes (added, removed, renamed or
+     * reordered). It is written into every model produced by
+     * `LogisticRegressionTrainer` and compared against the running code by
+     * `LogisticModel`, so a model trained against a different feature set is
+     * a loud failure instead of a silently wrong score.
+     */
+    public const FEATURE_SET_VERSION = '2026.10.19-manga-counts';
 
     /**
      * @param array<string, mixed> $base
@@ -73,6 +115,8 @@ final class FeatureExtractor
                 (array) ($candidate['tags'] ?? []),
             ),
             'ref_overlap' => self::sharesReference($base, $candidate) ? 1.0 : 0.0,
+            'chapters_match' => self::chaptersMatch($base, $candidate),
+            'volumes_match' => self::volumesMatch($base, $candidate),
         ];
     }
 
@@ -142,5 +186,45 @@ final class FeatureExtractor
         }
 
         return $a === $b ? 1.0 : 0.0;
+    }
+
+    /**
+     * Manga chapter count agreement.
+     *
+     * Graded, exactly like the combiner's own manga scoring
+     * (`MetadataFuzzyStrategy::countSimilarity()`): two sources rarely agree
+     * on the last chapter of a series, so a near miss still scores highly.
+     * A count of zero (or a missing field) means "unknown", not "zero
+     * chapters", and therefore scores 0.0 — it is never a match.
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $candidate
+     */
+    public static function chaptersMatch(array $base, array $candidate): float
+    {
+        return self::countMatch($base, $candidate, 'chapters');
+    }
+
+    /**
+     * Manga volume count agreement. Same rules as `chaptersMatch()`.
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $candidate
+     */
+    public static function volumesMatch(array $base, array $candidate): float
+    {
+        return self::countMatch($base, $candidate, 'volumes');
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $candidate
+     */
+    private static function countMatch(array $base, array $candidate, string $field): float
+    {
+        return MetadataFuzzyStrategy::countSimilarity(
+            (int) ($base[$field] ?? 0),
+            (int) ($candidate[$field] ?? 0),
+        );
     }
 }

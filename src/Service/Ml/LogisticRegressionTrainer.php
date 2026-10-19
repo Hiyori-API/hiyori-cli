@@ -11,6 +11,12 @@ namespace Hiyori\Service\Ml;
  * class weights (candidate pairs are heavily imbalanced: most candidates are
  * negatives). Deterministic by design — no shuffling — so repeated runs on the
  * same JSONL produce identical models and tests stay stable.
+ *
+ * The rows must carry vectors of exactly the length of the feature set. A
+ * shorter vector used to be padded with zeros, which trained a model that
+ * believed two of its features were always absent — a silently useless
+ * model. A row of the wrong length is now a hard error
+ * (`FeatureSetMismatchException`).
  */
 final class LogisticRegressionTrainer
 {
@@ -34,8 +40,15 @@ final class LogisticRegressionTrainer
 
         $x = [];
         $y = [];
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
             $vector = array_values($row['vector']);
+            if (count($vector) !== $d) {
+                throw FeatureSetMismatchException::staleTrainingRows(
+                    (int) $index,
+                    count($vector),
+                    array_values($features),
+                );
+            }
             $point = [];
             for ($j = 0; $j < $d; $j++) {
                 $point[] = (float) ($vector[$j] ?? 0.0);
@@ -117,6 +130,11 @@ final class LogisticRegressionTrainer
         return [
             'model' => 'logreg',
             'version' => 'logreg-' . gmdate('Y.m.d.His'),
+            // The feature set is part of the model's identity: the weights are
+            // positional, so a model can only be scored against the exact
+            // feature list it was trained on. `LogisticModel` compares this
+            // against the running code and refuses a mismatch.
+            'feature_set_version' => self::featureSetVersion($features),
             'features' => array_values($features),
             'mean' => $mean,
             'std' => $std,
@@ -125,6 +143,25 @@ final class LogisticRegressionTrainer
             'trained_at' => gmdate('c'),
             'metrics' => self::metrics($scores, $y, $threshold),
         ];
+    }
+
+    /**
+     * The feature-set stamp written into a model file.
+     *
+     * The current feature set carries the version constant; a custom feature
+     * list is stamped with its own fingerprint so it can never be mistaken
+     * for the combiner's feature set.
+     *
+     * @param list<string> $features
+     */
+    private static function featureSetVersion(array $features): string
+    {
+        $features = array_values($features);
+        if ($features === FeatureExtractor::FEATURES) {
+            return FeatureExtractor::FEATURE_SET_VERSION;
+        }
+
+        return 'custom-' . substr(sha1(implode(',', $features)), 0, 12);
     }
 
     /**
