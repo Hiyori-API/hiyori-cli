@@ -58,6 +58,21 @@ final class EmbeddingService
 
     private string $mongoCollection;
 
+    /** @var resource|null the warm sidecar process */
+    private $sidecarProcess = null;
+
+    /** @var resource|null the sidecar's stdin */
+    private $sidecarIn = null;
+
+    /** @var resource|null the sidecar's stdout */
+    private $sidecarOut = null;
+
+    /** @var resource|null the sidecar's stderr */
+    private $sidecarErr = null;
+
+    /** The sidecar's stderr, kept so a broken sidecar is visible. */
+    private string $sidecarError = '';
+
     public function __construct(
         private int $dimensions = self::DEFAULT_DIMENSIONS,
         ?string $command = null,
@@ -194,6 +209,7 @@ final class EmbeddingService
 
     public function flush(): void
     {
+        $this->stopSidecar();
         if ($this->mongo !== null) {
             return; // write-through already persisted every vector
         }
@@ -210,6 +226,11 @@ final class EmbeddingService
             'vectors' => $this->cache,
         ]));
         $this->cacheDirty = false;
+    }
+
+    public function __destruct()
+    {
+        $this->stopSidecar();
     }
 
     /**
@@ -245,10 +266,83 @@ final class EmbeddingService
     }
 
     /**
+     * Embed one text through the sidecar.
+     *
+     * The sidecar speaks one JSON object per line on stdin and one JSON array
+     * per line on stdout, so it can stay alive across texts. It used to be
+     * spawned per text, which paid interpreter start + torch import + model
+     * load EVERY time: 12.74 s per title against the model's own 28 ms warm
+     * latency, a 450x penalty that would have made embedding the corpus a
+     * ~62 hour job. A warm process removes it.
+     *
+     * The sidecar's stderr is captured rather than discarded, so a sidecar that
+     * fails is visible instead of silently falling back to the n-gram hasher.
+     *
      * @return array<int, float>|null
      */
     private function embedWithCommand(string $text): ?array
     {
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            if (!$this->sidecarIsRunning()) {
+                if (!$this->startSidecar()) {
+                    return null;
+                }
+            }
+
+            $payload = json_encode(['text' => $text, 'model' => $this->model]);
+            if ($payload === false) {
+                return null;
+            }
+            $line = $payload . "\n";
+            if (@fwrite($this->sidecarIn, $line) === false) {
+                $this->stopSidecar();
+
+                continue;
+            }
+
+            $stdout = @fgets($this->sidecarOut);
+            if ($stdout === false) {
+                // EOF: the sidecar died. Report why, and try once more.
+                $this->captureSidecarError();
+                $this->stopSidecar();
+
+                continue;
+            }
+
+            $decoded = json_decode(trim($stdout), true);
+            if (!is_array($decoded) || $decoded === []) {
+                return null;
+            }
+            $vector = [];
+            foreach ($decoded as $value) {
+                if (is_numeric($value)) {
+                    $vector[] = (float) $value;
+                }
+            }
+            if ($vector === []) {
+                return null;
+            }
+            $this->dimensions = count($vector);
+
+            return self::normalize($vector);
+        }
+
+        return null;
+    }
+
+    private function sidecarIsRunning(): bool
+    {
+        return is_resource($this->sidecarProcess)
+            && is_resource($this->sidecarIn)
+            && is_resource($this->sidecarOut);
+    }
+
+    private function startSidecar(): bool
+    {
+        if ($this->command === null || $this->command === '') {
+            return false;
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
@@ -256,32 +350,60 @@ final class EmbeddingService
         ];
         $process = @proc_open($this->command, $descriptors, $pipes);
         if (!is_resource($process)) {
-            return null;
+            return false;
         }
-        fwrite($pipes[0], json_encode(['text' => $text, 'model' => $this->model]) . "\n");
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        if (proc_close($process) !== 0 || $stdout === false) {
-            return null;
-        }
-        $decoded = json_decode(trim($stdout), true);
-        if (!is_array($decoded) || $decoded === []) {
-            return null;
-        }
-        $vector = [];
-        foreach ($decoded as $value) {
-            if (is_numeric($value)) {
-                $vector[] = (float) $value;
-            }
-        }
-        if ($vector === []) {
-            return null;
-        }
-        $this->dimensions = count($vector);
 
-        return self::normalize($vector);
+        stream_set_blocking($pipes[1], true);
+        stream_set_blocking($pipes[2], false);
+
+        $this->sidecarProcess = $process;
+        $this->sidecarIn = $pipes[0];
+        $this->sidecarOut = $pipes[1];
+        $this->sidecarErr = $pipes[2];
+
+        return true;
+    }
+
+    private function stopSidecar(): void
+    {
+        if (is_resource($this->sidecarIn)) {
+            @fclose($this->sidecarIn);
+        }
+        if (is_resource($this->sidecarOut)) {
+            @fclose($this->sidecarOut);
+        }
+        if (is_resource($this->sidecarErr)) {
+            @fclose($this->sidecarErr);
+        }
+        if (is_resource($this->sidecarProcess)) {
+            @proc_terminate($this->sidecarProcess);
+            @proc_close($this->sidecarProcess);
+        }
+
+        $this->sidecarProcess = null;
+        $this->sidecarIn = null;
+        $this->sidecarOut = null;
+        $this->sidecarErr = null;
+    }
+
+    /**
+     * Drain whatever the sidecar wrote to stderr.
+     *
+     * It used to be closed unread, so a sidecar that could not load torch was
+     * indistinguishable from one that had nothing to say — and the service
+     * fell back to the n-gram hasher without a word.
+     */
+    private function captureSidecarError(): void
+    {
+        if (!is_resource($this->sidecarErr)) {
+            return;
+        }
+        $stderr = (string) @stream_get_contents($this->sidecarErr);
+        if (trim($stderr) === '') {
+            return;
+        }
+        $this->sidecarError = trim($stderr);
+        error_log('embedding sidecar: ' . $this->sidecarError);
     }
 
     private function cacheKey(string $text): string
