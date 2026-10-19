@@ -104,12 +104,17 @@ final class FellegiSunterStrategy extends CombinerStrategy
         $resume = (bool) ($strategy->getConfig('resume') ?? false);
 
         $tableName = $source->get()->getTable();
+        // Only match within the same kind (manga with manga, anime with anime).
+        // Cross-kind candidates are vetoed by the type anchor anyway, so fetching
+        // them is pure cost. Set `same_kind_candidates` to false to disable.
+        $sameKindOnly = (bool) ($strategy->getConfig('same_kind_candidates') ?? true);
         $baseShorthand = $source->get()->getShorthand();
 
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
         $counters = $checkpoint->counters([
+            'skipped_cross_kind_sources' => 0,
             'examined' => 0,
             // `merged` counts distinct documents written; `total_merged` counts
             // matched sources (an entry matching both sources upserts the same
@@ -149,6 +154,10 @@ final class FellegiSunterStrategy extends CombinerStrategy
 
             foreach ($availableSources as $currentSource) {
                 if ($currentSource->getTable() === $tableName) {
+                    continue;
+                }
+                if ($sameKindOnly && !MetadataFuzzyStrategy::sameKind($tableName, $currentSource->getTable())) {
+                    $counters['skipped_cross_kind_sources'] = ($counters['skipped_cross_kind_sources'] ?? 0) + 1;
                     continue;
                 }
 

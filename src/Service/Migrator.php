@@ -73,6 +73,7 @@ final class Migrator
             2 => ['name' => 'ensure_organized_collections', 'run' => fn () => $this->ensureOrganizedCollections()],
             3 => ['name' => 'allocate_hiyori_ids', 'run' => fn () => $this->allocateHiyoriIds()],
             4 => ['name' => 'ml_fields_and_indexes', 'run' => fn () => $this->mlFieldsAndIndexes()],
+            5 => ['name' => 'candidate_filter_indexes', 'run' => fn () => $this->candidateFilterIndexes()],
         ];
     }
 
@@ -271,6 +272,35 @@ final class Migrator
         }
 
         return ['collections' => $collections, 'indexes_created' => $created];
+    }
+
+    /**
+     * Index the filter the combiner's candidate query uses on the SOURCE
+     * collections.
+     *
+     * `MetadataFuzzyStrategy::candidates()` looks candidates up with
+     * `{type, status, year}` (then relaxes it), limit 100, no sort. Migration 1
+     * gave `organized` and `organized_manga` that index, but the source
+     * collections only ever got their `reference_ids.*` indexes — so every
+     * candidate lookup was a collection scan. `explain` on the hot query:
+     * 7,113 documents examined to return 100, `keysExamined: 0`. With the
+     * index the same query examines 100 keys and 100 documents.
+     */
+    private function candidateFilterIndexes(): void
+    {
+        $db = $this->client->selectDatabase($this->database);
+        $key = ['type' => 1, 'status' => 1, 'year' => 1];
+        foreach (['anilist', 'kitsu', 'myanimelist', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga'] as $name) {
+            $coll = $db->selectCollection($name);
+            $existing = [];
+            foreach ($coll->listIndexes() as $index) {
+                $existing[] = (array) $index->getKey();
+            }
+            if ($this->hasKey($existing, $key)) {
+                continue;
+            }
+            $coll->createIndex($key, ['name' => 'cand_filter_type_status_year']);
+        }
     }
 
     private function ensureOrganizedCollections(): void

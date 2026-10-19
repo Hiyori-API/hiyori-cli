@@ -351,4 +351,20 @@ final class MetadataFuzzyStrategyTest extends TestCase
             MetadataFuzzyStrategy::calculateScore($manga(100, 5), $manga(12, 1), $weights),
         );
     }
+
+    /**
+     * Candidate sources are scoped to the base's kind.
+     *
+     * A manga base can never merge with an anime collection — the type anchor
+     * veto rejects every candidate — but the veto only runs after the
+     * candidates have been fetched, so a manga base was paying for three anime
+     * collections of up to 29k documents each, four times per base row.
+     */
+    public function testSameKindScopesCandidateSources(): void
+    {
+        $this->assertTrue(MetadataFuzzyStrategy::sameKind('anilist_manga', 'kitsu_manga'));
+        $this->assertTrue(MetadataFuzzyStrategy::sameKind('anilist', 'myanimelist'));
+        $this->assertFalse(MetadataFuzzyStrategy::sameKind('anilist_manga', 'anilist'));
+        $this->assertFalse(MetadataFuzzyStrategy::sameKind('anilist', 'kitsu_manga'));
+    }
 }

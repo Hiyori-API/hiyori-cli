@@ -23,12 +23,17 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
     ): CombineStats {
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $tableName = $source->get()->getTable();
+        // Only match within the same kind (manga with manga, anime with anime).
+        // Cross-kind candidates are vetoed by the type anchor anyway, so fetching
+        // them is pure cost. Set `same_kind_candidates` to false to disable.
+        $sameKindOnly = (bool) ($strategy->getConfig('same_kind_candidates') ?? true);
         $resume = (bool) ($strategy->getConfig('resume') ?? false);
 
         // Keyset pagination + a checkpoint per batch replaces the single
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
         $counters = $checkpoint->counters([
+            'skipped_cross_kind_sources' => 0,
             'examined' => 0,
             // `merged` is the coverage counter: base entries that produced a
             // document. `total_merged` counts writes, and one entry can write
@@ -63,6 +68,10 @@ final class RelationalFuzzyStrategy extends CombinerStrategy
             foreach ($availableSources as $currentSource) {
                 // skip if it's the same source as base source
                 if ($currentSource->getTable() === $tableName) {
+                    continue;
+                }
+                if ($sameKindOnly && !MetadataFuzzyStrategy::sameKind($tableName, $currentSource->getTable())) {
+                    $counters['skipped_cross_kind_sources'] = ($counters['skipped_cross_kind_sources'] ?? 0) + 1;
                     continue;
                 }
 

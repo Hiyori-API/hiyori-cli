@@ -91,6 +91,25 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
     ];
 
     /**
+     * Whether a candidate table holds the same kind of work as the base table.
+     *
+     * A manga base can never merge with an anime collection — the type anchor
+     * veto rejects every candidate — but the veto only runs AFTER the
+     * candidates have been fetched. For a manga base that meant three anime
+     * collections of up to 29k documents each, queried four times per base
+     * row: roughly 60 % of the candidate retrieval spent on candidates that
+     * were then thrown away.
+     *
+     * Every manga document carries a type, so this cannot hide a legitimate
+     * cross-kind match: the only type-less documents in the corpus are six
+     * anime rows, and matching a manga to an anime work is a false merge.
+     */
+    public static function sameKind(string $baseTable, string $candidateTable): bool
+    {
+        return str_contains($baseTable, 'manga') === str_contains($candidateTable, 'manga');
+    }
+
+    /**
      * The weight set for a base collection.
      *
      * A manga base must be compared on the fields manga actually have.
@@ -107,6 +126,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         SourceConfigurationFactory $source
     ): CombineStats {
         $weights = self::normalizeWeights($strategy->getConfig('weights') ?? self::weightsForKind($source->get()->getTable()));
+        // Only match within the same kind (manga with manga, anime with anime).
+        // Cross-kind candidates are vetoed by the type anchor anyway, so fetching
+        // them is pure cost. Set `same_kind_candidates` to false to disable.
+        $sameKindOnly = (bool) ($strategy->getConfig('same_kind_candidates') ?? true);
         $threshold = self::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $collection = (string) ($strategy->getConfig('collection') ?? 'organized');
         $anchorRejection = (bool) ($strategy->getConfig('anchor_rejection') ?? true);
@@ -191,6 +214,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             // that provide a confident match.
             foreach ($availableSources as $currentSource) {
                 if ($currentSource->getTable() === $tableName) {
+                    continue;
+                }
+                if ($sameKindOnly && !MetadataFuzzyStrategy::sameKind($tableName, $currentSource->getTable())) {
+                    $counters['skipped_cross_kind_sources'] = ($counters['skipped_cross_kind_sources'] ?? 0) + 1;
                     continue;
                 }
 

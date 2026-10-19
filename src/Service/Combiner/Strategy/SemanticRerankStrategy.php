@@ -37,6 +37,10 @@ final class SemanticRerankStrategy extends CombinerStrategy
         SourceConfigurationFactory $source,
     ): CombineStats {
         $weights = MetadataFuzzyStrategy::normalizeWeights($strategy->getConfig('weights') ?? MetadataFuzzyStrategy::weightsForKind($source->get()->getTable()));
+        // Only match within the same kind (manga with manga, anime with anime).
+        // Cross-kind candidates are vetoed by the type anchor anyway, so fetching
+        // them is pure cost. Set `same_kind_candidates` to false to disable.
+        $sameKindOnly = (bool) ($strategy->getConfig('same_kind_candidates') ?? true);
         $threshold = MetadataFuzzyStrategy::normalizeThreshold($strategy->getConfig('threshold') ?? 70.0);
         $prefilter = (float) ($strategy->getConfig('prefilter_threshold') ?? max(0.0, $threshold - 15.0));
         $metadataWeight = max(0.0, (float) ($strategy->getConfig('metadata_weight') ?? 0.7));
@@ -63,6 +67,7 @@ final class SemanticRerankStrategy extends CombinerStrategy
         // long-lived cursor that a server can kill mid-run.
         $checkpoint = CombineCheckpoint::begin(self::NAME, $tableName, $collection, $resume);
         $counters = $checkpoint->counters([
+            'skipped_cross_kind_sources' => 0,
             'examined' => 0,
             // `persistMerge()` refuses an entry with no resolvable base id, so
             // count those rows separately (see CombineStats).
@@ -99,6 +104,10 @@ final class SemanticRerankStrategy extends CombinerStrategy
 
             foreach ($availableSources as $currentSource) {
                 if ($currentSource->getTable() === $tableName) {
+                    continue;
+                }
+                if ($sameKindOnly && !MetadataFuzzyStrategy::sameKind($tableName, $currentSource->getTable())) {
+                    $counters['skipped_cross_kind_sources'] = ($counters['skipped_cross_kind_sources'] ?? 0) + 1;
                     continue;
                 }
 
