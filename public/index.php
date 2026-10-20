@@ -1008,8 +1008,78 @@ if ($path === '/api/rejections') {
     $decision = (string) ($_GET['decision'] ?? '');
     sendJson([
         'stats' => $store->stats(),
-        'rejections' => $store->list($decision !== '' ? $decision : null, (int) ($_GET['limit'] ?? 50)),
+        'rejections' => exportPairTitles($client, $store->list($decision !== '' ? $decision : null, (int) ($_GET['limit'] ?? 50))),
     ]);
+}
+
+/**
+ * Resolve the title of each side of a buffered pair.
+ *
+ * The buffer stores identity ids, but nobody can judge a pair from ids alone —
+ * the whole point of the review panel is to put the two titles side by side. The
+ * shorthand -> collection mapping comes from the same config the ingesters use,
+ * and each side is resolved with ONE query per (collection, shorthand) rather
+ * than one per row.
+ *
+ * @param list<array<string, mixed>> $rows
+ *
+ * @return list<array<string, mixed>>
+ */
+function exportPairTitles(MongoClient $client, array $rows): array
+{
+    if ($rows === []) {
+        return [];
+    }
+
+    $sources = include dirname(__DIR__) . '/src/Config/Sources.php';
+    $tableByShorthand = [];
+    foreach ($sources as $config) {
+        $tableByShorthand[(string) ($config['shorthand'] ?? '')] = (string) ($config['table'] ?? '');
+    }
+
+    $wanted = [];
+    foreach ($rows as $row) {
+        foreach ([['base_source', 'base_id'], ['candidate_source', 'candidate_id']] as [$sourceKey, $idKey]) {
+            $shorthand = (string) ($row[$sourceKey] ?? '');
+            $id = (string) ($row[$idKey] ?? '');
+            if ($shorthand === '' || $id === '' || !isset($tableByShorthand[$shorthand])) {
+                continue;
+            }
+            $wanted[$shorthand][$id] = true;
+        }
+    }
+
+    $database = $client->selectDatabase('hiyori');
+    $titles = [];
+    foreach ($wanted as $shorthand => $ids) {
+        $cursor = $database->selectCollection($tableByShorthand[$shorthand])->find(
+            // strval(): a numeric-string array key is coerced to an INT by
+            // PHP, and `$in: [32927]` does not match a stored string "32927".
+            // This is the same trap as the registry's duplicate-ref resolver.
+            ['reference_ids.' . $shorthand => ['$in' => array_map('strval', array_keys($ids))]],
+            [
+                'projection' => ['title' => 1, 'reference_ids.' . $shorthand => 1],
+                'typeMap' => ['root' => 'array', 'document' => 'array'],
+            ],
+        );
+        foreach ($cursor as $doc) {
+            $id = (string) ($doc['reference_ids'][$shorthand] ?? '');
+            if ($id !== '') {
+                $titles[$shorthand][$id] = (string) ($doc['title'] ?? '');
+            }
+        }
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $baseShorthand = (string) ($row['base_source'] ?? '');
+        $candidateShorthand = (string) ($row['candidate_source'] ?? '');
+        $row['base_title'] = $titles[$baseShorthand][(string) ($row['base_id'] ?? '')] ?? '';
+        $row['candidate_title'] = $titles[$candidateShorthand][(string) ($row['candidate_id'] ?? '')] ?? '';
+        $out[] = $row;
+    }
+
+    return $out;
 }
 
 if ($path === '/api/rejections/promote') {

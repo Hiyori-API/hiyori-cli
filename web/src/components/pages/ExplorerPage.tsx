@@ -21,6 +21,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHead } from '@/components/widgets'
+import { ReviewPanel } from '@/components/review-panel'
 import { apiDeleteDocs, apiFetchMeta, bulkAction, explore, undoExplore, updateDoc, type ExploreResp } from '@/lib/explorer/backend'
 import { SourceLogo } from '@/components/source-status'
 import { brandOf, fmtCount, isMissing, isScalar, stringId, titleOf } from '@/lib/explorer/doc-utils'
@@ -796,6 +797,11 @@ export function ExplorerPage() {
             )
           })}
         </div>
+
+        {/* Human review of the pairs the combiner could not decide. Collapsed by
+            default so it does not push the grid down, but the badge keeps the
+            pending count visible. */}
+        <ReviewPanel />
 
         <div ref={gridWrapRef}>
           <DataTable<ExploreRow>

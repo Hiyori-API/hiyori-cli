@@ -267,6 +267,9 @@ export interface RejectionRow {
   score?: number
   promoted?: boolean
   created_at?: unknown
+  /** Resolved server-side so a reviewer can judge the pair from its titles. */
+  base_title?: string
+  candidate_title?: string
 }
 
 export interface RejectionStats {
