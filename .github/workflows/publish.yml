@@ -28,7 +28,13 @@ jobs:
           --health-retries 5
 
     env:
-      MONGODB_URL: mongodb://localhost:27017
+      # The service below is an EMPTY MongoDB, so a publish from CI has no
+      # source data to combine and would produce an empty dump. The release gate
+      # catches that (an empty collection fails `combine:dupes`), but the useful
+      # answer is to point MONGODB_URL at a populated instance — a restore of the
+      # published dump, for example. Until then, cut releases from a machine
+      # that holds the ingested data.
+      MONGODB_URL: ${{ secrets.MONGODB_URL || 'mongodb://localhost:27017' }}
       APP_ENV: prod
       APP_DEBUG: false
       # These must be set as repository secrets in Hiyori-API/hiyori-cli:
@@ -67,6 +73,24 @@ jobs:
       - name: Install Dependencies (hiyori-cli)
         working-directory: hiyori-cli
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preflight (the release must have source data to combine)
+        working-directory: hiyori-cli
+        run: |
+          php -r '
+            $c = new MongoDB\Client(getenv("MONGODB_URL"));
+            $db = $c->selectDatabase("hiyori");
+            $rows = 0;
+            foreach (["anilist", "anilist_manga"] as $t) {
+              $n = $db->selectCollection($t)->countDocuments();
+              echo "  $t: $n documents\n";
+              $rows += $n;
+            }
+            if ($rows === 0) {
+              fwrite(STDERR, "No source data in MongoDB. MONGODB_URL must point at a populated instance — the CI service database is empty.\n");
+              exit(1);
+            }
+          '
 
       - name: Verify env & MongoDB
         working-directory: hiyori-cli

@@ -129,6 +129,17 @@ final class ReleaseCommand extends Command
                 $this->recordState($stateFile, $tag, $revision, $contentHash);
                 $io->success('Published release ' . $tag . ' to ' . $repo);
 
+                // The pointer is how the target branch says where the current
+                // release is, so it has to be committed even when the assets
+                // went out as a GitHub Release. Returning before this left the
+                // branch pointing at nothing.
+                $pushed = $this->pushPointer($repo, (string) $input->getOption('branch'), $releaseDir, (bool) $input->getOption('clean-target'));
+                if ($pushed) {
+                    $io->success('Pointer committed to ' . $repo);
+                } else {
+                    $io->note('Pointer was not pushed (missing token/remote or local-only target).');
+                }
+
                 return Command::SUCCESS;
             }
             $io->warning('gh publish failed — falling back to pointer push.');
