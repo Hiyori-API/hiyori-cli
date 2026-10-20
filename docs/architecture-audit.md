@@ -401,13 +401,20 @@ repository root README, and summarised here.
 
 **Still open**
 
-1. **The manga ML holdout is too small to decide on.** 28 consensus positives
-   out of 7,347 holdout pairs. `metadata_ml` passes the anime gate (+0.0202)
-   and fails the manga one (−0.0182), and the manga length features are weak
-   signals (+0.11, +0.04) next to title containment (+0.84). This needs more
-   labelled manga pairs, not more code: `ml:export-pairs --base anilist_manga
-   --limit 2000`, and human labels through the review UI (the `_labels` store
-   has 118).
+1. **The ML strategy question is answered, and the answer is `metadata_fuzzy`.**
+   With 3.4x more labelled data (3,551 positives across anime and manga,
+   retrained on 59,342 rows), `metadata_ml` lands at **+0.0158 on the anime
+   holdout (902 positives) and −0.0162 on the manga one (125 positives)** —
+   short of the +0.0200 bar on both. The earlier "+0.0202 PASSED" was an
+   artefact of a 305-positive sample; the bigger sample is the honest one.
+   `metadata_fuzzy` stays the default.
+   The remaining input is HUMAN labels: the pair-level F1 against `organized`
+   is a biased proxy, because the ground truth records only the winning
+   candidate per base row, so the threshold curve mostly measures how many
+   candidates the scorer proposes rather than how many are wrong. The review
+   queue is back (see below) and a combine run with `--rejection-buffer` fills
+   it with the "metadata says yes, the title says no" pairs a human is actually
+   useful for.
 2. **`web/dist` is 82 MB of committed build output** — the largest remaining
    history cost, and a footgun: the served bundle can drift from `src` unless
    it is rebuilt. Publishing it from CI instead of committing it would remove the
@@ -432,14 +439,33 @@ repository root README, and summarised here.
    (~200k documents). They are the rollback net for the identity repair and can
    be dropped once the result is accepted.
 
-## 4. Not verified
+## 4. The human review queue
 
-- No stage was executed and no failure was injected; crash claims come from code
-  paths and logs.
-- The live database was not modified. Counts quoted are from a read-only
-  snapshot and `myanimelist_manga` was ingesting during the audit.
-- `sem_acquire`/`SEM_UNDO` lock release was reasoned about, not observed.
-- The dashboard's breaker panel was traced through `HealthCheck` and
-  `SettingsPage` but not seen rendering against a live server.
-- Why PHPStan (level 5) reports no error on `StrategyConfigurationFactory::get()`
-  despite the nullable-return violation.
+The "human F1" column has been empty in every benchmark table since the pages
+were consolidated, and the reason was mechanical rather than philosophical:
+`postLabel` and `fetchRejections` were both still in the client library and
+**nothing called them**, so there was nowhere to click.
+
+The Explorer page now carries a **"Review suggested merges"** panel — the
+buffered pairs, the score the matcher gave them, and two buttons (*Not the
+same* / *Same entry*) that write the decision to `_labels` and mark the pair
+decided. The server resolves each side's TITLE, because a pair cannot be
+judged from ids alone.
+
+A combine run with `--rejection-buffer` fills it. The buffer is large (tens of
+thousands of pairs for a full manga base) and every one of them is visible in
+the screenshot of the panel: "Pretty in Blue" against "Chisai Hitsuji wa Yume wo
+Miru", "Gakuen Tengoku" against "World Apartment Horror" — works matched on
+year, status and type with a title that has nothing to do with each other. That
+is the false-merge class, visible and countable, which is the point.
+
+## 5. Not verified
+
+- The lock semantics of `sem_acquire`/`SEM_UNDO` were reasoned about, not
+  observed under a kill.
+- The Manga F1 of the `metadata_ml` model is measured against a ground truth
+  that was itself produced by a fuzzy merge; only human labels settle it, and
+  the review queue has not been worked through yet.
+- The `refs.mal` unique index could not be created because 137 groups
+  conflicted; it was resolved by unsetting the contested ref from the losing
+  rows, which is a different thing from proving the index.
