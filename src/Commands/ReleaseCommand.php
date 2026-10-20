@@ -121,7 +121,15 @@ final class ReleaseCommand extends Command
         $repo = (string) $input->getOption('repo');
         $notesFile = $releaseDir . '/release-notes.md';
         $message = (string) ($input->getOption('message') ?? '');
-        $this->writeNotes($notesFile, $tag, $result, $verification['content_hash'], $assets, $message);
+        $this->writeNotes(
+            $notesFile,
+            $tag,
+            $result,
+            $verification['content_hash'],
+            $assets,
+            $message,
+            $this->previousReleaseCounts($repo, (string) $input->getOption('branch')),
+        );
 
         if ($this->ghAvailable()) {
             $ok = $this->publishWithGh($repo, $tag, $notesFile, $releaseDir, (bool) $input->getOption('draft'));
@@ -282,7 +290,41 @@ final class ReleaseCommand extends Command
     /**
      * @param array<string, int> $assets
      */
-    private function writeNotes(string $path, string $tag, array $result, string $contentHash, array $assets, string $message): void
+    /**
+     * The record counts of the release currently published on the target branch.
+     *
+     * The file-level changelog diffs against the previous LOCAL dump, and a
+     * machine that has never run an export has no previous dump — the release
+     * notes then said "+0 ~0 -0" even though 26,658 manga records were added.
+     * The pointer on the target branch carries the previous counts.
+     *
+     * @return array<string, int>|null
+     */
+    private function previousReleaseCounts(string $repo, string $branch): ?array
+    {
+        $slug = $this->normalizeRepo($repo);
+        if (preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $slug) !== 1) {
+            return null;
+        }
+        $base = 'https://raw.githubusercontent.com/' . $slug . '/' . rawurlencode($branch);
+        // The pointer is where the counts live once the branch is on the release
+        // scheme; the legacy tree's manifest.json is where they were before it.
+        foreach (['/.hiyori-release/latest.json', '/manifest.json'] as $path) {
+            $raw = @file_get_contents($base . $path);
+            if ($raw === false || $raw === '') {
+                continue;
+            }
+            $decoded = json_decode($raw, true);
+            $counts = is_array($decoded) ? ($decoded['counts'] ?? null) : null;
+            if (is_array($counts)) {
+                return array_map('intval', $counts);
+            }
+        }
+
+        return null;
+    }
+
+    private function writeNotes(string $path, string $tag, array $result, string $contentHash, array $assets, string $message, ?array $previousCounts = null): void
     {
         $pointer = json_decode((string) @file_get_contents(dirname($path) . '/.hiyori-release/latest.json'), true);
         $sourceCommit = is_array($pointer) ? (string) ($pointer['source_commit'] ?? '') : '';
@@ -296,9 +338,26 @@ final class ReleaseCommand extends Command
             '- **files:** ' . $result['files'] . ' (`+' . $result['changelog']['added'] . ' ~' . $result['changelog']['updated'] . ' -' . $result['changelog']['removed'] . '`)',
             '- **rows:** ' . $result['rows'],
             '',
+        ];
+        if (is_array($previousCounts)) {
+            $now = is_array($result['counts'] ?? null) ? $result['counts'] : [];
+            $moved = [];
+            foreach (['anime', 'manga'] as $kind) {
+                $before = (int) ($previousCounts[$kind] ?? 0);
+                $after = (int) ($now[$kind] ?? 0);
+                if ($before !== $after) {
+                    $moved[] = $kind . ' ' . $before . ' -> ' . $after;
+                }
+            }
+            if ($moved !== []) {
+                $lines[] = '- **vs the previous release:** ' . implode(', ', $moved);
+                $lines[] = '';
+            }
+        }
+        $lines = array_merge($lines, [
             '## Assets',
             '',
-        ];
+        ]);
         foreach ($assets as $name => $bytes) {
             $lines[] = '- `' . $name . '` (' . $this->human($bytes) . ')';
         }
@@ -354,8 +413,16 @@ final class ReleaseCommand extends Command
             return false;
         }
 
+        // The repo option is a slug ("owner/name") or a URL, but `git clone`
+        // needs a URL — the slug was passed straight through, so the clone
+        // failed and the pointer was never committed.
+        $slug = $this->normalizeRepo($repo);
+        $cloneUrl = preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $slug) === 1
+            ? 'https://github.com/' . $slug . '.git'
+            : $repo;
+
         $clone = $releaseDir . '/pointer-repo';
-        $cloneCmd = 'git clone --depth 1 -b ' . escapeshellarg($branch) . ' ' . escapeshellarg($repo) . ' ' . escapeshellarg($clone) . ' 2>&1';
+        $cloneCmd = 'git clone --depth 1 -b ' . escapeshellarg($branch) . ' ' . escapeshellarg($cloneUrl) . ' ' . escapeshellarg($clone) . ' 2>&1';
         @exec($cloneCmd, $o, $rc);
         if (!is_dir($clone . '/.git')) {
             return false;
@@ -390,7 +457,7 @@ final class ReleaseCommand extends Command
         }
 
         if ($token !== '') {
-            $remote = str_replace('https://github.com/', 'https://x-access-token:' . $token . '@github.com/', $repo);
+            $remote = 'https://x-access-token:' . $token . '@github.com/' . $slug . '.git';
         } else {
             $remote = 'origin';
         }
