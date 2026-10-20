@@ -144,6 +144,7 @@ php hiyori combine {base} [--strategy {strategy}]
 | `--strategy`, `-s` | One of the seven strategies below. **Default: `metadata_fuzzy`** |
 | `--threshold`, `-t` | `metadata_fuzzy` score threshold, 0–100 (default: `70`) |
 | `--weights`, `-w` | `metadata_fuzzy` field weights as JSON, e.g. `{"title":25,"tags":20}` |
+| `--config` | Extra strategy config as JSON, e.g. `{"ml_threshold":0.6}`. Checked against the keys the selected strategy reads — an unknown key is refused (see [Strategy config keys](#strategy-config-keys)) |
 | `--into` | Collection to merge into (e.g. `organized_manga`). Default: `organized` |
 | `--passthrough` / `--no-passthrough` | Keep a base entry that matched nothing as its own single-source record. **Off by default** (see below) |
 | `--export` | After combine, run exporter with profile (`per-entry-json`, `bulk-jsonl`, `tables-csv`, or `none`). Default: `combiner.auto_export` config value |
@@ -202,6 +203,29 @@ and `--passthrough` is off, because that combination silently drops coverage.
   | `tags` | 1.5 | | `synonyms` | 0 |
 
   Weights are normalized at runtime, so they need not sum to 100.
+
+#### Strategy config keys
+
+Every strategy declares the config keys it reads (`src/Service/StrategyConfigKeys.php`), and
+`--config` is checked against the selected strategy **before** the run starts:
+
+```console
+$ php hiyori combine myanimelist --config '{"thresold":80}'
+Unknown config key "thresold" (value: int(80)) for strategy "metadata_fuzzy". Accepted keys:
+anchor_episodes, anchor_rejection, anchor_year_tolerance, collection, passthrough, rejection_buffer,
+rejection_buffer_collection, rejection_buffer_floor, resume, same_kind_candidates, sweep, threshold,
+title_floor, weights
+```
+
+A key that belongs to another strategy (`{"ml_threshold":0.6}` on `metadata_fuzzy`) is refused the
+same way. Keys several strategies share — `collection`, `threshold`, `weights`, `passthrough`,
+`title_floor`, `same_kind_candidates`, the `anchor_*` keys, `resume` — are accepted everywhere.
+
+The same rule applies to the rest of the configuration: a missing or mistyped key in
+`src/Config/Sources.php` stops the command with the file, the source and the key in the message,
+and a malformed `hiyori.export.json` (or `storage/state/export.json`) is an error instead of a
+silently default export. A *missing* file is not an error — there is a difference between "no
+state" and "broken state".
 
 Example — build the manga collection separately from the anime merge:
 
@@ -623,6 +647,7 @@ Conventions:
 
 - **CLI commands are thin facades** — logic lives in `src/Service/*`; commands only parse input and wire services. Add behavior to a service first, not the command.
 - **Sources are configuration** — a source's list endpoint, entry properties and identifiers are declared in `src/Config/Sources.php` and driven by `SourceConfigurationFactory`; ingestion code is source-agnostic.
+- **Configuration is validated where it is read** — a source key, a strategy config key and an export config file are all checked at the point they are loaded, and the message names the file, the key and the offending value. A misconfiguration that is silently ignored is how a run ends up doing something nobody asked for.
 - **The combiner is strategy-driven** — all strategies implement `CombinerStrategy`; the default (`metadata_fuzzy`) reads its weights/threshold from config, with the tuned weights embedded as the fallback.
 - **State is explicit** — every live field (ingest progress, controls, validation, slow requests, audit) is a small JSON/JSONL file under `storage/state/`, written atomically by `Telemetry`. Mongo is the authoritative data store; state files are cheap, human-inspectable views used by the dashboard and scheduler.
 - **One dashboard server** — `public/index.php` serves the SPA, the JSON API, the SSE stream and `/metrics` from a single `php -S` process; no Node server or Redis is required.

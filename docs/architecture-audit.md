@@ -397,6 +397,7 @@ repository root README, and summarised here.
 | `runShellCommand` took a command string | `ProcessRunner::run(array $argv)` |
 | 25 domain functions in the front controller | 11 services; `public/index.php` 2,316 → 1,547 lines |
 | `.git` was 91 MB | 16.3 MB after a history rewrite of all three branches |
+| configuration had no schema (source keys, strategy config, export config files) | validated where they are read: the file, the key and the offending value are in the message |
 
 **Still open**
 
@@ -407,33 +408,27 @@ repository root README, and summarised here.
    labelled manga pairs, not more code: `ml:export-pairs --base anilist_manga
    --limit 2000`, and human labels through the review UI (the `_labels` store
    has 118).
-2. **Configuration still has no schema.** `SourceConfiguration` does an
-   unguarded `$config['name']` on an `include`d PHP file;
-   `StrategyConfigurationFactory` accepts arbitrary JSON and ignores unknown
-   keys; `ExportConfig` swallows malformed JSON. A misconfiguration still fails
-   silently and far from its cause. This is the biggest remaining source of
-   "why did that run do that".
-3. **`web/dist` is 82 MB of committed build output** — the largest remaining
+2. **`web/dist` is 82 MB of committed build output** — the largest remaining
    history cost, and a footgun: the served bundle can drift from `src` unless
    it is rebuilt. Publishing it from CI instead of committing it would remove the
    drift and most of the history.
-4. **One Dependabot alert cannot be read** without repository credentials. The
+3. **One Dependabot alert cannot be read** without repository credentials. The
    public advisory API is empty and `composer audit` is clean, so it is most
    likely a GitHub Actions advisory; pinning the actions to commit SHAs would
    close it.
-5. **Franchise-key collisions are real data, not a bug.** 93 manga documents
+4. **Franchise-key collisions are real data, not a bug.** 93 manga documents
    share a `mal_manga` value and 131 share a `k_manga` value, because one MAL
    series entry covers several AniList manga. They do not fail the gate (only
    the base's own key is primary), but they mean the same external id appears
    on several documents — a data-modelling decision rather than a defect.
-6. **`/api/action` still uses `@exec`** for the detached ingest start. It
+5. **`/api/action` still uses `@exec`** for the detached ingest start. It
    cannot use `ProcessRunner` because it must not block, and its argument is
    already constrained to `^[a-z0-9_-]+$`; it is the last `@exec` in the
    front controller.
-7. **`ConsoleFactory` builds a second `ArgvInput`/`ConsoleOutput`** detached
+6. **`ConsoleFactory` builds a second `ArgvInput`/`ConsoleOutput`** detached
    from the running Application, so `-q`/`--ansi` and test output substitution
    do not apply to ingestion progress.
-8. **Housekeeping:** the `_repair_*` backup collections are still in Mongo
+7. **Housekeeping:** the `_repair_*` backup collections are still in Mongo
    (~200k documents). They are the rollback net for the identity repair and can
    be dropped once the result is accepted.
 

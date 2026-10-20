@@ -2,6 +2,8 @@
 
 namespace Hiyori\Service;
 
+use Hiyori\Exception\ConfigurationException;
+
 /**
  * Effective export configuration.
  *
@@ -278,7 +280,13 @@ final class ExportConfig
     }
 
     /**
-     * Read a JSON file, or null when it is missing or unreadable.
+     * Read a JSON file.
+     *
+     * A missing file is `null`: there is no configuration, which is a
+     * different thing from a broken one. A file that exists but cannot be
+     * parsed is an error — a typo in `hiyori.export.json` or a half-written
+     * `storage/state/export.json` used to read as "no configuration", which
+     * silently produced a default export.
      *
      * @return array<string, mixed>|null
      */
@@ -287,13 +295,47 @@ final class ExportConfig
         if (!is_file($path)) {
             return null;
         }
-        $raw = @file_get_contents($path);
-        if ($raw === false || trim($raw) === '') {
-            return null;
-        }
-        $decoded = json_decode($raw, true);
 
-        return is_array($decoded) ? $decoded : null;
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            throw new ConfigurationException(sprintf(
+                'export config: cannot read %s',
+                $path,
+            ));
+        }
+
+        if (trim($raw) === '') {
+            throw new ConfigurationException(sprintf(
+                'export config: %s is empty',
+                $path,
+            ));
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new ConfigurationException(sprintf(
+                'export config: %s is not valid JSON — %s',
+                $path,
+                json_last_error_msg(),
+            ));
+        }
+
+        if (!is_array($decoded)) {
+            throw new ConfigurationException(sprintf(
+                'export config: %s must contain a JSON object, got %s',
+                $path,
+                get_debug_type($decoded),
+            ));
+        }
+
+        if ($decoded !== [] && array_is_list($decoded)) {
+            throw new ConfigurationException(sprintf(
+                'export config: %s must contain a JSON object, got a JSON array',
+                $path,
+            ));
+        }
+
+        return $decoded;
     }
 
     /**
@@ -404,20 +446,13 @@ final class ExportConfig
     }
 
     /**
+     * The contents of a JSON config file, or an empty map when it is missing.
+     *
      * @return array<string, mixed>
      */
     private static function readJson(string $path): array
     {
-        if (!is_file($path)) {
-            return [];
-        }
-        $raw = file_get_contents($path);
-        if ($raw === false || trim($raw) === '') {
-            return [];
-        }
-        $decoded = json_decode($raw, true);
-
-        return is_array($decoded) ? $decoded : [];
+        return self::readJsonFile($path) ?? [];
     }
 
     /**

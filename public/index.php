@@ -290,14 +290,19 @@ if ($path === '/metrics') {
 /**
  * Effective export config: `ExportConfig::load()` when the service is present,
  * otherwise template + state merged by hand, then any per-request override on
- * top. Never throws — a missing service degrades to the file-based config.
+ * top. A missing service degrades to the file-based config; a broken config
+ * file is reported instead of being silently replaced by the defaults.
  *
  * @param array<string, mixed> $override
  * @return array<string, mixed>
  */
 function exportEffectiveConfig(array $override = []): array
 {
-    $config = ExportConfig::load();
+    try {
+        $config = ExportConfig::load();
+    } catch (\Hiyori\Exception\ConfigurationException $e) {
+        sendJson(['error' => 'invalid export config', 'detail' => $e->getMessage()], 500);
+    }
     if ($override !== []) {
         $config = hiyoriExportMergeDeep($config, $override);
     }
@@ -460,44 +465,49 @@ function exportFileCount(mixed $files, array $written): int
 }
 
 if ($path === '/api/export-config') {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        requireSameOrigin();
-        $body = readJsonBody();
+    try {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            requireSameOrigin();
+            $body = readJsonBody();
 
-        if (($body['reset'] ?? false) === true) {
-            @unlink(ExportConfig::statePath());
-            $telemetry->audit('export.config', ['reset' => true]);
-            sendJson(['reset' => true, 'config' => exportApiConfig(), 'state' => []]);
+            if (($body['reset'] ?? false) === true) {
+                @unlink(ExportConfig::statePath());
+                $telemetry->audit('export.config', ['reset' => true]);
+                sendJson(['reset' => true, 'config' => exportApiConfig(), 'state' => []]);
+            }
+
+            $incoming = $body['config'] ?? null;
+            if (!is_array($incoming)) {
+                $incoming = array_diff_key($body, ['reset' => true]);
+            }
+            $incoming = exportNormalizeAliases($incoming);
+            if ($incoming === []) {
+                sendJson(['error' => 'config object required'], 400);
+            }
+
+            $errors = hiyoriExportConfigErrors($incoming, hiyoriExportProfiles());
+            $errors = array_merge($errors, exportWritePathErrors($incoming));
+            if ($errors !== []) {
+                sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
+            }
+
+            $state = hiyoriExportMergeDeep(ExportConfig::state(), $incoming);
+            ExportConfig::save($state);
+            $telemetry->audit('export.config', ['keys' => array_keys($incoming)]);
+
+            sendJson(['config' => exportApiConfig(), 'state' => $state]);
         }
 
-        $incoming = $body['config'] ?? null;
-        if (!is_array($incoming)) {
-            $incoming = array_diff_key($body, ['reset' => true]);
-        }
-        $incoming = exportNormalizeAliases($incoming);
-        if ($incoming === []) {
-            sendJson(['error' => 'config object required'], 400);
-        }
+        sendJson([
+            'config' => exportApiConfig(),
+            'template' => ExportConfig::template(),
+            'state' => ExportConfig::state(),
+            'timestamp' => date('c'),
+        ]);
 
-        $errors = hiyoriExportConfigErrors($incoming, hiyoriExportProfiles());
-        $errors = array_merge($errors, exportWritePathErrors($incoming));
-        if ($errors !== []) {
-            sendJson(['error' => 'invalid export config', 'errors' => $errors], 400);
-        }
-
-        $state = hiyoriExportMergeDeep(ExportConfig::state(), $incoming);
-        ExportConfig::save($state);
-        $telemetry->audit('export.config', ['keys' => array_keys($incoming)]);
-
-        sendJson(['config' => exportApiConfig(), 'state' => $state]);
+    } catch (\Hiyori\Exception\ConfigurationException $e) {
+        sendJson(['error' => 'invalid export config', 'detail' => $e->getMessage()], 500);
     }
-
-    sendJson([
-        'config' => exportApiConfig(),
-        'template' => ExportConfig::template(),
-        'state' => ExportConfig::state(),
-        'timestamp' => date('c'),
-    ]);
 }
 
 if ($path === '/api/export/preview') {

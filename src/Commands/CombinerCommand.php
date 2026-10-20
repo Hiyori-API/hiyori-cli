@@ -2,6 +2,7 @@
 
 namespace Hiyori\Commands;
 
+use Hiyori\Exception\ConfigurationException;
 use Hiyori\Hiyori;
 use Hiyori\Service\Combiner\CombineCheckpoint;
 use Hiyori\Service\Combiner\CombineStats;
@@ -11,6 +12,7 @@ use Hiyori\Service\ExportConfig;
 use Hiyori\Service\Exporter;
 use Hiyori\Service\Migrator;
 use Hiyori\Service\SourceConfigurationFactory;
+use Hiyori\Service\StrategyConfigurationFactory;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\LockableTrait;
@@ -105,6 +107,16 @@ final class CombinerCommand extends Command
             $minCoverage = $requested;
         }
 
+        // The strategy config is built and checked before anything touches the
+        // database: a typo in --config has to fail here, with the key in the
+        // message, not after a migration check and a document count.
+        $config = $this->strategyConfig($input, $output);
+        if ($config === null) {
+            $this->release();
+
+            return Command::FAILURE;
+        }
+
         // Pre-flight: migrations must be applied before the combiner touches data.
         $pending = $this->hiyori->getMigrator()->pending();
         if ($pending !== [] && !$input->getOption('skip-migrations')) {
@@ -117,52 +129,6 @@ final class CombinerCommand extends Command
 
             return Command::FAILURE;
         }
-
-        $config = ['collection' => (string) $input->getOption('into')];
-        if ($input->getOption('threshold') !== null) {
-            $config['threshold'] = (float) $input->getOption('threshold');
-        }
-        if ($input->getOption('weights') !== null) {
-            $decoded = json_decode((string) $input->getOption('weights'), true);
-            if (!is_array($decoded)) {
-                $output->writeln('<error>--weights must be valid JSON, e.g. {"title":25,"tags":20}</error>');
-
-                return Command::FAILURE;
-            }
-            $config['weights'] = $decoded;
-        }
-        if ($input->getOption('config') !== null) {
-            $decoded = json_decode((string) $input->getOption('config'), true);
-            if (!is_array($decoded)) {
-                $output->writeln('<error>--config must be a valid JSON object, e.g. {"ml_threshold":0.6}</error>');
-
-                return Command::FAILURE;
-            }
-            $config = array_merge($config, $decoded);
-        }
-
-        if ($input->getOption('passthrough') !== null) {
-            $config['passthrough'] = (bool) $input->getOption('passthrough');
-        }
-
-        if ($input->getOption('rejection-buffer') !== null) {
-            $config['rejection_buffer'] = (bool) $input->getOption('rejection-buffer');
-        }
-        if ($input->getOption('rejection-buffer-floor') !== null) {
-            $config['rejection_buffer_floor'] = (float) $input->getOption('rejection-buffer-floor');
-        }
-
-        // The sweep is on by default: a run that only upserts leaves the
-        // documents of base entries that vanished upstream published forever.
-        // `--no-sweep` turns it off for a run that must be purely additive
-        // (a benchmark into a shared collection, or a run an operator wants
-        // to inspect before anything is deleted). A `--config` key can do the
-        // same, but the flag always wins.
-        $sweep = $input->getOption('sweep');
-        if ($sweep === null) {
-            $sweep = (bool) ($config['sweep'] ?? true);
-        }
-        $config['sweep'] = (bool) $sweep;
 
         // Warn before, not after: a run without passthrough drops every base
         // entry that matched nothing. On a merged collection that already holds
@@ -222,9 +188,8 @@ final class CombinerCommand extends Command
                 $resumedBuildId !== '' ? $resumedBuildId : 'unmarked',
             ));
         }
-        // Explicit, so a stray `resume` key in --config cannot start a partial
-        // run without the checks above.
-        $config['resume'] = $resume;
+        // `resume` is set explicitly in strategyConfig(), so a stray `resume`
+        // key in --config cannot start a partial run without the checks above.
 
         // Without this there is no way to tell a 40 %-loss run from a healthy
         // one, which is the bug this closes.
@@ -287,6 +252,86 @@ final class CombinerCommand extends Command
         $this->release();
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Build the strategy config from the options and check it against the
+     * selected strategy.
+     *
+     * A key the strategy does not read is refused here, with the key in the
+     * message: `--config '{"thresold":80}'` used to be accepted and did
+     * nothing at all.
+     *
+     * @return array<string, mixed>|null null when the config is not valid
+     */
+    private function strategyConfig(InputInterface $input, OutputInterface $output): ?array
+    {
+        $config = ['collection' => (string) $input->getOption('into')];
+
+        if ($input->getOption('threshold') !== null) {
+            $config['threshold'] = (float) $input->getOption('threshold');
+        }
+
+        if ($input->getOption('weights') !== null) {
+            $decoded = json_decode((string) $input->getOption('weights'), true);
+            if (!is_array($decoded)) {
+                $output->writeln('<error>--weights must be valid JSON, e.g. {"title":25,"tags":20}</error>');
+
+                return null;
+            }
+            $config['weights'] = $decoded;
+        }
+
+        if ($input->getOption('config') !== null) {
+            $decoded = json_decode((string) $input->getOption('config'), true);
+            if (!is_array($decoded)) {
+                $output->writeln('<error>--config must be a valid JSON object, e.g. {"ml_threshold":0.6}</error>');
+
+                return null;
+            }
+            $config = array_merge($config, $decoded);
+        }
+
+        if ($input->getOption('passthrough') !== null) {
+            $config['passthrough'] = (bool) $input->getOption('passthrough');
+        }
+
+        if ($input->getOption('rejection-buffer') !== null) {
+            $config['rejection_buffer'] = (bool) $input->getOption('rejection-buffer');
+        }
+
+        if ($input->getOption('rejection-buffer-floor') !== null) {
+            $config['rejection_buffer_floor'] = (float) $input->getOption('rejection-buffer-floor');
+        }
+
+        // The sweep is on by default: a run that only upserts leaves the
+        // documents of base entries that vanished upstream published forever.
+        // `--no-sweep` turns it off for a run that must be purely additive
+        // (a benchmark into a shared collection, or a run an operator wants
+        // to inspect before anything is deleted). A `--config` key can do the
+        // same, but the flag always wins.
+        $sweep = $input->getOption('sweep');
+        if ($sweep === null) {
+            $sweep = (bool) ($config['sweep'] ?? true);
+        }
+        $config['sweep'] = (bool) $sweep;
+
+        // Explicit, so a stray `resume` key in --config cannot start a partial
+        // run without the checkpoint checks in execute().
+        $config['resume'] = (bool) $input->getOption('resume');
+
+        try {
+            StrategyConfigurationFactory::assertAcceptedConfig(
+                (string) ($input->getOption('strategy') ?? MetadataFuzzyStrategy::NAME),
+                $config,
+            );
+        } catch (ConfigurationException $e) {
+            $output->writeln('<error>' . $e->getMessage() . '</error>');
+
+            return null;
+        }
+
+        return $config;
     }
 
     /**

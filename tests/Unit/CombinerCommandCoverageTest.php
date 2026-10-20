@@ -142,12 +142,29 @@ final class CombinerCommandCoverageTest extends TestCase
         $this->assertStringContainsString('--min-coverage must be an integer between 0 and 100', $tester->getDisplay());
     }
 
-    public function testArbitraryConfigCannotAffectTheCoverageResult(): void
+    public function testArbitraryConfigIsRefusedAndCannotAffectTheCoverageResult(): void
     {
-        // `--config` merges arbitrary JSON into the strategy config. Coverage
-        // now comes from the return value, so no config key can redirect it.
+        // `--config` merges JSON into the strategy config. A key no strategy
+        // reads is refused outright, so it cannot reach the run at all.
+        $hiyori = $this->createMock(Hiyori::class);
+        $hiyori->method('getMigrator')->willReturn($this->migrator());
+        $hiyori->expects($this->never())->method('combine');
+
+        $tester = new CommandTester(new CombinerCommand($hiyori));
+        $tester->execute(['base' => 'anilist', '--into' => 'coverage_test', '--config' => '{"stats_sink":"system","coverage":100}']);
+
+        $this->assertSame(Command::FAILURE, $tester->getStatusCode());
+        $this->assertStringContainsString('Unknown config keys', $tester->getDisplay());
+        $this->assertStringContainsString('"coverage"', $tester->getDisplay());
+        $this->assertStringContainsString('"stats_sink"', $tester->getDisplay());
+    }
+
+    public function testAValidConfigCannotAffectTheCoverageResult(): void
+    {
+        // Coverage comes from the return value, so no config key can
+        // redirect it.
         $tester = $this->runCommand(
-            ['--config' => '{"stats_sink":"system","coverage":100}'],
+            ['--config' => '{"threshold":80}'],
             CombineStats::forRun('metadata_fuzzy', 'anilist', 100, 90, 0, 0),
         );
 
