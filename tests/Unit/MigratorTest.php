@@ -40,16 +40,21 @@ final class MigratorTest extends TestCase
     public function testPendingSkipsApplied(): void
     {
         $m = $this->migrator([1 => 'indexes_candidates_and_references']);
-        $this->assertSame([2, 3, 4, 5], array_keys($m->pending()));
-        $this->assertSame(
-            ['ensure_organized_collections', 'allocate_hiyori_ids', 'ml_fields_and_indexes', 'candidate_filter_indexes'],
-            array_values($m->pending()),
-        );
+        // Derived from the migration list, so a new migration does not make
+        // this test wrong.
+        $all = array_keys($m->versions());
+        $this->assertSame(array_slice($all, 1), array_keys($m->pending()));
+        $this->assertSame(array_values(array_slice($m->versions(), 1, null, true)), array_values($m->pending()));
     }
 
     public function testPendingEmptyWhenFullyApplied(): void
     {
-        $m = $this->migrator([1 => 'a', 2 => 'b', 3 => 'c', 4 => 'd', 5 => 'e']);
+        $probe = $this->migrator([]);
+        $all = [];
+        foreach (array_keys($probe->versions()) as $v) {
+            $all[$v] = 'applied';
+        }
+        $m = $this->migrator($all);
         $this->assertSame([], $m->pending());
     }
 }

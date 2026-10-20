@@ -184,6 +184,9 @@ abstract class Base implements BaseInterface
     {
         return [
             'title' => $this->title ?? '',
+            // The comparable key for this title, so a candidate lookup can find
+            // the same work across sources instead of guessing with a window.
+            'title_norm' => \Hiyori\Helper::normalizeTitleKey($this->title ?? ''),
             'synonyms' => $this->synonyms,
             'type' => $this->type,
             'episodes' => $this->episodes,

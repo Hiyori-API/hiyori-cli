@@ -20,6 +20,23 @@ class Helper
         );
     }
 
+    /**
+     * The key a title is compared and indexed under.
+     *
+     * Every non-alphanumeric character is removed and the rest is lower-cased,
+     * so "Mata Mata Oboretai" and "Matamata O-bo-re-ta-i" are the same title.
+     * The comparer and the stored key MUST use the same function, or the
+     * candidate lookup will not find what the comparer would have matched.
+     */
+    public static function normalizeTitleKey(?string $title): string
+    {
+        if ($title === null) {
+            return '';
+        }
+
+        return strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '', $title)));
+    }
+
     public static function toArray(string $json): array
     {
         return json_decode($json, true);

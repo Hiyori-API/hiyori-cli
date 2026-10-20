@@ -77,7 +77,11 @@ final class MigratorTest extends TestCase
         $this->assertContains('content_model_version', $embeddingNames);
 
         $log = $client->selectDatabase(self::DB)->selectCollection('_migrations')->countDocuments();
-        $this->assertSame(5, $log);
+        $known = count((new \Hiyori\Service\Migrator(
+            new \Hiyori\Service\Database(SerializerBuilder::create()->build()),
+            self::DB,
+        ))->versions());
+        $this->assertSame($known, $log, 'every known migration must have been applied');
 
         // v5 gives the SOURCE collections the candidate-filter index, so the
         // combiner's lookup is an index scan rather than a collection scan.

@@ -74,6 +74,7 @@ final class Migrator
             3 => ['name' => 'allocate_hiyori_ids', 'run' => fn () => $this->allocateHiyoriIds()],
             4 => ['name' => 'ml_fields_and_indexes', 'run' => fn () => $this->mlFieldsAndIndexes()],
             5 => ['name' => 'candidate_filter_indexes', 'run' => fn () => $this->candidateFilterIndexes()],
+            6 => ['name' => 'title_norm_indexes', 'run' => fn () => $this->titleNormIndexes()],
         ];
     }
 
@@ -301,6 +302,54 @@ final class Migrator
             }
             $coll->createIndex($key, ['name' => 'cand_filter_type_status_year']);
         }
+    }
+
+    /**
+     * Store and index the comparable title key.
+     *
+     * The combiner's candidate lookup used to filter on `{type, status, year}`
+     * and take the first hundred rows in natural order -- an ARBITRARY slice
+     * of the pool of same-year, same-type documents. For anime that pool is a
+     * few hundred deep and the counterpart is usually in the window, which is
+     * why anime merged 77 % of what was available. For manga the pool is
+     * thousands deep: 47.5 % of manga base rows have an exact-title twin in
+     * another source and only 19 % actually merged, because the counterpart was
+     * almost never in the slice.
+     *
+     * The key is the title with every non-alphanumeric character removed and
+     * the rest lower-cased, which is exactly what the comparer uses -- the
+     * migration's expression is verified against the PHP normaliser.
+     *
+     * @return array<string, array{backfilled: int, indexed: bool}>
+     */
+    public function titleNormIndexes(): array
+    {
+        $db = $this->client->selectDatabase($this->database);
+        $expr = [
+            '$function' => [
+                'body' => 'function(t){ if (t === null || t === undefined) { return ""; } return String(t).toLowerCase().replace(/[^a-z0-9]/g, ""); }',
+                'args' => ['$title'],
+                'lang' => 'js',
+            ],
+        ];
+
+        $out = [];
+        foreach (['anilist', 'kitsu', 'myanimelist', 'anilist_manga', 'kitsu_manga', 'myanimelist_manga', 'organized', 'organized_manga'] as $name) {
+            $coll = $db->selectCollection($name);
+            $coll->aggregate([
+                ['$match' => ['title_norm' => ['$exists' => false]]],
+                ['$set' => ['title_norm' => $expr]],
+                ['$merge' => ['into' => $name, 'whenMatched' => 'merge', 'whenNotMatched' => 'insert']],
+            ])->toArray();
+
+            $coll->createIndex(['title_norm' => 1], ['name' => 'title_norm_1']);
+            $out[$name] = [
+                'backfilled' => $coll->countDocuments(['title_norm' => ['$exists' => true]]),
+                'indexed' => true,
+            ];
+        }
+
+        return $out;
     }
 
     private function ensureOrganizedCollections(): void

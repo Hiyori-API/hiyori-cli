@@ -70,11 +70,13 @@ final class CombinerCommandSweepTest extends TestCase
     {
         $_ENV['MONGODB_URL'] ??= 'mongodb://localhost:27017';
 
-        return new Migrator(
-            new Database(SerializerBuilder::create()->build()),
-            'hiyori_test_sweep_cmd',
-            [1 => 'applied', 2 => 'applied', 3 => 'applied', 4 => 'applied', 5 => 'applied'],
-        );
+        $db = new Database(SerializerBuilder::create()->build());
+        // Every known migration counts as applied. Hard-coding the list
+        // made each new migration look pending, and the command refused to
+        // run until the test was edited.
+        $stub = array_fill_keys(array_keys((new Migrator($db, 'hiyori_test_sweep_cmd', []))->versions()), 'applied');
+
+        return new Migrator($db, 'hiyori_test_sweep_cmd', $stub);
     }
 
     /**
