@@ -379,71 +379,63 @@ be claimed by several rows — that is what a shared MAL series looks like — b
 the base identity and the `hiyori_id` never are.
 
 
-### P1 — still open
+### What is still open
 
-- **`refs.mal` cannot be uniquely indexed yet.** 137 `(anime, mal)` groups still
-  have two or three holders (e.g. `mal=5` owned by ids 2, 11882 and 13641).
-  `ensureRegistryIndexes()` creates the other identity indexes and reports `mal`
-  as blocked rather than failing; `hiyori-id --resolve-duplicate-refs` resolves
-  it explicitly, ranking holders by document ownership, then base corroboration,
-  then smallest id, and never moves an id. Run it once the manga rebuild has
-  finished (it writes to the same registry the rebuild is allocating from).
-- **No stage orchestration.** CI, `finalize-merges.sh` and the dashboard each
-  implement a different subset of the chain; `combine`'s lock is the only guard,
-  and `combine:dupes`, `combine:dedupe`, `hiyori-id`, `export` and `release`
-  have none. Locks return `SUCCESS` on contention, so a driver cannot tell
-  "busy" from "done".
-- **`combine` is not resumable.** It iterates a plain cursor and writes telemetry
-  only at the end, so a crash leaves the previous run looking current. The manga
-  cursor timeout in `finalize-merges.log` is how `organized_manga` ended at 2,161.
-- **`combine` never deletes.** Stale documents are published forever (upsert-only),
-  so a rebuild only converges if the target is cleared first — as this one was.
-- **`combine` examines the other kind's sources.** A manga base is compared
-  against the anime collections too; the `type` anchor veto rejects those
-  matches, so the work is pure cost. Skipping them would be a large speed-up but
-  changes match semantics when `anchor_rejection` is disabled, so it was left
-  alone.
+Everything below was true when the audit was written and is now fixed. The
+remaining work is listed in `docs/architecture-audit.md` → "Still open" in the
+repository root README, and summarised here.
 
-### P2 — the HTTP layer is a second implementation
+**Fixed since the audit was written**
 
-Of 55 functions in `public/index.php`: ~10 are genuinely HTTP-only, ~20
-duplicate an existing service (rate limits ×3, export state, telemetry tail,
-`ui.json`, explorer facets), and ~25 are domain logic with no service owner
-(`coverage` 67 lines, `explore` 55, `alerts` 50, env handling ×8). Route order is
-a linear `if` chain with handler definitions interleaved, which is why the file
-cannot be included by a test: it has **zero** route coverage today.
+| Was open | Now |
+|---|---|
+| `refs.mal` could not be uniquely indexed (137 groups) | resolved; the index exists and the gate passes |
+| no stage orchestration | `pipeline:release`, used by CI and both scripts |
+| `combine` not resumable | keyset pagination, per-batch checkpoint, `--resume` |
+| `combine` never deletes | build-id sweep, scoped to the base's own key |
+| `combine` examined the other kind's sources | kind-scoped candidate sources |
+| `runShellCommand` took a command string | `ProcessRunner::run(array $argv)` |
+| 25 domain functions in the front controller | 11 services; `public/index.php` 2,316 → 1,547 lines |
+| `.git` was 91 MB | 16.3 MB after a history rewrite of all three branches |
 
-Suggested sequence (each step ends with the handler calling a service and the
-function deleted):
+**Still open**
 
-1. Route table + central guard (the guard already exists; the table prevents
-   the next unguarded route).
-2. `Service\SettingsStore` + `RateLimiter::effectiveLimits()` — this also fixes
-   the three divergent rate-limit precedence rules.
-3. `Service\EnvFile` (102 lines, self-contained).
-4. `ExportConfig::save()` + collapse the 15 `export*` functions onto the service.
-5. `Service\Backup`, `ExplorerQuery`, `Coverage`, `Stats`, `AlertEngine`,
-   `CombineRun`, `ProcessRunner`.
-6. `runShellCommand()` should take an argv array rather than a command string;
-   nothing is injectable today, but the signature advertises safety it does not
-   provide.
-
-### P3 — repo and config hygiene
-
-- **`.git` is 91 MB for a 354-file repo.** 41.7 MB is a committed `gh` binary,
-  12.7 MB its tarball, the rest repeated multi-MB log files. Only fixable by
-  history rewrite; deliberately not done here.
-- **Configuration has no schema.** `SourceConfiguration` does unguarded
-  `$config['name']` on an `include`d PHP file; `StrategyConfigurationFactory`
-  accepts arbitrary JSON and ignores unknown keys; `ExportConfig` swallows
-  malformed JSON. Every misconfiguration fails silently and far from its cause.
-- **`ConsoleFactory`** builds a second `ArgvInput`/`ConsoleOutput` detached from
-  the running Application, so `-q`/`--ansi` and test output substitution do not
-  apply to ingestion progress.
-- **`APP_DEBUG` is the only mode switch**; the `APP_ENV` values set in
-  `docker-compose.yml` and `phpunit.xml.dist` have no effect.
-
----
+1. **The manga ML holdout is too small to decide on.** 28 consensus positives
+   out of 7,347 holdout pairs. `metadata_ml` passes the anime gate (+0.0202)
+   and fails the manga one (−0.0182), and the manga length features are weak
+   signals (+0.11, +0.04) next to title containment (+0.84). This needs more
+   labelled manga pairs, not more code: `ml:export-pairs --base anilist_manga
+   --limit 2000`, and human labels through the review UI (the `_labels` store
+   has 118).
+2. **Configuration still has no schema.** `SourceConfiguration` does an
+   unguarded `$config['name']` on an `include`d PHP file;
+   `StrategyConfigurationFactory` accepts arbitrary JSON and ignores unknown
+   keys; `ExportConfig` swallows malformed JSON. A misconfiguration still fails
+   silently and far from its cause. This is the biggest remaining source of
+   "why did that run do that".
+3. **`web/dist` is 82 MB of committed build output** — the largest remaining
+   history cost, and a footgun: the served bundle can drift from `src` unless
+   it is rebuilt. Publishing it from CI instead of committing it would remove the
+   drift and most of the history.
+4. **One Dependabot alert cannot be read** without repository credentials. The
+   public advisory API is empty and `composer audit` is clean, so it is most
+   likely a GitHub Actions advisory; pinning the actions to commit SHAs would
+   close it.
+5. **Franchise-key collisions are real data, not a bug.** 93 manga documents
+   share a `mal_manga` value and 131 share a `k_manga` value, because one MAL
+   series entry covers several AniList manga. They do not fail the gate (only
+   the base's own key is primary), but they mean the same external id appears
+   on several documents — a data-modelling decision rather than a defect.
+6. **`/api/action` still uses `@exec`** for the detached ingest start. It
+   cannot use `ProcessRunner` because it must not block, and its argument is
+   already constrained to `^[a-z0-9_-]+$`; it is the last `@exec` in the
+   front controller.
+7. **`ConsoleFactory` builds a second `ArgvInput`/`ConsoleOutput`** detached
+   from the running Application, so `-q`/`--ansi` and test output substitution
+   do not apply to ingestion progress.
+8. **Housekeeping:** the `_repair_*` backup collections are still in Mongo
+   (~200k documents). They are the rollback net for the identity repair and can
+   be dropped once the result is accepted.
 
 ## 4. Not verified
 
