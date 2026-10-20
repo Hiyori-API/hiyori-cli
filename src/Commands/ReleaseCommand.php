@@ -340,7 +340,9 @@ final class ReleaseCommand extends Command
             '',
         ];
         if (is_array($previousCounts)) {
-            $now = is_array($result['counts'] ?? null) ? $result['counts'] : [];
+            // The counts live in the dump's manifest, not in the export result.
+            $manifest = json_decode((string) @file_get_contents(dirname($path) . '/manifest.json'), true);
+            $now = is_array($manifest) ? (is_array($manifest['counts'] ?? null) ? $manifest['counts'] : []) : [];
             $moved = [];
             foreach (['anime', 'manga'] as $kind) {
                 $before = (int) ($previousCounts[$kind] ?? 0);
