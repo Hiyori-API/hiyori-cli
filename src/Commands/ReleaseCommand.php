@@ -253,6 +253,23 @@ final class ReleaseCommand extends Command
             'verify' => 'php hiyori publish --verify',
             'release_dir' => basename($releaseDir),
         ];
+        // The target branch's README states the profile and the record counts.
+        // Leaving the previous one there means the published repository
+        // describes a release that is no longer current, so it is regenerated
+        // with the release.
+        $counts = is_array($manifest['counts'] ?? null) ? $manifest['counts'] : [];
+        $readme = "# HiyoriDB\n\n"
+            . "Relational dataset produced by the hiyori CLI pipeline.\n\n"
+            . '- Release: `' . $tag . "`\n"
+            . '- Profile: `' . (string) ($manifest['profile'] ?? 'per-entry-json') . "`\n"
+            . '- Anime records: ' . (int) ($counts['anime'] ?? 0) . "\n"
+            . '- Manga records: ' . (int) ($counts['manga'] ?? 0) . "\n"
+            . '- Content hash: `' . $contentHash . "`\n\n"
+            . "The dataset is published as a GitHub Release: the `*.tar.zst` archive plus the\n"
+            . "bulk mirror, the tables and the schema, with `SHA256SUMS.txt` alongside.\n"
+            . "`.hiyori-release/latest.json` points at the current release.\n";
+        @file_put_contents($releaseDir . '/README.md', $readme);
+
         $pointerDir = $releaseDir . '/.hiyori-release';
         if (!is_dir($pointerDir)) {
             mkdir($pointerDir, 0o777, true);
@@ -350,6 +367,9 @@ final class ReleaseCommand extends Command
         }
         copy($releaseDir . '/.hiyori-release/latest.json', $dest . '/latest.json');
         copy($releaseDir . '/SHA256SUMS.txt', $clone . '/SHA256SUMS.txt');
+        if (is_file($releaseDir . '/README.md')) {
+            copy($releaseDir . '/README.md', $clone . '/README.md');
+        }
 
         if ($cleanTarget) {
             foreach (['data', 'index', 'manifest.json', 'CHANGELOG.md'] as $legacy) {
