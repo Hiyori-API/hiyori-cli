@@ -126,11 +126,20 @@ final class Exporter
      *
      * @return array{dir: string, written: array<string, int>, files: int, rows: int, changelog: array{added: int, updated: int, removed: int}, changed: int}
      */
-    public function write(array $config): array
+    /**
+     * @param array<string, mixed>|null $previousManifest the manifest to diff
+     *        against; null uses the previous dump on this machine
+     */
+    public function write(array $config, ?array $previousManifest = null): array
     {
         $config = ExportConfig::resolve($config);
 
-        return $this->emit($this->fetchEntities($config), $config, null, $this->previousManifest());
+        return $this->emit(
+            $this->fetchEntities($config),
+            $config,
+            null,
+            $previousManifest ?? $this->previousManifest(),
+        );
     }
 
     // ---------------------------------------------------------------------

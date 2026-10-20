@@ -61,9 +61,17 @@ final class ReleaseCommand extends Command
         ]);
         $config = ExportConfig::withProfile($config, (string) $input->getOption('profile'));
 
+        // The repo and a preliminary tag are needed BEFORE the build, so the
+        // changelog can be diffed against the release that is currently
+        // published. The final tag is resolved after the build, because it also
+        // depends on the content hash.
+        $repo = (string) $input->getOption('repo');
+        $revision = (int) ($previous['revision'] ?? 0);
+        $preTag = $tagOption !== '' ? $tagOption : ($revision > 0 ? $calendarTag . '.' . $revision : $calendarTag);
+
         $exporter = new Exporter(new Client($_ENV['MONGODB_URL']));
         $io->writeln('Building dump…');
-        $result = $exporter->write($config);
+        $result = $exporter->write($config, $this->previousPublishedManifest($repo, $preTag));
 
         $verification = Exporter::verify($result['dir']);
         if (!$verification['ok']) {
@@ -76,7 +84,6 @@ final class ReleaseCommand extends Command
         $io->writeln(sprintf('  verify ok: %d files, %s', $verification['checked'], (string) $verification['content_hash']));
 
         $contentHash = (string) $verification['content_hash'];
-        $revision = (int) ($previous['revision'] ?? 0);
         if ($tagOption !== '') {
             $tag = $tagOption;
         } elseif ($previous !== null && ($previous['content_hash'] ?? null) === $contentHash && !$force) {
@@ -118,7 +125,6 @@ final class ReleaseCommand extends Command
             return Command::SUCCESS;
         }
 
-        $repo = (string) $input->getOption('repo');
         $notesFile = $releaseDir . '/release-notes.md';
         $message = (string) ($input->getOption('message') ?? '');
         $this->writeNotes(
@@ -307,10 +313,13 @@ final class ReleaseCommand extends Command
             return null;
         }
         $base = 'https://raw.githubusercontent.com/' . $slug . '/' . rawurlencode($branch);
+        $rawContext = stream_context_create([
+            'http' => ['header' => "User-Agent: hiyori-cli/release\r\n", 'timeout' => 20, 'ignore_errors' => true],
+        ]);
         // The pointer is where the counts live once the branch is on the release
         // scheme; the legacy tree's manifest.json is where they were before it.
         foreach (['/.hiyori-release/latest.json', '/manifest.json'] as $path) {
-            $raw = @file_get_contents($base . $path);
+            $raw = @file_get_contents($base . $path, false, $rawContext);
             if ($raw === false || $raw === '') {
                 continue;
             }
@@ -318,6 +327,63 @@ final class ReleaseCommand extends Command
             $counts = is_array($decoded) ? ($decoded['counts'] ?? null) : null;
             if (is_array($counts)) {
                 return array_map('intval', $counts);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The manifest of the release currently published on the target repo.
+     *
+     * The export's changelog diffs against the previous LOCAL dump, so a machine
+     * that has never run an export reported "+0 ~0 -0" however much had
+     * changed. The published release's manifest is the previous state, wherever
+     * the dump was built.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function previousPublishedManifest(string $repo, string $tag): ?array
+    {
+        $slug = $this->normalizeRepo($repo);
+        if (preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $slug) !== 1) {
+            return null;
+        }
+
+        $token = getenv('HIYORI_DB_TOKEN') ?: (getenv('GITHUB_TOKEN') ?: (getenv('GH_TOKEN') ?: ''));
+        // The GitHub API rejects a request with no User-Agent, so one is always
+        // sent — the fetch came back "Request forbidden by administrative rules"
+        // without it, and the changelog silently had nothing to compare against.
+        $header = "User-Agent: hiyori-cli/release\r\n"
+            . ($token !== '' ? 'Authorization: Bearer ' . $token . "\r\n" : '');
+        $context = stream_context_create([
+            'http' => ['header' => $header, 'timeout' => 20, 'ignore_errors' => true],
+        ]);
+
+        $raw = @file_get_contents('https://api.github.com/repos/' . $slug . '/releases?per_page=10', false, $context);
+        if ($raw === false || $raw === '') {
+            return null;
+        }
+        $releases = json_decode($raw, true);
+        if (!is_array($releases)) {
+            return null;
+        }
+
+        foreach ($releases as $release) {
+            if (!is_array($release) || (string) ($release['tag_name'] ?? '') === $tag) {
+                continue;
+            }
+            foreach ((array) ($release['assets'] ?? []) as $asset) {
+                if ((string) ($asset['name'] ?? '') !== 'manifest.json') {
+                    continue;
+                }
+                $body = @file_get_contents((string) ($asset['browser_download_url'] ?? ''), false, $context);
+                if ($body === false || $body === '') {
+                    continue;
+                }
+                $manifest = json_decode($body, true);
+
+                return is_array($manifest) ? $manifest : null;
             }
         }
 
