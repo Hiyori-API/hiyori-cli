@@ -147,7 +147,13 @@ final class RejectionStoreTest extends TestCase
      *
      * @return array{0: array<string, mixed>, 1: array<string, mixed>}
      */
-    private function borderlinePair(): array
+    /**
+     * Two works with no title relationship at all. The metadata matches
+     * perfectly, so the weighted score clears the threshold, but the title
+     * floor vetoes it — and a pair whose titles do not overlap is not a
+     * judgement call, so it must not land in a review queue.
+     */
+    private function unrelatedPair(): array
     {
         $entry = [
             'title' => 'Cowboy Bebop', 'synonyms' => [], 'type' => 'TV', 'episodes' => 26,
@@ -163,11 +169,31 @@ final class RejectionStoreTest extends TestCase
         return [$entry, $candidate];
     }
 
+    /**
+     * Two titles that overlap but sit just under the title floor, so the
+     * floor vetoes the pair while a human could reasonably disagree.
+     */
+    private function nearFloorPair(): array
+    {
+        $entry = [
+            'title' => 'Gakuen Tengoku', 'synonyms' => [], 'type' => 'TV', 'episodes' => 26,
+            'status' => 'finished', 'season' => 'spring', 'year' => 1998, 'tags' => ['Action'],
+            'reference_ids' => ['mal' => '1'],
+        ];
+        $candidate = [
+            'title' => 'Gakuen Tengoku 2', 'synonyms' => [], 'type' => 'TV', 'episodes' => 26,
+            'status' => 'finished', 'season' => 'spring', 'year' => 1998, 'tags' => ['Adventure'],
+            'reference_ids' => ['al' => '2'],
+        ];
+
+        return [$entry, $candidate];
+    }
+
     public function testMatchBuffersBorderlineTitleFloorRejections(): void
     {
         $store = RejectionStore::create($this->store->db(), self::COLLECTION);
         $store->ensureIndexes();
-        [$entry, $candidate] = $this->borderlinePair();
+        [$entry, $candidate] = $this->nearFloorPair();
 
         $result = MetadataFuzzyStrategy::match(
             $entry,
@@ -177,7 +203,9 @@ final class RejectionStoreTest extends TestCase
             true,
             1,
             false,
-            0.30,
+            // The pair's title similarity is ~0.89, so a floor of 0.95 rejects
+            // it while leaving it inside the band worth a human's attention.
+            0.95,
             $store,
             70.0,
             'mal',
@@ -199,9 +227,44 @@ final class RejectionStoreTest extends TestCase
         $this->assertGreaterThanOrEqual(70.0, (float) $rows[0]['score']);
     }
 
+    /**
+     * The queue only holds the pairs a human could reasonably disagree with.
+     *
+     * The buffer used to hold every title-floor rejection whose metadata score
+     * cleared the floor. For manga that score is high for any same-year,
+     * same-type pair, so 61,221 obvious non-matches went into a queue nobody
+     * could work through.
+     */
+    public function testMatchDoesNotBufferUnrelatedTitles(): void
+    {
+        $store = RejectionStore::create($this->store->db(), self::COLLECTION);
+        $store->ensureIndexes();
+        [$entry, $candidate] = $this->unrelatedPair();
+
+        $result = MetadataFuzzyStrategy::match(
+            $entry,
+            [$candidate],
+            MetadataFuzzyStrategy::DEFAULT_WEIGHTS,
+            70.0,
+            true,
+            1,
+            false,
+            0.30,
+            $store,
+            70.0,
+            'mal',
+            'al',
+        );
+
+        $this->assertNull($result['best']);
+        $this->assertSame(1, $result['rejected_title']);
+        $this->assertSame(0, $result['buffered']);
+        $this->assertCount(0, $store->list());
+    }
+
     public function testMatchWithoutBufferWritesNothing(): void
     {
-        [$entry, $candidate] = $this->borderlinePair();
+        [$entry, $candidate] = $this->unrelatedPair();
 
         $result = MetadataFuzzyStrategy::match(
             $entry,

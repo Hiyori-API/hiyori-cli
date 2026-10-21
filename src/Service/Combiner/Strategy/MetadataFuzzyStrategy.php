@@ -143,6 +143,15 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         // pairs a reviewer should check. Written to `pair_rejections`.
         $rejectionBuffer = (bool) ($strategy->getConfig('rejection_buffer') ?? false);
         $rejectionBufferFloor = (float) ($strategy->getConfig('rejection_buffer_floor') ?? $threshold);
+        // How close to the title floor a pair must be to be worth a human's
+        // time. 0.5 keeps the ones sitting just under the floor and drops the
+        // ones the title similarity already answered.
+        $rejectionBufferTitleRatio = (float) ($strategy->getConfig('rejection_buffer_title_ratio') ?? 0.5);
+        // The buffer is a bounded sample, not a queue: an unbounded dump of
+        // every title-floor rejection grew to 61,221 rows nobody could work
+        // through, and the matcher being decisive is the fix that empties it.
+        $rejectionBufferLimit = (int) ($strategy->getConfig('rejection_buffer_limit') ?? 500);
+        $bufferedRows = 0;
         $rejectionCollection = (string) ($strategy->getConfig('rejection_buffer_collection') ?? RejectionStore::COLLECTION);
         $rejectionStore = $rejectionBuffer ? RejectionStore::create($db, $rejectionCollection) : null;
         if ($rejectionStore !== null) {
@@ -239,6 +248,9 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                     $rejectionBufferFloor,
                     $baseShorthand,
                     $currentSource->getShorthand(),
+                    $rejectionBufferTitleRatio,
+                    $rejectionBufferLimit,
+                    $bufferedRows,
                 );
                 $counters['candidates_examined'] += $match['examined'];
                 $counters['rejected_anchor'] += $match['rejected_anchor'];
@@ -450,6 +462,8 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
      * @param list<array<string, mixed>> $candidates
      * @param array<string, float>       $weights
      * @param RejectionStore|null        $rejectionStore  opt-in sink for borderline rejections
+     * @param float                       $rejectionBufferTitleRatio  how close to the title floor a
+     *        rejection must be to be worth a human's time
      * @param float                       $rejectionBufferFloor  metadata score that makes a title-floor rejection "borderline"
      * @param string                      $baseShorthand     base source shorthand (for the buffer pair key)
      * @param string                      $candidateShorthand candidate source shorthand (for the buffer pair key)
@@ -468,7 +482,10 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
         ?RejectionStore $rejectionStore = null,
         float $rejectionBufferFloor = 0.0,
         string $baseShorthand = '',
-        string $candidateShorthand = ''
+        string $candidateShorthand = '',
+        float $rejectionBufferTitleRatio = 0.5,
+        int $rejectionBufferLimit = 500,
+        int &$rejectionBuffered = 0
     ): array {
         $bestScore = 0.0;
         $bestMatch = null;
@@ -489,8 +506,25 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
                 // the floor is a borderline false-negative — the pairs a reviewer
                 // most needs to see. Only scored when the buffer is enabled.
                 if ($rejectionStore !== null && $rejectionBufferFloor > 0.0) {
+                    // Only the pairs that are genuinely BORDERLINE belong in a
+                    // review queue. The buffer used to hold every title-floor
+                    // rejection whose METADATA score cleared the floor, and for
+                    // manga that score is high for any same-year, same-type
+                    // pair — so 61,221 of them were obvious non-matches
+                    // (year, type and status match trivially) that no human
+                    // would ever read. A pair whose title similarity is near
+                    // zero is not a judgement call; a pair sitting just under
+                    // the floor is.
+                    $similarity = self::titleSimilarityOf($entry, $candidateArray);
+                    if ($similarity < $titleFloor * $rejectionBufferTitleRatio) {
+                        continue;
+                    }
+                    if ($rejectionBufferLimit > 0 && $rejectionBuffered >= $rejectionBufferLimit) {
+                        continue;
+                    }
                     $score = self::calculateScore($entry, $candidateArray, $weights);
                     if ($score >= $rejectionBufferFloor) {
+                        ++$rejectionBuffered;
                         $rejectionStore->upsert([
                             'base_source' => $baseShorthand,
                             'base_id' => Helper::resolveReferenceId($entry, $baseShorthand),
@@ -509,6 +543,17 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             }
 
             $score = self::calculateScore($entry, $candidateArray, $weights);
+            // An exact normalised title match that survived the anchor veto is
+            // the same work: the title is the identity and the metadata score
+            // is only corroboration. Manga sources often lack chapters or
+            // volumes, which left 18 otherwise-obvious pairs below the 70
+            // threshold on metadata alone. The anchor veto (type family, year)
+            // still runs, so this never merges different work kinds or works
+            // published years apart.
+            $similarity = self::titleSimilarityOf($entry, $candidateArray);
+            if ($similarity >= 1.0) {
+                $score = max($score, $threshold);
+            }
             if ($score > $bestScore && $score >= $threshold) {
                 $bestScore = $score;
                 $bestMatch = $candidateArray;
@@ -543,14 +588,20 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             return false;
         }
 
-        $similarity = self::titleSimilarity(
+        return self::titleSimilarityOf($entry, $candidate) < $titleFloor;
+    }
+
+    /**
+     * The title similarity of an entry and a candidate.
+     */
+    public static function titleSimilarityOf(array $entry, array $candidate): float
+    {
+        return self::titleSimilarity(
             (string) ($entry['title'] ?? ''),
             (string) ($candidate['title'] ?? ''),
             (array) ($entry['synonyms'] ?? []),
             (array) ($candidate['synonyms'] ?? []),
         );
-
-        return $similarity < $titleFloor;
     }
 
     /**
@@ -914,7 +965,17 @@ final class MetadataFuzzyStrategy extends CombinerStrategy
             }
         }
 
-        // Token-set Jaccard
+        // Token-set Jaccard.
+        //
+        // It is handed the separator-stripped titles, so each arrives as a
+        // single token and the overlap is 0 unless the titles are identical.
+        // That is deliberate: the title floor's operating point was calibrated
+        // against it (0.30, with only an exact match, a synonym overlap or a
+        // whole-phrase containment able to clear it), and reviving the
+        // partial-overlap branch at the same floor merges distinct works that
+        // share a prefix — "Passthrough Flow Match" against "Passthrough Flow
+        // Lonely One" scores 0.400. It is a separate change, to be
+        // re-calibrated with `hiyori weightage` and re-benchmarked.
         return self::tokenJaccard($t1, $t2);
     }
 

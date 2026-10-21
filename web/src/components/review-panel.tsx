@@ -98,7 +98,7 @@ export function ReviewPanel() {
             tone: 'ok',
           },
           {
-            label: 'Rejected',
+            label: 'Auto-rejected',
             value: String(stats?.by_decision?.reject ?? 0),
             icon: X,
             tone: 'bad',
@@ -107,18 +107,20 @@ export function ReviewPanel() {
       />
 
       <p className="mt-2 text-xs text-muted-foreground">
-        The matcher turned these pairs down — usually the titles were too far apart for its floor.
-        Agreeing with one records it in the training labels, where the pair becomes a
-        positive; disagreeing leaves the pair rejected.
+        These are the pairs the matcher turned down that sit just under its title floor — the
+        only ones where a human could reasonably disagree with it. Agreeing with one records it
+        in the training labels, where the pair becomes a positive; disagreeing leaves it
+        rejected.
       </p>
 
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
 
       {rows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Nothing is waiting for a decision. A combine run with{' '}
-          <code className="mx-1">--rejection-buffer</code> fills this with the pairs the matcher could not
-          decide on its own.
+          Nothing is waiting for a decision, and that is the point: the matcher decides by title
+          now, so a pair whose titles do not overlap is not a judgement call and is not
+          buffered. Only a pair sitting just under the title floor is — run a combine with{' '}
+          <code className="mx-1">--rejection-buffer</code> to fill it.
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-border">

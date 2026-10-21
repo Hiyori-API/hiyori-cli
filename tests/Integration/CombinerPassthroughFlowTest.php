@@ -178,15 +178,21 @@ final class CombinerPassthroughFlowTest extends TestCase
      * the title floor vetoes. Those are the pairs a reviewer most needs, and
      * with no store passed nothing is written.
      */
-    public function testRejectionBufferCapturesBorderlineTitleFloorRejections(): void
+    /**
+     * A pair with NO title overlap is not a judgement call.
+     *
+     * The buffer used to hold every title-floor rejection whose metadata score
+     * cleared the floor, and for manga that score is high for any same-year,
+     * same-type pair — so 61,221 obvious non-matches went into a review queue
+     * nobody could work through. Only the pairs near the floor belong there.
+     */
+    public function testUnrelatedTitlesAreNotBuffered(): void
     {
         self::$client->hiyori->selectCollection(self::BASE)->drop();
         self::$client->hiyori->selectCollection(self::CANDIDATE)->drop();
         self::$client->hiyori->selectCollection(self::OUT)->drop();
         self::$client->hiyori->selectCollection(self::REJECTIONS)->drop();
 
-        // Same metadata, unrelated titles -> title floor vetoes, metadata score
-        // is ~72 (well above the 70 buffer floor).
         self::$client->hiyori->selectCollection(self::CANDIDATE)->insertOne(
             self::entry('900200', 'Totally Unrelated Borderline Title', ['reference_ids' => ['k' => '900200']]),
         );
@@ -204,6 +210,46 @@ final class CombinerPassthroughFlowTest extends TestCase
                     'rejection_buffer' => true,
                     'rejection_buffer_floor' => 70.0,
                     'rejection_buffer_collection' => self::REJECTIONS,
+                ]),
+            self::sourceFactory(),
+        );
+
+        $rejections = self::$client->hiyori->selectCollection(self::REJECTIONS)
+            ->find([], ['typeMap' => ['root' => 'array', 'document' => 'array']])
+            ->toArray();
+
+        $this->assertCount(0, $rejections, 'a pair with no title overlap is not worth a human');
+    }
+
+    public function testRejectionBufferCapturesBorderlineTitleFloorRejections(): void
+    {
+        self::$client->hiyori->selectCollection(self::BASE)->drop();
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->drop();
+        self::$client->hiyori->selectCollection(self::OUT)->drop();
+        self::$client->hiyori->selectCollection(self::REJECTIONS)->drop();
+
+        // Titles that overlap (similarity ~0.89) but sit just under a raised
+        // title floor -> the floor vetoes it, the metadata score is ~72 (well
+        // above the 70 buffer floor), and the pair is genuinely borderline, so
+        // it belongs in a review queue.
+        self::$client->hiyori->selectCollection(self::CANDIDATE)->insertOne(
+            self::entry('900200', 'Gakuen Tengoku 2', ['reference_ids' => ['k' => '900200']]),
+        );
+        self::$client->hiyori->selectCollection(self::BASE)->insertOne(
+            self::entry('900201', 'Gakuen Tengoku', ['reference_ids' => ['al' => '900201']]),
+        );
+
+        MetadataFuzzyStrategy::process(
+            self::$db,
+            ConsoleFactory::create(),
+            StrategyConfigurationFactory::create()
+                ->setStrategy(MetadataFuzzyStrategy::NAME)
+                ->setConfig([
+                    'collection' => self::OUT,
+                    'rejection_buffer' => true,
+                    'rejection_buffer_floor' => 70.0,
+                    'rejection_buffer_collection' => self::REJECTIONS,
+                    'title_floor' => 0.95,
                 ]),
             self::sourceFactory(),
         );

@@ -173,6 +173,14 @@ class Database
                     ->setSerializeNull(true),
             );
 
+        // The title's comparable key. The model does not serialize it (JMS
+        // reads the properties, and the key is derived), so it is attached here
+        // so the combined document carries the same key as the source
+        // collections that migration v6 backfilled.
+        if (! isset($entry['title_norm']) || $entry['title_norm'] === '') {
+            $entry['title_norm'] = \Hiyori\Helper::normalizeTitleKey((string) ($entry['title'] ?? ''));
+        }
+
         if ($extra !== []) {
             $entry = array_merge($entry, $extra);
         }

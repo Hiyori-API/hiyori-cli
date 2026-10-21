@@ -50,6 +50,8 @@ final class StrategyConfigKeys
         'passthrough',
         'rejection_buffer',
         'rejection_buffer_floor',
+        'rejection_buffer_limit',
+        'rejection_buffer_title_ratio',
         'resume',
         'same_kind_candidates',
         'sweep',
