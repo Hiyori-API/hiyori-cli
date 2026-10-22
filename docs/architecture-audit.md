@@ -317,17 +317,21 @@ five strategies, merge-only so the numbers stay comparable with the old table.
 
 | strategy | docs | wall | entries/s | dup `al_manga` | dup `mal_manga` | dup `hiyori_id` | has `k_manga` | has `mal_manga` |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `metadata_fuzzy` | 5,498 | 19 m 34 s | **24.56** | 0 | 33 | 71 \* | 4,012 | 1,486 |
+| `metadata_fuzzy` | 14,225 | — | — | 0 | 0 | 0 | 13,808 | 410 |
+| `metadata_fuzzy` (pre-fix, 2026-10-16) | 5,498 | 19 m 34 s | **24.56** | 0 | 33 | 71 \* | 4,012 | 1,486 |
 | `fellegi_sunter` | 5,433 | 19 m 54 s | **24.14** | 0 | 31 | 65 \* | 3,955 | 1,478 |
 | `graph_merge` | 5,501 | 33 m 01 s | 14.55 | 0 | **82** | **82** | 4,029 | **3,217** |
 | `relational_fuzzy` | **0** | 33 s | — | 0 | 0 | 0 | 0 | 0 |
 | `relational_mapping` | **14,233** | ~60 m | — | **0** | **0** | **0** | **11,975** | 2,258 |
 
-\* Measured before the allocator fix described below, which is what produced
-those duplicates: the counts are the bug, not the strategy. A re-run of
-`metadata_fuzzy` with the fixed allocator produced 5,498 documents with **zero**
-duplicate `hiyori_id`s and zero duplicate `al_manga`s, and the two manga that
-had shared k_manga 119 now hold 105423 and 108911.
+\* The 2026-10-16 row was measured before the allocator fix and before the
+title-first retrieval fix. The current row (14,225) is the post-fix run:
+title-first candidate retrieval + exact-title short-circuit, 100 % coverage,
+0 duplicate identity keys after `combine:dedupe`. `k_manga` 13,808 is the
+number of merged docs that picked up a kitsu link; `mal_manga` 410 is the
+number of *unique* mal_manga values retained after dedupe (the combine
+linked ~10,400 bases to a mal twin, but each mal_manga value belongs to
+one document).
 
 Four things this says:
 
@@ -411,10 +415,20 @@ repository root README, and summarised here.
    The remaining input is HUMAN labels: the pair-level F1 against `organized`
    is a biased proxy, because the ground truth records only the winning
    candidate per base row, so the threshold curve mostly measures how many
-   candidates the scorer proposes rather than how many are wrong. The review
-   queue is back (see below) and a combine run with `--rejection-buffer` fills
-   it with the "metadata says yes, the title says no" pairs a human is actually
-   useful for.
+   candidates the scorer proposes rather than how many are wrong.
+
+   **The manga merging defect is fixed (2026-10-22).** The candidate lookup
+   used to filter on `{type, status, year}` and take the first hundred rows in
+   natural order — an arbitrary slice of the pool of same-year, same-type
+   documents. Anime merged 77 % of what was available; manga merged 19 % of the
+   56 % that had an exact-title twin, because the counterpart was almost never
+   in the slice. Looking the title up directly (a `title_norm` key, indexed)
+   took the merge rate to 49.4 % (14,225 of 28,819) — essentially at ceiling,
+   since 86.9 % of the remaining single-source rows have no title twin in any
+   other source. The review queue is consequently no longer a work queue: the
+   matcher decides by title, so a pair whose titles do not overlap is not a
+   judgement call and is not buffered. `--rejection-buffer` is now a bounded
+   (500-row) diagnostic sample, and the Explorer panel says so.
 2. **`web/dist` is 82 MB of committed build output** — the largest remaining
    history cost, and a footgun: the served bundle can drift from `src` unless
    it is rebuilt. Publishing it from CI instead of committing it would remove the
@@ -423,11 +437,10 @@ repository root README, and summarised here.
    public advisory API is empty and `composer audit` is clean, so it is most
    likely a GitHub Actions advisory; pinning the actions to commit SHAs would
    close it.
-4. **Franchise-key collisions are real data, not a bug.** 93 manga documents
-   share a `mal_manga` value and 131 share a `k_manga` value, because one MAL
-   series entry covers several AniList manga. They do not fail the gate (only
-   the base's own key is primary), but they mean the same external id appears
-   on several documents — a data-modelling decision rather than a defect.
+4. **Franchise-key collisions are real data, not a bug.** `k`/`k_manga`
+   (franchise keys) are legitimately claimed by several documents; only the
+   base's own key (`al`/`al_manga`/`mal`/`mal_manga`) must be unique, and
+   `combine:dedupe` enforces that. The release gate (`combine:dupes`) passes.
 5. **`/api/action` still uses `@exec`** for the detached ingest start. It
    cannot use `ProcessRunner` because it must not block, and its argument is
    already constrained to `^[a-z0-9_-]+$`; it is the last `@exec` in the
